@@ -17,7 +17,7 @@ export default function Contact() {
 
             <div className="space-y-8">
               {[
-                { icon: Mail, label: 'Correspondence', values: ['jyoshimanohar@icai.org', 'info@makeeazy.in'] },
+                { icon: Mail, label: 'Correspondence', values: ['contact@jyoshimanohar.com'] },
                 { icon: Phone, label: 'Direct Line', value: '+91 9492377780' },
                 { icon: MapPin, label: 'Presence', value: 'Hyderabad, TG' }
               ].map((item, idx) => (
