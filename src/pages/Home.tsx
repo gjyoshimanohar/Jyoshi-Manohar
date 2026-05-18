@@ -4,11 +4,32 @@ import Hero from '../components/Hero';
 import Services from '../components/Services';
 import Contact from '../components/Contact';
 import BlogCard from '../components/BlogCard';
-import { blogPosts } from '../data';
-import { ArrowRight, Award, Quote } from 'lucide-react';
+import { blogPosts as staticPosts } from '../data';
+import { blogService } from '../services/blogService';
+import { BlogPost as IBlogPost } from '../types';
+import { ArrowRight, Award, Quote, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Home() {
+  const [recentPosts, setRecentPosts] = React.useState<IBlogPost[]>(staticPosts.slice(0, 3));
+  const [loadingPosts, setLoadingPosts] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchRecentPosts() {
+      try {
+        const fetchedPosts = await blogService.getAllPosts();
+        if (fetchedPosts.length > 0) {
+          setRecentPosts(fetchedPosts.slice(0, 3));
+        }
+      } catch (error) {
+        console.error("Failed to fetch posts for home", error);
+      } finally {
+        setLoadingPosts(false);
+      }
+    }
+    fetchRecentPosts();
+  }, []);
+
   return (
     <main>
       <Hero />
@@ -102,9 +123,15 @@ export default function Home() {
           </div>
 
           <div className="border-t border-border">
-            {blogPosts.slice(0, 3).map((post, index) => (
-              <BlogCard key={post.id} post={post} index={index} />
-            ))}
+            {loadingPosts && recentPosts === staticPosts.slice(0, 3) ? (
+              <div className="py-20 flex justify-center">
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              </div>
+            ) : (
+              recentPosts.map((post, index) => (
+                <BlogCard key={post.id} post={post} index={index} />
+              ))
+            )}
           </div>
         </div>
       </section>
