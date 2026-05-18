@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import * as Icons from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { services } from '../data';
 
 const cardStyles = [
@@ -34,20 +35,24 @@ export default function Services() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1, duration: 0.5 }}
-                className={`p-8 lg:p-10 rounded-[2rem] ${bgClass} transition-shadow duration-300 hover:shadow-xl`}
               >
-                {IconComponent && (
-                  <IconComponent 
-                    className="h-14 w-14 text-[#FF6B4A] mb-8" 
-                    strokeWidth={1.2} 
-                  />
-                )}
-                <h3 className="text-[1.35rem] font-semibold tracking-tight text-slate-800 mb-4">
-                  {service.title}
-                </h3>
-                <p className="text-slate-600 text-[15px] leading-relaxed">
-                  {service.description}
-                </p>
+                <Link
+                  to={`/services/${service.id}`}
+                  className={`block p-8 lg:p-10 rounded-[2rem] h-full ${bgClass} transition-shadow duration-300 hover:shadow-xl`}
+                >
+                  {IconComponent && (
+                    <IconComponent 
+                      className="h-14 w-14 text-[#FF6B4A] mb-8" 
+                      strokeWidth={1.2} 
+                    />
+                  )}
+                  <h3 className="text-[1.35rem] font-semibold tracking-tight text-slate-800 mb-4">
+                    {service.title}
+                  </h3>
+                  <p className="text-slate-600 text-[15px] leading-relaxed">
+                    {service.description}
+                  </p>
+                </Link>
               </motion.div>
             );
           })}

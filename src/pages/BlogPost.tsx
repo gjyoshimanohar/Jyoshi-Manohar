@@ -57,7 +57,7 @@ export default function BlogPost() {
           </p>
           <Link 
             to="/blog" 
-            className="inline-flex items-center space-x-3 bg-primary text-white px-8 py-4 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all"
+            className="inline-flex items-center space-x-3 bg-primary text-white px-8 py-4 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Return to Ledger</span>
@@ -147,7 +147,7 @@ export default function BlogPost() {
               </div>
             </div>
             <div className="text-left md:text-right">
-              <Link to="/#contact" className="inline-flex items-center bg-primary text-white px-10 py-5 text-xs font-black uppercase tracking-widest hover:bg-secondary transition-all">
+              <Link to="/#contact" className="inline-flex items-center bg-primary text-white px-10 py-5 text-xs font-black uppercase tracking-widest hover:bg-secondary transition-all rounded-md">
                 Schedule Advice
               </Link>
             </div>

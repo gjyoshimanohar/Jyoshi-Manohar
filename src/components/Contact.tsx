@@ -1,7 +1,29 @@
-import { motion } from 'motion/react';
-import { Mail, Phone, MapPin, Send } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Mail, Phone, MapPin, Send, ChevronDown, Check } from 'lucide-react';
 
 export default function Contact() {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedInterest, setSelectedInterest] = useState('Tax Planning');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const interests = [
+    'Tax Planning',
+    'Internal Audit',
+    'Corporate Advisory',
+    'Compliance Services'
+  ];
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <section id="contact" className="bg-white border-t border-border">
       <div className="max-w-7xl mx-auto border-x border-border">
@@ -69,12 +91,49 @@ export default function Contact() {
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Area of Interest</label>
-                <select className="w-full px-0 py-4 border-b border-slate-200 text-lg font-bold text-primary focus:outline-none focus:border-secondary transition-all bg-transparent appearance-none cursor-pointer">
-                  <option>Tax Planning</option>
-                  <option>Internal Audit</option>
-                  <option>Corporate Advisory</option>
-                  <option>Private Wealth</option>
-                </select>
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="w-full px-0 py-4 border-b border-slate-200 text-lg font-bold text-primary focus:outline-none focus:border-secondary transition-all bg-transparent flex items-center justify-between group"
+                  >
+                    <span>{selectedInterest}</span>
+                    <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {isDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden"
+                      >
+                        <div className="py-2">
+                          {interests.map((interest) => (
+                            <button
+                              key={interest}
+                              type="button"
+                              onClick={() => {
+                                setSelectedInterest(interest);
+                                setIsDropdownOpen(false);
+                              }}
+                              className={`w-full px-6 py-4 text-left flex items-center justify-between hover:bg-slate-50 transition-colors ${
+                                selectedInterest === interest ? 'text-primary bg-slate-50/50' : 'text-slate-600'
+                              }`}
+                            >
+                              <span className="text-base font-semibold">{interest}</span>
+                              {selectedInterest === interest && (
+                                <Check className="h-5 w-5 text-secondary" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Requirement Brief</label>
@@ -86,7 +145,7 @@ export default function Contact() {
               </div>
               <button
                 type="button"
-                className="w-full bg-primary text-white py-6 text-sm font-black uppercase tracking-widest hover:bg-secondary transition-all flex items-center justify-center space-x-3 group"
+                className="w-full bg-primary text-white py-6 text-sm font-black uppercase tracking-widest hover:bg-secondary transition-all flex items-center justify-center space-x-3 group rounded-md"
               >
                 <span>Initiate Consultation</span>
                 <Send className="h-4 w-4 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />

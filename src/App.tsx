@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import BlogList from './pages/BlogList';
 import BlogPost from './pages/BlogPost';
 import Admin from './pages/Admin';
+import UnderConstruction from './pages/UnderConstruction';
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/blog" element={<BlogList />} />
               <Route path="/blog/:slug" element={<BlogPost />} />
+              <Route path="/services/:id" element={<UnderConstruction />} />
               <Route path="/admin" element={<Admin />} />
             </Routes>
           )}

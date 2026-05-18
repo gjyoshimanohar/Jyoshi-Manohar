@@ -27,9 +27,9 @@ export const services: Service[] = [
   },
   {
     id: '5',
-    title: 'Wealth Management',
-    description: 'Personalized financial planning and investment strategies to build and preserve long-term wealth for your family.',
-    iconName: 'TrendingUp'
+    title: 'Compliance Services',
+    description: 'Expert guidance on corporate compliance, regulatory filings, and statutory requirements for seamless operations.',
+    iconName: 'ClipboardCheck'
   }
 ];
 

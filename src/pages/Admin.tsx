@@ -219,7 +219,7 @@ export default function Admin() {
             </div>
             <button
               type="submit"
-              className="w-full bg-primary text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-secondary transition-colors flex items-center justify-center space-x-3 mt-4"
+              className="w-full bg-primary text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-secondary transition-colors flex items-center justify-center space-x-3 mt-4 rounded-md"
             >
               <span>Sign In</span>
             </button>
@@ -268,7 +268,7 @@ export default function Admin() {
             )}
             <button
               onClick={() => setEditingPost({})}
-              className="flex items-center space-x-2 bg-primary text-white px-6 py-3 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all"
+              className="flex items-center space-x-2 bg-primary text-white px-6 py-3 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
             >
               <Plus className="h-4 w-4" />
               <span>New Post</span>
@@ -395,7 +395,7 @@ export default function Admin() {
               <div className="pt-4">
                 <button
                   type="submit"
-                  className="bg-primary text-white px-12 py-5 font-black uppercase tracking-[0.2em] hover:bg-secondary transition-all flex items-center space-x-3"
+                  className="bg-primary text-white px-12 py-5 font-black uppercase tracking-[0.2em] hover:bg-secondary transition-all flex items-center space-x-3 rounded-md"
                 >
                   <Save className="h-5 w-5" />
                   <span>Publish to Website</span>

@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Menu, X, Scale } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { services } from '../data';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
 
   const navItems = [
     { name: 'Home', path: '/' },
@@ -35,7 +37,32 @@ export default function Navbar() {
               // Determine if we should use an anchor tag or Link based on if it's a hash link
               const isHash = item.path.includes('#');
               const isExternal = item.path.startsWith('http');
-              const linkClasses = "text-[11px] font-bold uppercase tracking-[0.2em] transition-colors text-slate-500 hover:text-secondary";
+              const linkClasses = "text-[11px] font-bold uppercase tracking-[0.2em] transition-colors text-slate-500 hover:text-secondary focus:outline-none";
+
+              if (item.name === 'Services') {
+                return (
+                  <div key={item.name} className="relative group">
+                    <a href={item.path} className={linkClasses + " flex items-center gap-1.5 py-4"}>
+                      {item.name}
+                      <ChevronDown className="h-3 w-3 group-hover:rotate-180 transition-transform duration-300" />
+                    </a>
+                    
+                    <div className="absolute top-12 left-0 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-left scale-95 group-hover:scale-100 pt-2">
+                      <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden py-2 relative before:content-[''] before:absolute before:-top-4 before:left-0 before:w-full before:h-4">
+                        {services.map((service) => (
+                          <Link 
+                            key={service.id} 
+                            to={`/services/${service.id}`} 
+                            className="block px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-primary transition-colors"
+                          >
+                            {service.title}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
               if (isExternal) {
                 return (
@@ -71,7 +98,7 @@ export default function Navbar() {
             })}
             <Link
               to="/#contact"
-              className="bg-primary text-white px-8 py-3 text-[11px] font-bold uppercase tracking-widest hover:bg-secondary transition-all"
+              className="bg-primary text-white px-8 py-3 text-[11px] font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-md"
             >
               Get Started
             </Link>
@@ -100,8 +127,45 @@ export default function Navbar() {
               {navItems.map((item) => {
                 const isHash = item.path.includes('#');
                 const isExternal = item.path.startsWith('http');
-                const linkClasses = "block px-3 py-4 text-base font-medium text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors";
+                const linkClasses = "flex items-center justify-between w-full px-3 py-4 text-base font-medium text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors";
                 
+                if (item.name === 'Services') {
+                  return (
+                    <div key={item.name} className="flex flex-col">
+                      <button 
+                        onClick={() => setMobileServicesOpen(!mobileServicesOpen)}
+                        className={linkClasses}
+                      >
+                        <span>{item.name}</span>
+                        <ChevronDown className={`h-5 w-5 transition-transform duration-300 ${mobileServicesOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {mobileServicesOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="bg-slate-50/50 rounded-lg ml-4 mr-2 overflow-hidden mt-1"
+                          >
+                            <div className="py-2 space-y-1">
+                              {services.map((service) => (
+                                <Link 
+                                  key={service.id} 
+                                  to={`/services/${service.id}`} 
+                                  onClick={() => setIsOpen(false)}
+                                  className="block w-full px-4 py-3 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+                                >
+                                  {service.title}
+                                </Link>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                }
+
                 if (isExternal) {
                   return (
                     <a

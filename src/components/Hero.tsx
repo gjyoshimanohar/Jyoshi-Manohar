@@ -23,16 +23,16 @@ export default function Hero() {
                 Supporting every business and individual with trusted advisory, tax planning, and audit assurance services — no matter where you are in your journey.
               </p>
               
-              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-1 outline-none">
+              <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 outline-none">
                 <a
                   href="#contact"
-                  className="inline-flex items-center justify-center bg-primary text-white px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-secondary transition-all"
+                  className="inline-flex items-center justify-center bg-primary text-white px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-md"
                 >
                   Book Consultation
                 </a>
                 <a
                   href="#services"
-                  className="inline-flex items-center justify-center bg-transparent text-primary border border-slate-200 px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-white transition-all"
+                  className="inline-flex items-center justify-center bg-transparent text-primary border border-slate-200 px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-white transition-all rounded-md"
                 >
                   Explore Services
                 </a>
