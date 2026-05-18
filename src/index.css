@@ -45,4 +45,10 @@
   .markdown-body strong {
     color: #00205B !important;
   }
+
+  .ql-editor {
+    min-height: 400px;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+  }
 }

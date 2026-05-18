@@ -14,6 +14,9 @@ import { Plus, Trash2, LogOut, ChevronRight, Save, X, Database, Image as ImageIc
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +72,7 @@ export default function Admin() {
       const snapshot = await uploadBytes(storageRef, file);
       const url = await getDownloadURL(snapshot.ref);
 
-      const imageMarkdown = `\n![${file.name}](${url})\n`;
+      const imageMarkdown = `\n<img src="${url}" alt="${file.name}" style="max-width: 100%; height: auto;" />\n`;
       setEditingPost((prev) => ({
         ...prev,
         content: (prev?.content || '') + imageMarkdown
@@ -310,7 +313,7 @@ export default function Admin() {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Content (Markdown)</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Content</label>
                   <div>
                     <input 
                       type="file" 
@@ -325,21 +328,31 @@ export default function Admin() {
                       className={`flex items-center space-x-2 text-xs font-bold uppercase tracking-widest cursor-pointer hover:text-primary transition-colors ${uploadingImage ? 'text-primary' : 'text-slate-400'}`}
                     >
                       {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                      <span>{uploadingImage ? 'Uploading...' : 'Upload Image'}</span>
+                      <span>{uploadingImage ? 'Uploading...' : 'Upload Image (Appends to end)'}</span>
                     </label>
                   </div>
                 </div>
                 <div className="mb-2 text-xs text-slate-500 bg-slate-50 p-3 rounded border border-slate-100">
-                  <strong>To embed a YouTube video:</strong> Paste this code and replace the URL: <br/>
-                  <code className="bg-slate-200 px-1 py-0.5 rounded text-primary select-all break-all">&lt;iframe width="100%" height="400" src="https://www.youtube.com/embed/YOUR_VIDEO_ID" frameBorder="0" allowFullScreen&gt;&lt;/iframe&gt;</code>
+                  <strong>Rich Text Editor:</strong> You can embed images or videos directly using the toolbar buttons. <br/>
+                  If you upload an image via the "Upload Image" button above, it will be uploaded to your Firebase Storage and its URL will be appended as an `&lt;img&gt;` tag at the end of the post.
                 </div>
-                <textarea
-                  required
-                  value={editingPost.content || ''}
-                  onChange={e => setEditingPost({...editingPost, content: e.target.value})}
-                  className="w-full bg-accent border-none p-6 font-mono text-sm leading-relaxed text-primary focus:ring-2 focus:ring-primary outline-none min-h-[400px]"
-                  placeholder="# Use markdown for headings, tables, and lists..."
-                />
+                <div className="bg-white ql-editor-container">
+                  <ReactQuill 
+                    theme="snow"
+                    value={editingPost.content || ''}
+                    onChange={(val: string) => setEditingPost({...editingPost, content: val})}
+                    modules={{
+                      toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike', 'blockquote'],
+                        [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
+                        ['link', 'image', 'video'],
+                        ['clean']
+                      ],
+                    }}
+                    className="h-[400px] mb-12"
+                  />
+                </div>
               </div>
               <div className="pt-4">
                 <button
