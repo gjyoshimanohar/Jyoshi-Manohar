@@ -91,12 +91,14 @@ export default function Home() {
         <div className="max-w-7xl mx-auto border-x border-border p-12 lg:p-20">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-8">
             <h2 className="text-5xl lg:text-7xl font-black text-primary leading-none tracking-tighter uppercase">Insights.</h2>
-            <Link 
-              to="/blog" 
+            <a 
+              href="https://blogs.jyoshimanohar.com" 
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary border-b-2 border-secondary pb-1 hover:text-primary hover:border-primary transition-all"
             >
               View All Analysis
-            </Link>
+            </a>
           </div>
 
           <div className="border-t border-border">

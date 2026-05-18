@@ -10,7 +10,7 @@ export default function Navbar() {
   const navItems = [
     { name: 'Home', path: '/' },
     { name: 'Services', path: '/#services' },
-    { name: 'Blog', path: '/blog' },
+    { name: 'Blog', path: 'https://blogs.jyoshimanohar.com' },
     { name: 'About', path: '/#about' },
     { name: 'Contact', path: '/#contact' },
   ];
@@ -34,7 +34,16 @@ export default function Navbar() {
             {navItems.map((item) => {
               // Determine if we should use an anchor tag or Link based on if it's a hash link
               const isHash = item.path.includes('#');
+              const isExternal = item.path.startsWith('http');
               const linkClasses = "text-[11px] font-bold uppercase tracking-[0.2em] transition-colors text-slate-500 hover:text-secondary";
+
+              if (isExternal) {
+                return (
+                  <a key={item.name} href={item.path} target="_blank" rel="noopener noreferrer" className={linkClasses}>
+                    {item.name}
+                  </a>
+                );
+              }
 
               if (isHash) {
                 return (
@@ -90,8 +99,24 @@ export default function Navbar() {
             <div className="px-4 pt-2 pb-6 space-y-1">
               {navItems.map((item) => {
                 const isHash = item.path.includes('#');
+                const isExternal = item.path.startsWith('http');
                 const linkClasses = "block px-3 py-4 text-base font-medium text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors";
                 
+                if (isExternal) {
+                  return (
+                    <a
+                      key={item.name}
+                      href={item.path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setIsOpen(false)}
+                      className={linkClasses}
+                    >
+                      {item.name}
+                    </a>
+                  );
+                }
+
                 if (isHash) {
                   return (
                     <a

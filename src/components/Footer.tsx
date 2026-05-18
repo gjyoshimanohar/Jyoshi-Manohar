@@ -31,7 +31,7 @@ export default function Footer() {
             <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest">
               <li><Link to="/" className="hover:text-secondary transition-colors">Overview</Link></li>
               <li><Link to="/#services" className="hover:text-secondary transition-colors">Expertise</Link></li>
-              <li><Link to="/blog" className="hover:text-secondary transition-colors">Analysis</Link></li>
+              <li><a href="https://blogs.jyoshimanohar.com" target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors">Analysis</a></li>
               <li><Link to="/#about" className="hover:text-secondary transition-colors">About</Link></li>
               <li><Link to="/admin" className="hover:text-secondary transition-colors">Management</Link></li>
               <li><a href="https://makeeazy.in/" target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors">makeeazy</a></li>

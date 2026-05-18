@@ -18,7 +18,7 @@ export default function BlogCard({ post, index }: BlogCardProps) {
       whileHover={{ scale: 1.01, y: -2 }}
       className="group border-b border-border last:border-0 hover:bg-white hover:shadow-xl transition-all relative z-0 hover:z-10"
     >
-      <Link to={`/blog/${post.slug}`} className="block py-10 px-6 transition-colors">
+      <a href={`https://blogs.jyoshimanohar.com/${post.slug}`} target="_blank" rel="noopener noreferrer" className="block py-10 px-6 transition-colors">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="max-w-2xl">
             <div className="flex items-center space-x-3 mb-4">
@@ -39,7 +39,7 @@ export default function BlogCard({ post, index }: BlogCardProps) {
             <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
-      </Link>
+      </a>
     </motion.div>
   );
 }
