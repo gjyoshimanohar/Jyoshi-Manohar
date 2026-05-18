@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
-  signInWithPopup, 
-  GoogleAuthProvider, 
+  signInWithEmailAndPassword, 
   onAuthStateChanged, 
   signOut,
   User 
@@ -19,6 +18,8 @@ export default function Admin() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [editingPost, setEditingPost] = useState<Partial<BlogPost> | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -43,12 +44,13 @@ export default function Admin() {
     setPosts(fetchedPosts);
   };
 
-  const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
       console.error("Login failed", error);
+      alert(error.message || "Login failed");
     }
   };
 
@@ -125,12 +127,36 @@ export default function Admin() {
             <h1 className="text-4xl font-black text-primary mb-2 uppercase">Admin Portal</h1>
             <p className="text-slate-500 font-medium">Please sign in to manage your blogs</p>
           </div>
-          <button
-            onClick={handleLogin}
-            className="w-full bg-primary text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-secondary transition-colors flex items-center justify-center space-x-3"
-          >
-            <span>Sign in with Google</span>
-          </button>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-accent border-none p-4 font-bold text-primary focus:ring-2 focus:ring-primary outline-none"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+            <div className="mb-6">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-accent border-none p-4 font-bold text-primary focus:ring-2 focus:ring-primary outline-none"
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-primary text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-secondary transition-colors flex items-center justify-center space-x-3 mt-4"
+            >
+              <span>Sign In</span>
+            </button>
+          </form>
         </motion.div>
       </div>
     );
