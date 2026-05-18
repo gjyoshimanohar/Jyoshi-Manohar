@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
-  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
   onAuthStateChanged, 
   signOut,
   User 
@@ -18,8 +19,6 @@ export default function Admin() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [editingPost, setEditingPost] = useState<Partial<BlogPost> | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -44,10 +43,10 @@ export default function Admin() {
     setPosts(fetchedPosts);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error("Login failed", error);
       alert(error.message || "Login failed");
@@ -97,9 +96,22 @@ export default function Admin() {
           }
         }
         alert('Data seeded successfully!');
-      } catch (error) {
+      } catch (error: any) {
         console.error('Seed error:', error);
-        alert('An error occurred during seeding. Check console for details.');
+        
+        // Check if it's a permission/not-found error to give a helpful hint
+        const errorMsg = error?.message || String(error);
+        const isPermissionError = errorMsg.toLowerCase().includes('permission') || errorMsg.toLowerCase().includes('missing or insufficient');
+        const isNotFoundError = errorMsg.toLowerCase().includes('not found') || errorMsg.toLowerCase().includes('expected type');
+        
+        let hint = "";
+        if (isPermissionError) {
+          hint = "\n\nHINT: This looks like a permissions issue. Have you set your Firestore Security Rules in the Firebase Console? You might be using 'Production Mode' rules which deny all writes.";
+        } else if (isNotFoundError) {
+          hint = "\n\nHINT: Make sure you have created the 'Firestore Database' in your Firebase Console (Build > Firestore Database).";
+        }
+        
+        alert(`An error occurred during seeding:\n${errorMsg}${hint}\n\nPlease check the browser console for more details.`);
       } finally {
         loadPosts();
       }
@@ -127,36 +139,12 @@ export default function Admin() {
             <h1 className="text-4xl font-black text-primary mb-2 uppercase">Admin Portal</h1>
             <p className="text-slate-500 font-medium">Please sign in to manage your blogs</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-accent border-none p-4 font-bold text-primary focus:ring-2 focus:ring-primary outline-none"
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-            <div className="mb-6">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-accent border-none p-4 font-bold text-primary focus:ring-2 focus:ring-primary outline-none"
-                placeholder="Enter your password"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full bg-primary text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-secondary transition-colors flex items-center justify-center space-x-3 mt-4"
-            >
-              <span>Sign In</span>
-            </button>
-          </form>
+          <button
+            onClick={handleLogin}
+            className="w-full bg-primary text-white py-4 px-6 font-black uppercase tracking-widest hover:bg-secondary transition-colors flex items-center justify-center space-x-3 mt-4"
+          >
+            <span>Sign In with Google</span>
+          </button>
         </motion.div>
       </div>
     );
