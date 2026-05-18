@@ -20,8 +20,7 @@ export default function Hero() {
                 <span className="text-slate-300">for Modern Business.</span>
               </h1>
               <p className="text-lg lg:text-xl text-slate-500 mb-10 leading-relaxed max-w-lg">
-                Providing comprehensive business advisory, tax planning, and audit assurance 
-                services for high-growth enterprises and individuals.
+                Supporting every business and individual with trusted advisory, tax planning, and audit assurance services — no matter where you are in your journey.
               </p>
               
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-1 outline-none">

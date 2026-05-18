@@ -63,9 +63,9 @@ export default function BlogList() {
           ))}
         </div>
 
-        <div className="border-t border-border">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
           {loading && posts === staticPosts ? (
-            <div className="py-20 flex justify-center">
+            <div className="py-20 flex justify-center col-span-full">
               <Loader2 className="h-8 w-8 text-primary animate-spin" />
             </div>
           ) : (

@@ -1,8 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
 import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
 import { BlogPost as IBlogPost } from '../types';
@@ -133,21 +130,10 @@ export default function BlogPost() {
           transition={{ delay: 0.3 }}
           className="prose prose-lg lg:prose-xl prose-slate max-w-none prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-a:text-secondary mb-24"
         >
-          <div className="markdown-body text-justify leading-[1.8] text-black">
-             <ReactMarkdown 
-               remarkPlugins={[remarkGfm]}
-               rehypePlugins={[rehypeRaw]}
-               components={{
-                 table: ({node, ...props}) => (
-                   <div className="overflow-x-auto mb-12 border border-slate-100 rounded-sm">
-                     <table {...props} />
-                   </div>
-                 )
-               }}
-             >
-               {post.content || '*Content could not be loaded or is empty.*'}
-             </ReactMarkdown>
-          </div>
+          <div 
+            className="markdown-body leading-[1.8] text-black editor-content"
+            dangerouslySetInnerHTML={{ __html: post.content || '<p><em>Content could not be loaded or is empty.</em></p>' }}
+          />
         </motion.div>
 
         <div className="py-20 border-t border-border">

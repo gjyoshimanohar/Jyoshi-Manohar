@@ -14,8 +14,8 @@ import { Plus, Trash2, LogOut, ChevronRight, Save, X, Database, Image as ImageIc
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import SunEditor from 'suneditor-react';
+import 'suneditor/dist/css/suneditor.min.css';
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
@@ -26,6 +26,7 @@ export default function Admin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -86,6 +87,30 @@ export default function Admin() {
     }
   };
 
+  const handleEditorImageUpload = (files: File[], info: object, uploadHandler: Function) => {
+    const file = files[0];
+    if (!file) return undefined;
+    
+    const storageRef = ref(storage, `blog-images/${Date.now()}_${file.name}`);
+    uploadBytes(storageRef, file).then((snapshot) => {
+      getDownloadURL(snapshot.ref).then((url) => {
+        uploadHandler({
+          result: [{
+            url: url,
+            name: file.name,
+            size: file.size
+          }]
+        });
+      });
+    }).catch((error) => {
+      console.error("Editor Image upload failed", error);
+      alert("Failed to upload image. Please ensure Storage is set up in Firebase.");
+      uploadHandler({ errorMessage: 'Upload failed' });
+    });
+    
+    return undefined; // Handled asynchronously
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPost) return;
@@ -107,27 +132,27 @@ export default function Admin() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this post?')) {
-      await blogService.deletePost(id);
-      loadPosts();
-    }
+    await blogService.deletePost(id);
+    setConfirmDeleteId(null);
+    loadPosts();
   };
 
+  const [confirmSeed, setConfirmSeed] = useState(false);
+
   const handleSeedData = async () => {
-    if (window.confirm('This will upload all existing static blogs to the database. Continue?')) {
-      try {
-        for (const post of staticPosts) {
-          const existing = await blogService.getPostBySlug(post.slug);
-          const { id, ...postWithoutId } = post;
-          if (!existing) {
-            await blogService.createPost(postWithoutId);
-          } else {
-            // Force update to fix any missing fields (like content) from prior failed syncs
-            await blogService.updatePost(existing.id, postWithoutId);
-          }
+    try {
+      for (const post of staticPosts) {
+        const existing = await blogService.getPostBySlug(post.slug);
+        const { id, ...postWithoutId } = post;
+        if (!existing) {
+          await blogService.createPost(postWithoutId);
+        } else {
+          // Force update to fix any missing fields (like content) from prior failed syncs
+          await blogService.updatePost(existing.id, postWithoutId);
         }
-        alert('Data seeded successfully!');
-      } catch (error: any) {
+      }
+      alert('Data seeded successfully!');
+    } catch (error: any) {
         console.error('Seed error:', error);
         
         // Check if it's a permission/not-found error to give a helpful hint
@@ -146,7 +171,6 @@ export default function Admin() {
       } finally {
         loadPosts();
       }
-    }
   };
 
   if (loading) return (
@@ -227,13 +251,21 @@ export default function Admin() {
             <h1 className="text-5xl md:text-7xl font-black text-primary tracking-tighter leading-none">Content Management</h1>
           </div>
           <div className="flex items-center space-x-4">
-            <button
-              onClick={handleSeedData}
-              className="flex items-center space-x-2 bg-white border border-border px-6 py-3 font-black uppercase text-xs tracking-widest hover:border-primary transition-all"
-            >
-              <Database className="h-4 w-4" />
-              <span>Sync Defaults</span>
-            </button>
+            {!confirmSeed ? (
+              <button
+                onClick={() => setConfirmSeed(true)}
+                className="flex items-center space-x-2 bg-white border border-border px-6 py-3 font-black uppercase text-xs tracking-widest hover:border-primary transition-all"
+              >
+                <Database className="h-4 w-4" />
+                <span>Sync Defaults</span>
+              </button>
+            ) : (
+              <div className="flex items-center space-x-2 bg-white border border-border pr-2 py-1 pl-4">
+                <span className="font-bold text-xs">Are you sure?</span>
+                <button onClick={() => { handleSeedData(); setConfirmSeed(false); }} className="px-3 py-2 bg-secondary text-white font-bold text-xs">Yes</button>
+                <button onClick={() => setConfirmSeed(false)} className="px-3 py-2 bg-slate-200 text-slate-800 font-bold text-xs">No</button>
+              </div>
+            )}
             <button
               onClick={() => setEditingPost({})}
               className="flex items-center space-x-2 bg-primary text-white px-6 py-3 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all"
@@ -333,24 +365,30 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="mb-2 text-xs text-slate-500 bg-slate-50 p-3 rounded border border-slate-100">
-                  <strong>Rich Text Editor:</strong> You can embed images or videos directly using the toolbar buttons. <br/>
-                  If you upload an image via the "Upload Image" button above, it will be uploaded to your Firebase Storage and its URL will be appended as an `&lt;img&gt;` tag at the end of the post.
+                  <strong>Document Editor:</strong> Use the MS Word/Google Docs style toolbar to format your content. <br/>
+                  If you upload an image via the "Upload Image" button above, it will be uploaded to your Firebase Storage and its URL will be appended as an `&lt;img&gt;` tag at the end of the post. You can also paste images directly.
                 </div>
-                <div className="bg-white ql-editor-container">
-                  <ReactQuill 
-                    theme="snow"
-                    value={editingPost.content || ''}
-                    onChange={(val: string) => setEditingPost({...editingPost, content: val})}
-                    modules={{
-                      toolbar: [
-                        [{ 'header': [1, 2, 3, false] }],
-                        ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-                        [{'list': 'ordered'}, {'list': 'bullet'}, {'indent': '-1'}, {'indent': '+1'}],
-                        ['link', 'image', 'video'],
-                        ['clean']
-                      ],
+                <div className="bg-slate-100 overflow-hidden shadow-inner border border-slate-200">
+                  <SunEditor 
+                    setContents={editingPost.content || ''}
+                    onChange={(newContent) => setEditingPost({...editingPost, content: newContent})}
+                    onImageUploadBefore={handleEditorImageUpload}
+                    setOptions={{
+                      minHeight: "600px",
+                      placeholder: "Start writing your blog here. Use the alignment tools in the toolbar to justify or align text.",
+                      buttonList: [
+                        ['undo', 'redo'],
+                        ['font', 'fontSize', 'formatBlock'],
+                        ['bold', 'underline', 'italic', 'strike', 'subscript', 'superscript'],
+                        ['removeFormat'],
+                        '/',
+                        ['fontColor', 'hiliteColor'],
+                        ['outdent', 'indent'],
+                        ['align', 'horizontalRule', 'list', 'lineHeight'],
+                        ['table', 'link', 'image', 'video'],
+                        ['fullScreen', 'showBlocks', 'codeView']
+                      ]
                     }}
-                    className="h-[400px] mb-12"
                   />
                 </div>
               </div>
@@ -390,12 +428,20 @@ export default function Admin() {
                     >
                       <ChevronRight className="h-5 w-5" />
                     </button>
-                    <button
-                      onClick={() => handleDelete(post.id)}
-                      className="p-3 text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
+                    {confirmDeleteId === post.id ? (
+                      <div className="flex items-center space-x-2 mr-2">
+                        <span className="text-xs font-bold text-red-500 mr-2">Confirm?</span>
+                        <button onClick={() => handleDelete(post.id)} className="px-3 py-1 bg-red-500 text-white font-bold text-xs">Yes</button>
+                        <button onClick={() => setConfirmDeleteId(null)} className="px-3 py-1 bg-slate-200 text-slate-800 font-bold text-xs">No</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(post.id)}
+                        className="p-3 text-slate-400 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

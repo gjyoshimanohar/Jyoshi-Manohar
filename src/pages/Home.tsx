@@ -108,23 +108,23 @@ export default function Home() {
       <Services />
 
       {/* Blog Preview Section */}
-      <section className="bg-white">
-        <div className="max-w-7xl mx-auto border-x border-border p-12 lg:p-20">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 gap-8">
-            <h2 className="text-5xl lg:text-7xl font-black text-primary leading-none tracking-tighter uppercase">Insights.</h2>
+      <section className="bg-white pb-24">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 lg:mb-20 gap-8">
+            <h2 className="text-4xl lg:text-5xl font-black text-primary leading-tight tracking-tight uppercase">Insights.</h2>
             <a 
               href="https://blogs.jyoshimanohar.com" 
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] font-black uppercase tracking-[0.3em] text-secondary border-b-2 border-secondary pb-1 hover:text-primary hover:border-primary transition-all"
+              className="text-[11px] font-black uppercase tracking-[0.3em] text-[#FF6B4A] border-b-2 border-[#FF6B4A] pb-1 hover:text-primary hover:border-primary transition-all"
             >
               View All Analysis
             </a>
           </div>
 
-          <div className="border-t border-border">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
             {loadingPosts && recentPosts === staticPosts.slice(0, 3) ? (
-              <div className="py-20 flex justify-center">
+              <div className="py-20 flex justify-center col-span-full">
                 <Loader2 className="h-8 w-8 text-primary animate-spin" />
               </div>
             ) : (
