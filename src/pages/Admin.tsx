@@ -10,7 +10,9 @@ import { auth } from '../lib/firebase';
 import { blogService } from '../services/blogService';
 import { BlogPost } from '../types';
 import { blogPosts as staticPosts } from '../data';
-import { Plus, Trash2, LogOut, ChevronRight, Save, X, Database } from 'lucide-react';
+import { Plus, Trash2, LogOut, ChevronRight, Save, X, Database, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../lib/firebase';
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
@@ -20,6 +22,7 @@ export default function Admin() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -55,6 +58,30 @@ export default function Admin() {
   };
 
   const handleLogout = () => signOut(auth);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const storageRef = ref(storage, `blog-images/${Date.now()}_${file.name}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(snapshot.ref);
+
+      const imageMarkdown = `\n![${file.name}](${url})\n`;
+      setEditingPost((prev) => ({
+        ...prev,
+        content: (prev?.content || '') + imageMarkdown
+      }));
+    } catch (error) {
+      console.error("Image upload failed", error);
+      alert("Failed to upload image. Please ensure Storage is set up in Firebase.");
+    } finally {
+      setUploadingImage(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,7 +309,30 @@ export default function Admin() {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Content (Markdown)</label>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Content (Markdown)</label>
+                  <div>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      id="image-upload" 
+                      className="hidden" 
+                      onChange={handleImageUpload} 
+                      disabled={uploadingImage}
+                    />
+                    <label 
+                      htmlFor="image-upload" 
+                      className={`flex items-center space-x-2 text-xs font-bold uppercase tracking-widest cursor-pointer hover:text-primary transition-colors ${uploadingImage ? 'text-primary' : 'text-slate-400'}`}
+                    >
+                      {uploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                      <span>{uploadingImage ? 'Uploading...' : 'Upload Image'}</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="mb-2 text-xs text-slate-500 bg-slate-50 p-3 rounded border border-slate-100">
+                  <strong>To embed a YouTube video:</strong> Paste this code and replace the URL: <br/>
+                  <code className="bg-slate-200 px-1 py-0.5 rounded text-primary select-all break-all">&lt;iframe width="100%" height="400" src="https://www.youtube.com/embed/YOUR_VIDEO_ID" frameBorder="0" allowFullScreen&gt;&lt;/iframe&gt;</code>
+                </div>
                 <textarea
                   required
                   value={editingPost.content || ''}
