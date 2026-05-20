@@ -1,11 +1,15 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Web font for Gilroy */
+@import url('https://fonts.cdnfonts.com/css/gilroy-bold');
 
 @theme {
-  --font-sans: "Gilroy", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Gilroy-Regular", "Gilroy", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-primary: #00205B; /* ICAI Navy */
+  --color-primary: #3150a0; /* ICAI Navy */
   --color-secondary: #AD8D3E; /* ICAI Gold */
   --color-accent: #f8fafc; /* Slate 50 */
   --color-border: #f1f5f9; /* Slate 100 */
@@ -13,11 +17,11 @@
 
 @layer base {
   body {
-    @apply font-sans text-slate-900 bg-white antialiased;
+    @apply font-sans text-black bg-white antialiased;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply uppercase tracking-tight font-bold;
+    @apply tracking-tight font-bold capitalize font-display;
   }
 
   .markdown-body table {
@@ -37,18 +41,25 @@
   }
 
   .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
-    color: #00205B !important;
+    color: #3150a0 !important;
     margin-bottom: 0 !important;
     margin-top: 1.5em !important;
   }
 
-  .markdown-body strong {
-    color: #00205B !important;
-  }
+  
 
   .ql-editor {
     min-height: 400px;
     font-family: var(--font-sans);
     font-size: 1rem;
   }
+}
+
+
+.prose {
+  --tw-prose-body: #000000;
+  --tw-prose-p: #000000;
+  --tw-prose-bold: #000000;
+  --tw-prose-quotes: #000000;
+  --tw-prose-lists: #000000;
 }

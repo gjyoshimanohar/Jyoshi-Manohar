@@ -39,9 +39,9 @@ export default function BlogList() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <p className="text-secondary font-black tracking-[0.3em] uppercase text-xs mb-4">Financial Intelligence</p>
-            <h1 className="text-6xl lg:text-9xl font-black text-primary mb-8 tracking-tighter leading-none">The Ledger.</h1>
-            <p className="text-xl text-slate-500 max-w-2xl font-medium leading-relaxed">
+            <p className="text-primary font-bold tracking-widest capitalize text-xs mb-6">Financial Intelligence</p>
+            <h1 className="text-5xl lg:text-6xl font-black text-primary mb-8 tracking-tighter leading-none">The Ledger.</h1>
+            <p className="text-sm lg:text-base text-black max-w-2xl font-normal leading-relaxed text-justify">
               In-depth analysis on the evolving world of finance, tax, and corporate policy.
             </p>
           </motion.div>
@@ -52,10 +52,10 @@ export default function BlogList() {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+              className={`px-8 py-4 text-xs font-black uppercase tracking-[0.2em] transition-all border ${
                 selectedCategory === cat
                   ? 'bg-primary text-white border-primary'
-                  : 'bg-white text-slate-500 border-slate-200 hover:border-primary hover:text-primary'
+                  : 'bg-white text-black border-slate-200 hover:border-primary hover:text-primary'
               }`}
             >
               {cat}
@@ -77,7 +77,7 @@ export default function BlogList() {
 
         {filteredPosts.length === 0 && (
           <div className="text-center py-24">
-            <h3 className="text-2xl font-serif text-slate-400">No insights found in this category.</h3>
+            <h3 className="text-2xl font-serif text-black">No insights found in this category.</h3>
           </div>
         )}
       </div>

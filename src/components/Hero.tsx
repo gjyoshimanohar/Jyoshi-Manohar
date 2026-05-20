@@ -3,8 +3,8 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 
 export default function Hero() {
   return (
-    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-white border-b border-border">
-      <div className="absolute inset-0 bg-accent -z-0"></div>
+    <section className="relative pt-28 pb-16 lg:pt-40 lg:pb-24 overflow-hidden bg-white border-b border-border">
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-primary/[0.03] -z-0"></div>
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -14,25 +14,33 @@ export default function Hero() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
             >
-              <p className="text-secondary font-bold tracking-[0.25em] uppercase text-xs mb-6">Startup Consultant, Semi-Qualified Chartered Accountant & Strategic Advisor</p>
-              <h1 className="text-6xl lg:text-8xl font-black text-primary leading-[0.9] tracking-tight mb-8">
-                Financial Clarity <br />
-                <span className="text-slate-300">for Modern Business.</span>
+              <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-bold tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                <span>Startup Consultant, Semi-Qualified Chartered Accountant</span>
+              </p>
+              <h1 className="text-7xl lg:text-[7rem] font-black text-primary leading-[0.9] tracking-tighter mb-8 uppercase">
+                Financial<br />
+                Clarity<br />
+                <span className="text-[#d0d7e1]">
+                  For<br />
+                  Modern<br />
+                  Business.
+                </span>
               </h1>
-              <p className="text-lg lg:text-xl text-slate-500 mb-10 leading-relaxed max-w-lg">
+              <p className="text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-10 max-w-lg">
                 Supporting every business and individual with trusted advisory, tax planning, and audit assurance services — no matter where you are in your journey.
               </p>
               
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 outline-none">
                 <a
                   href="#contact"
-                  className="inline-flex items-center justify-center bg-primary text-white px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-md"
+                  className="inline-flex items-center justify-center bg-primary text-white px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-lg hover:-translate-y-0.5"
                 >
                   Book Consultation
                 </a>
                 <a
                   href="#services"
-                  className="inline-flex items-center justify-center bg-transparent text-primary border border-slate-200 px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-white transition-all rounded-md"
+                  className="inline-flex items-center justify-center bg-transparent text-primary border border-slate-200 px-10 py-5 text-sm font-bold uppercase tracking-widest hover:bg-white transition-all rounded-full shadow-sm hover:shadow-lg hover:-translate-y-0.5"
                 >
                   Explore Services
                 </a>
@@ -47,11 +55,11 @@ export default function Hero() {
             >
               <div>
                 <div className="text-3xl font-black text-primary mb-1">7+</div>
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Years Practice</div>
+                <div className="text-xs text-black font-bold uppercase tracking-widest">Years Practice</div>
               </div>
               <div>
                 <div className="text-3xl font-black text-primary mb-1">50+</div>
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Corporate Clients</div>
+                <div className="text-xs text-black font-bold uppercase tracking-widest">Corporate Clients</div>
               </div>
             </motion.div>
           </div>
@@ -60,16 +68,16 @@ export default function Hero() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="hidden lg:block relative"
+            className="hidden lg:block relative group cursor-pointer"
           >
             {/* Using an Unsplash placeholder photo as image generation quota is exceeded, but keeping the professional suit aesthetic */}
             <img 
               src={`/profile.png?t=${Date.now()}`} 
               alt="CA Jyoshi Manohar" 
-              className="w-full h-auto object-cover rounded-2xl shadow-2xl aspect-[4/5] bg-slate-100"
+              className="w-full h-auto object-cover rounded-3xl shadow-2xl aspect-[4/5] bg-slate-100 transition-all duration-300 group-hover:-translate-y-2 group-hover:scale-[1.01]"
             />
             {/* Decorative element */}
-            <div className="absolute -inset-4 border-2 border-slate-100 rounded-2xl -z-10 transform translate-x-4 translate-y-4"></div>
+            <div className="absolute -inset-4 bg-gradient-to-tr from-primary/10 to-transparent rounded-3xl -z-10 transform translate-x-4 translate-y-4 transition-all duration-500 group-hover:translate-x-6 group-hover:translate-y-6 blur-md"></div>
           </motion.div>
         </div>
       </div>

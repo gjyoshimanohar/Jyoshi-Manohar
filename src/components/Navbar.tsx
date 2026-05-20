@@ -23,7 +23,7 @@ export default function Navbar() {
         <div className="flex justify-between h-20">
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-3 group">
-              <div className="w-10 h-10 bg-primary flex items-center justify-center transition-transform group-hover:rotate-90">
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center transition-transform group-hover:rotate-90">
                  <span className="text-white font-bold text-xl tracking-tighter">JM</span>
               </div>
               <span className="font-bold text-lg tracking-tight uppercase text-primary">
@@ -37,7 +37,7 @@ export default function Navbar() {
               // Determine if we should use an anchor tag or Link based on if it's a hash link
               const isHash = item.path.includes('#');
               const isExternal = item.path.startsWith('http');
-              const linkClasses = "text-[11px] font-bold uppercase tracking-[0.2em] transition-colors text-slate-500 hover:text-secondary focus:outline-none";
+              const linkClasses = "text-xs font-bold uppercase tracking-[0.2em] transition-colors text-black hover:text-secondary focus:outline-none";
 
               if (item.name === 'Services') {
                 return (
@@ -48,12 +48,12 @@ export default function Navbar() {
                     </a>
                     
                     <div className="absolute top-12 left-0 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-left scale-95 group-hover:scale-100 pt-2">
-                      <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden py-2 relative before:content-[''] before:absolute before:-top-4 before:left-0 before:w-full before:h-4">
+                      <div className="bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 overflow-hidden py-2 relative before:content-[''] before:absolute before:-top-4 before:left-0 before:w-full before:h-4">
                         {services.map((service) => (
                           <Link 
                             key={service.id} 
                             to={`/services/${service.id}`} 
-                            className="block px-5 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-primary transition-colors"
+                            className="block px-5 py-3 text-sm font-semibold text-black hover:bg-slate-50 hover:text-primary transition-colors"
                           >
                             {service.title}
                           </Link>
@@ -98,7 +98,7 @@ export default function Navbar() {
             })}
             <Link
               to="/#contact"
-              className="bg-primary text-white px-8 py-3 text-[11px] font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-md"
+              className="bg-primary text-white px-8 py-3 text-xs font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5"
             >
               Get Started
             </Link>
@@ -107,7 +107,7 @@ export default function Navbar() {
           <div className="md:hidden flex items-center">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="text-slate-600 hover:text-primary transition-colors"
+              className="text-black hover:text-primary transition-colors"
             >
               {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
@@ -127,7 +127,7 @@ export default function Navbar() {
               {navItems.map((item) => {
                 const isHash = item.path.includes('#');
                 const isExternal = item.path.startsWith('http');
-                const linkClasses = "flex items-center justify-between w-full px-3 py-4 text-base font-medium text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors";
+                const linkClasses = "flex items-center justify-between w-full px-3 py-4 text-base font-normal text-black hover:text-primary hover:bg-slate-50 rounded-lg transition-colors";
                 
                 if (item.name === 'Services') {
                   return (
@@ -153,7 +153,7 @@ export default function Navbar() {
                                   key={service.id} 
                                   to={`/services/${service.id}`} 
                                   onClick={() => setIsOpen(false)}
-                                  className="block w-full px-4 py-3 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+                                  className="block w-full px-4 py-3 text-sm font-normal text-black hover:text-primary transition-colors"
                                 >
                                   {service.title}
                                 </Link>
@@ -210,7 +210,7 @@ export default function Navbar() {
                 <Link
                   to="/#contact"
                   onClick={() => setIsOpen(false)}
-                  className="block w-full text-center bg-primary text-white px-6 py-3 rounded-xl text-base font-medium"
+                  className="block w-full text-center bg-primary text-white px-6 py-3 rounded-full shadow-sm text-base font-bold"
                 >
                   Book a Consultation
                 </Link>
