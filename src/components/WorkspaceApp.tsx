@@ -1,15 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Hash, MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, CalendarDays, FlagTriangleRight, Search } from 'lucide-react';
+import { Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Hash, MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, CalendarDays, FlagTriangleRight, Search, Repeat, Smile, Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Circle, BarChart2 } from 'lucide-react';
 import { todoService } from '../services/todoService';
 import { Todo, Project } from '../types';
 import { auth } from '../lib/firebase';
-import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay } from 'date-fns';
+import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { signOut } from 'firebase/auth';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project';
+const PROJECT_ICONS: Record<string, React.ElementType> = {
+  Hash, Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Smile, Circle
+};
+
+const AVAILABLE_ICONS = Object.keys(PROJECT_ICONS);
+
+const renderIcon = (name: string | undefined | null, defaultColor: string = '#6b7280', className: string = "w-5 h-5 mr-2") => {
+  if (name && PROJECT_ICONS[name]) {
+    const IconC = PROJECT_ICONS[name];
+    return <IconC className={className} style={{ color: defaultColor }} />;
+  }
+  if (name && name.length <= 4) {
+    return <span className={`${className} flex items-center justify-center text-lg leading-none`}>{name}</span>;
+  }
+  return <Hash className={className} style={{ color: defaultColor }} />;
+};
+
+type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project' | 'trends';
 
 export default function WorkspaceApp() {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -21,7 +39,19 @@ export default function WorkspaceApp() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [isAddingProject, setIsAddingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectIcon, setNewProjectIcon] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Edit Project State
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editProjectIcon, setEditProjectIcon] = useState('');
+  const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(false);
+
+  const [editingTodoDateId, setEditingTodoDateId] = useState<string | null>(null);
+
   // Add Task State
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -29,9 +59,11 @@ export default function WorkspaceApp() {
   const [newTaskProject, setNewTaskProject] = useState<string>('inbox');
   const [newTaskPriority, setNewTaskPriority] = useState<number>(4);
   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(new Date());
+  const [newTaskRepeat, setNewTaskRepeat] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'none'>('none');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
+  const [showRepeatPicker, setShowRepeatPicker] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -71,11 +103,47 @@ export default function WorkspaceApp() {
       projectId: newTaskProject,
       priority: newTaskPriority,
       dueDate: newTaskDueDate ? newTaskDueDate.getTime() : null,
+      repeat: newTaskRepeat,
     });
     
     setNewTaskTitle('');
     setNewTaskDesc('');
+    setNewTaskRepeat('none');
     setIsAddingTask(false);
+  };
+
+  const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this project and all its tasks?')) {
+      await todoService.deleteProject(projectId);
+      if (selectedProjectId === projectId) {
+        setViewMode('inbox');
+        setSelectedProjectId(null);
+      }
+    }
+  };
+
+  const handleStartEditProject = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingProjectId(project.id);
+    setEditProjectName(project.name);
+    setEditProjectIcon(project.icon || '');
+  };
+
+  const handleSaveEditProject = async (projectId: string, e: React.FormEvent) => {
+    e.preventDefault();
+    if (editProjectName.trim()) {
+      try {
+        await todoService.updateProject(projectId, {
+          name: editProjectName.trim(),
+          icon: editProjectIcon
+        });
+        setEditingProjectId(null);
+        setShowEditEmojiPicker(false);
+      } catch (err) {
+        console.error(err);
+      }
+    }
   };
 
   const handleToggleTodo = async (todo: Todo) => {
@@ -85,6 +153,27 @@ export default function WorkspaceApp() {
   const handleDeleteTodo = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     await todoService.deleteTodo(id);
+  };
+
+  const getTrendsData = () => {
+    const data = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = subDays(new Date(), i);
+      const dayStart = startOfDay(d).getTime();
+      const dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1;
+      
+      const createdThatDay = todos.filter(t => t.createdAt >= dayStart && t.createdAt <= dayEnd);
+      const completedTasks = createdThatDay.filter(t => t.completed).length;
+      const pendingTasks = createdThatDay.filter(t => !t.completed).length;
+      
+      data.push({
+        name: format(d, 'MMM dd'),
+        completed: completedTasks,
+        pending: pendingTasks,
+        total: createdThatDay.length
+      });
+    }
+    return data;
   };
 
   // Filter Tasks
@@ -131,7 +220,17 @@ export default function WorkspaceApp() {
       case 'inbox': return 'Inbox';
       case 'today': return 'Today';
       case 'upcoming': return 'Upcoming';
-      case 'project': return projects.find(p => p.id === selectedProjectId)?.name || 'Project';
+      case 'trends': return 'Trends & Analytics';
+      case 'project': {
+        const p = projects.find(p => p.id === selectedProjectId);
+        if (!p) return 'Project';
+        return (
+          <span className="flex items-center">
+            {renderIcon(p.icon, p.color, "w-6 h-6 mr-2")}
+            {p.name}
+          </span>
+        );
+      }
     }
   };
 
@@ -229,6 +328,15 @@ export default function WorkspaceApp() {
                 <span>Upcoming</span>
               </div>
             </button>
+            <button
+              onClick={() => { setViewMode('trends'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); }}
+              className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'trends' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+            >
+              <div className="flex items-center space-x-3">
+                <BarChart2 className="w-5 h-5 text-blue-600" />
+                <span>Trends</span>
+              </div>
+            </button>
           </nav>
 
           <div className="mb-4">
@@ -236,27 +344,165 @@ export default function WorkspaceApp() {
               <span>My Projects</span>
               <button 
                 className="opacity-0 group-hover:opacity-100 hover:bg-gray-200 p-1 rounded transition-all"
-                onClick={() => { 
-                  const name = window.prompt("Project name:"); 
-                  if (name) todoService.createProject(name, '#6b7280', auth.currentUser!.uid); 
-                }}
+                onClick={() => setIsAddingProject(true)}
               >
                 <Plus className="w-3 h-3" />
               </button>
             </div>
+            
+            <AnimatePresence>
+              {isAddingProject && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-2 px-2"
+                >
+                  <form 
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (newProjectName.trim() && auth.currentUser) {
+                        try {
+                          await todoService.createProject(newProjectName.trim(), '#6b7280', auth.currentUser.uid, newProjectIcon);
+                          setNewProjectName('');
+                          setNewProjectIcon('');
+                          setShowEmojiPicker(false);
+                          setIsAddingProject(false);
+                        } catch (err) {
+                           console.error(err);
+                        }
+                      }
+                    }}
+                    className="flex flex-col space-y-2 relative"
+                  >
+                    <div className="flex items-center space-x-2">
+                        <button
+                         type="button"
+                         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                         className="p-1 rounded-md hover:bg-gray-200 border text-sm flex items-center justify-center shrink-0 w-8 h-8"
+                       >
+                         {renderIcon(newProjectIcon, '#6b7280', "w-5 h-5")}
+                       </button>
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Project name"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
+                      />
+                      <button type="submit" disabled={!newProjectName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <button type="button" onClick={() => { setIsAddingProject(false); setShowEmojiPicker(false); }} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    {showEmojiPicker && (
+                      <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 w-48 grid grid-cols-4 gap-2">
+                         {AVAILABLE_ICONS.map(iconName => {
+                           const IconC = PROJECT_ICONS[iconName];
+                           return (
+                             <button
+                               key={iconName}
+                               type="button"
+                               onClick={() => {
+                                 setNewProjectIcon(iconName);
+                                 setShowEmojiPicker(false);
+                               }}
+                               className="p-2 hover:bg-gray-100 rounded flex items-center justify-center transition-colors"
+                               title={iconName}
+                             >
+                                <IconC className="w-5 h-5 text-gray-600" />
+                             </button>
+                           );
+                         })}
+                      </div>
+                    )}
+                  </form>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
             <div className="space-y-1">
               {projects.map(project => (
-                <button
-                  key={project.id}
-                  onClick={() => { setViewMode('project'); setSelectedProjectId(project.id); setIsAddingTask(false); }}
-                  className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'project' && selectedProjectId === project.id ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
-                >
-                  <div className="flex items-center space-x-3 truncate">
-                    <Hash className="w-5 h-5" style={{ color: project.color }} />
-                    <span className="truncate">{project.name}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">{todos.filter(t => !t.completed && t.projectId === project.id).length || ''}</span>
-                </button>
+                <div key={project.id} className="relative group">
+                  {editingProjectId === project.id ? (
+                    <form 
+                      onSubmit={(e) => handleSaveEditProject(project.id, e)}
+                      className="flex flex-col space-y-2 relative p-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowEditEmojiPicker(!showEditEmojiPicker)}
+                          className="p-1 rounded-md hover:bg-gray-200 border text-sm flex items-center justify-center shrink-0 w-8 h-8"
+                        >
+                          {renderIcon(editProjectIcon, project.color, "w-5 h-5")}
+                        </button>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={editProjectName}
+                          onChange={(e) => setEditProjectName(e.target.value)}
+                          className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
+                        />
+                        <button type="submit" disabled={!editProjectName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
+                          <Check className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => { setEditingProjectId(null); setShowEditEmojiPicker(false); }} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {showEditEmojiPicker && (
+                        <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 w-48 grid grid-cols-4 gap-2">
+                           {AVAILABLE_ICONS.map(iconName => {
+                             const IconC = PROJECT_ICONS[iconName];
+                             return (
+                               <button
+                                 key={iconName}
+                                 type="button"
+                                 onClick={() => {
+                                   setEditProjectIcon(iconName);
+                                   setShowEditEmojiPicker(false);
+                                 }}
+                                 className="p-2 hover:bg-gray-100 rounded flex items-center justify-center transition-colors"
+                                 title={iconName}
+                               >
+                                  <IconC className="w-5 h-5 text-gray-600" />
+                               </button>
+                             );
+                           })}
+                        </div>
+                      )}
+                    </form>
+                  ) : (
+                    <button
+                      onClick={() => { setViewMode('project'); setSelectedProjectId(project.id); setIsAddingTask(false); }}
+                      className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'project' && selectedProjectId === project.id ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+                    >
+                      <div className="flex items-center space-x-3 truncate">
+                        {renderIcon(project.icon, project.color, "w-5 h-5")}
+                        <span className="truncate">{project.name}</span>
+                      </div>
+                      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span 
+                          onClick={(e) => handleStartEditProject(project, e)} 
+                          className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 mr-1"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </span>
+                        <span 
+                          onClick={(e) => handleDeleteProject(project.id, e)} 
+                          className="p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500 group-hover:hidden">{todos.filter(t => !t.completed && t.projectId === project.id).length || ''}</span>
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -310,6 +556,15 @@ export default function WorkspaceApp() {
                     {todos.filter(t => !t.completed && t.dueDate && (isToday(new Date(t.dueDate)) || isPast(new Date(t.dueDate)))).length || ''}
                   </span>
                 </button>
+                <button
+                  onClick={() => { setViewMode('trends'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'trends' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <BarChart2 className="w-5 h-5 text-blue-600" />
+                    <span>Trends</span>
+                  </div>
+                </button>
               </nav>
 
               <div className="mb-4">
@@ -318,17 +573,83 @@ export default function WorkspaceApp() {
                 </div>
                 <div className="space-y-1">
                   {projects.map(project => (
-                    <button
-                      key={project.id}
-                      onClick={() => { setViewMode('project'); setSelectedProjectId(project.id); setIsAddingTask(false); setIsSidebarOpen(false); }}
-                      className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'project' && selectedProjectId === project.id ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
-                    >
-                      <div className="flex items-center space-x-3 truncate">
-                        <Hash className="w-5 h-5" style={{ color: project.color }} />
-                        <span className="truncate">{project.name}</span>
-                      </div>
-                      <span className="text-xs text-gray-500">{todos.filter(t => !t.completed && t.projectId === project.id).length || ''}</span>
-                    </button>
+                    <div key={project.id} className="relative group">
+                      {editingProjectId === project.id ? (
+                        <form 
+                          onSubmit={(e) => handleSaveEditProject(project.id, e)}
+                          className="flex flex-col space-y-2 relative p-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowEditEmojiPicker(!showEditEmojiPicker)}
+                              className="p-1 rounded-md hover:bg-gray-200 border text-sm flex items-center justify-center shrink-0 w-8 h-8"
+                            >
+                              {renderIcon(editProjectIcon, project.color, "w-5 h-5")}
+                            </button>
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editProjectName}
+                              onChange={(e) => setEditProjectName(e.target.value)}
+                              className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
+                            />
+                            <button type="submit" disabled={!editProjectName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => { setEditingProjectId(null); setShowEditEmojiPicker(false); }} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {showEditEmojiPicker && (
+                            <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 w-48 grid grid-cols-4 gap-2">
+                               {AVAILABLE_ICONS.map(iconName => {
+                                 const IconC = PROJECT_ICONS[iconName];
+                                 return (
+                                   <button
+                                     key={iconName}
+                                     type="button"
+                                     onClick={() => {
+                                       setEditProjectIcon(iconName);
+                                       setShowEditEmojiPicker(false);
+                                     }}
+                                     className="p-2 hover:bg-gray-100 rounded flex items-center justify-center transition-colors"
+                                     title={iconName}
+                                   >
+                                      <IconC className="w-5 h-5 text-gray-600" />
+                                   </button>
+                                 );
+                               })}
+                            </div>
+                          )}
+                        </form>
+                      ) : (
+                        <button
+                          onClick={() => { setViewMode('project'); setSelectedProjectId(project.id); setIsAddingTask(false); setIsSidebarOpen(false); }}
+                          className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'project' && selectedProjectId === project.id ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+                        >
+                          <div className="flex items-center space-x-3 truncate">
+                            {renderIcon(project.icon, project.color, "w-5 h-5")}
+                            <span className="truncate">{project.name}</span>
+                          </div>
+                          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span 
+                              onClick={(e) => handleStartEditProject(project, e)} 
+                              className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 mr-1"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </span>
+                            <span 
+                              onClick={(e) => handleDeleteProject(project.id, e)} 
+                              className="p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-500 group-hover:hidden">{todos.filter(t => !t.completed && t.projectId === project.id).length || ''}</span>
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -384,61 +705,124 @@ export default function WorkspaceApp() {
             </div>
           </div>
 
-          <div className="space-y-0.5">
-            <AnimatePresence>
-              {filteredTodos.map(todo => (
-                <motion.div
-                  key={todo.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                  className="group flex items-start p-3 py-4 hover:bg-white border-b border-[#f0f0f0] transition-colors"
-                >
-                  <button 
-                    onClick={() => handleToggleTodo(todo)}
-                    className="mr-3 mt-0.5 w-5 h-5 flex shrink-0 items-center justify-center rounded-full border border-gray-300 hover:bg-gray-100 peer"
-                  >
-                    <Check className="w-3 h-3 text-gray-400 opacity-0 transition-opacity" />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm text-[#202020] mb-1 ${todo.completed ? 'line-through text-gray-400' : ''}`}>{todo.title}</p>
-                    {todo.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2 mb-1.5">{todo.description}</p>
-                    )}
-                    <div className="flex items-center space-x-3">
-                      {formatTaskDate(todo.dueDate)}
-                      {todo.projectId && todo.projectId !== 'inbox' && (
-                        <span className="text-[10px] text-gray-500 flex items-center">
-                          <Hash className="w-3 h-3 mr-0.5" /> 
-                          {projects.find(p => p.id === todo.projectId)?.name || 'Project'}
-                        </span>
-                      )}
-                      <Flag className={`w-3 h-3 ${getPriorityColor(todo.priority)}`} />
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-4 shrink-0">
-                    <button 
-                      onClick={(e) => handleDeleteTodo(todo.id, e)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-            {filteredTodos.length === 0 && !isAddingTask && (
-              <div className="text-center py-20 flex flex-col items-center">
-                <div className="w-40 h-40 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-                  <Check className="w-16 h-16 text-gray-200" />
-                </div>
-                <h3 className="text-lg text-gray-700 font-medium mb-2">You're all done</h3>
-                <p className="text-sm text-gray-500">Enjoy the rest of your day and relax.</p>
+          {viewMode === 'trends' ? (
+            <div className="py-8 bg-white border border-gray-100 rounded-xl shadow-sm p-6 mb-8">
+              <h2 className="text-sm font-semibold text-gray-500 mb-6 uppercase tracking-wider">Completion Trends (Last 7 Days)</h2>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getTrendsData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} />
+                    <Tooltip cursor={{ fill: '#F3F4F6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                    <Bar dataKey="completed" name="Completed Tasks" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey="pending" name="Pending Tasks" fill="#DBEAFE" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              <AnimatePresence>
+                {filteredTodos.map(todo => (
+                  <motion.div
+                    key={todo.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                    className="group flex items-start p-3 py-4 hover:bg-white border-b border-[#f0f0f0] transition-colors"
+                  >
+                    <button 
+                      onClick={() => handleToggleTodo(todo)}
+                      className="mr-3 mt-0.5 w-5 h-5 flex shrink-0 items-center justify-center rounded-full border border-gray-300 hover:bg-gray-100 peer"
+                    >
+                      <Check className="w-3 h-3 text-gray-400 opacity-0 transition-opacity" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm text-[#202020] mb-1 ${todo.completed ? 'line-through text-gray-400' : ''}`}>{todo.title}</p>
+                      {todo.description && (
+                        <p className="text-xs text-gray-500 line-clamp-2 mb-1.5">{todo.description}</p>
+                      )}
+                      <div className="flex items-center space-x-3">
+                        <div className="relative">
+                          <button 
+                            onClick={() => setEditingTodoDateId(todo.id)}
+                            className="hover:bg-gray-100 rounded px-1 -ml-1 transition-colors flex items-center h-5"
+                          >
+                            {formatTaskDate(todo.dueDate) || <span className="text-gray-400 text-[10px] flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> No Date</span>}
+                          </button>
+                          {editingTodoDateId === todo.id && (
+                            <div className="absolute top-6 left-0 z-[60] bg-white border border-gray-200 shadow-2xl rounded-lg p-2">
+                              <div className="flex justify-between items-center mb-2 px-2 pt-1 border-b border-gray-100 pb-2">
+                                <span className="text-sm font-medium text-gray-700">Change date</span>
+                                <button onClick={() => setEditingTodoDateId(null)} className="text-gray-500 hover:bg-gray-100 p-1 rounded-md">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <DayPicker
+                                mode="single"
+                                selected={todo.dueDate ? new Date(todo.dueDate) : undefined}
+                                onSelect={(date) => {
+                                  todoService.updateTodo(todo.id, { dueDate: date ? date.getTime() : null });
+                                  setEditingTodoDateId(null);
+                                }}
+                              />
+                              {todo.dueDate && (
+                                <div className="border-t border-gray-100 pt-2 mt-2">
+                                  <button
+                                    onClick={() => {
+                                      todoService.updateTodo(todo.id, { dueDate: null });
+                                      setEditingTodoDateId(null);
+                                    }}
+                                    className="w-full text-center text-xs text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-md transition-colors font-medium "
+                                  >
+                                    Clear due date
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {todo.projectId && todo.projectId !== 'inbox' && (
+                          <span className="text-[10px] text-gray-500 flex items-center">
+                            <Hash className="w-3 h-3 mr-0.5" /> 
+                            {projects.find(p => p.id === todo.projectId)?.name || 'Project'}
+                          </span>
+                        )}
+                        <Flag className={`w-3 h-3 ${getPriorityColor(todo.priority)}`} />
+                        {todo.repeat && todo.repeat !== 'none' && (
+                          <span className="text-[10px] text-purple-500 flex items-center capitalize">
+                            <Repeat className="w-3 h-3 mr-0.5" />
+                            {todo.repeat}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-4 shrink-0">
+                      <button 
+                        onClick={(e) => handleDeleteTodo(todo.id, e)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {filteredTodos.length === 0 && !isAddingTask && (
+                <div className="text-center py-20 flex flex-col items-center">
+                  <div className="w-40 h-40 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                    <Check className="w-16 h-16 text-gray-200" />
+                  </div>
+                  <h3 className="text-lg text-gray-700 font-medium mb-2">You're all done</h3>
+                  <p className="text-sm text-gray-500">Enjoy the rest of your day and relax.</p>
+                </div>
+              )}
+            </div>
+          )}
 
-          {!isAddingTask ? (
+          {viewMode !== 'trends' && !isAddingTask && (
             <button 
               onClick={() => setIsAddingTask(true)}
               className="group flex items-center text-[#202020] hover:text-primary mt-4 w-full py-2 hover:bg-gray-50 rounded-md transition-colors"
@@ -448,7 +832,9 @@ export default function WorkspaceApp() {
               </div>
               <span className="text-sm">Add task</span>
             </button>
-          ) : (
+          )}
+
+          {viewMode !== 'trends' && isAddingTask && (
             <div className="mt-4 border border-border bg-white rounded-xl shadow-lg p-3">
               <input
                 autoFocus
@@ -484,6 +870,15 @@ export default function WorkspaceApp() {
                   <Flag className={`w-4 h-4 mr-1 ${getPriorityColor(newTaskPriority)}`} />
                   Priority {newTaskPriority}
                 </button>
+
+                {/* Repeat Picker Button */}
+                <button 
+                  onClick={() => setShowRepeatPicker(!showRepeatPicker)}
+                  className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
+                >
+                  <Repeat className="w-4 h-4 mr-1 text-purple-500" />
+                  {newTaskRepeat === 'none' ? 'Repeat' : newTaskRepeat.charAt(0).toUpperCase() + newTaskRepeat.slice(1)}
+                </button>
                 
                 {/* Dropdowns (Absolute Positioned loosely) */}
                 {showDatePicker && (
@@ -506,6 +901,20 @@ export default function WorkspaceApp() {
                         <Flag className={`w-4 h-4 mr-3 ${getPriorityColor(p)}`} />
                         Priority {p}
                         {newTaskPriority === p && <Check className="w-4 h-4 ml-auto text-gray-400" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showRepeatPicker && (
+                  <div className="absolute top-8 left-[180px] z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-1 w-32">
+                    {['none', 'daily', 'weekly', 'monthly', 'yearly'].map(r => (
+                      <button 
+                        key={r} 
+                        onClick={() => { setNewTaskRepeat(r as any); setShowRepeatPicker(false); }}
+                        className="w-full flex items-center px-3 py-2 text-sm hover:bg-gray-50 rounded"
+                      >
+                        {r === 'none' ? 'None' : r.charAt(0).toUpperCase() + r.slice(1)}
+                        {newTaskRepeat === r && <Check className="w-4 h-4 ml-auto text-gray-400" />}
                       </button>
                     ))}
                   </div>

@@ -122,18 +122,28 @@ export const todoService = {
     });
   },
 
-  createProject: async (name: string, color: string, userId: string) => {
+  createProject: async (name: string, color: string, userId: string, icon?: string) => {
     try {
       const newProject = {
         name,
         color,
         userId,
+        icon: icon || null,
         createdAt: Date.now()
       };
       const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), newProject);
       return { id: docRef.id, ...newProject } as Project;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, PROJECTS_COLLECTION);
+    }
+  },
+
+  updateProject: async (projectId: string, data: Partial<Project>) => {
+    try {
+      const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+      await updateDoc(projectRef, data);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${PROJECTS_COLLECTION}/${projectId}`);
     }
   },
 

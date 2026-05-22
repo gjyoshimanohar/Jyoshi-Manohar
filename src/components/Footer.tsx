@@ -33,7 +33,7 @@ export default function Footer() {
           <div className="flex flex-col sm:flex-row items-center gap-4 shrink-0 w-full lg:w-auto">
             <Link 
               to="/#contact"
-              className="w-full sm:w-auto text-center inline-flex items-center justify-center px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-full transition-all"
+              className="w-full sm:w-auto text-center inline-flex items-center justify-center px-8 py-4 bg-white hover:bg-gray-100 text-[#AD8D3E] text-sm font-bold rounded-full transition-all shadow-md"
             >
               Book your Appointment now
             </Link>
@@ -90,8 +90,12 @@ export default function Footer() {
       
       {/* Scroll to Top Arrow (Optional) */}
       <button 
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="absolute bottom-8 right-8 w-12 h-12 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center justify-center text-white transition-all shadow-lg"
+        onClick={(e) => {
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          document.getElementById('root')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        className="absolute bottom-8 right-8 z-50 w-12 h-12 bg-[#AD8D3E] hover:bg-[#8A7131] rounded-full flex items-center justify-center text-white transition-all shadow-lg cursor-pointer"
         aria-label="Scroll to top"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

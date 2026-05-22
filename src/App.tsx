@@ -28,29 +28,20 @@ function ScrollToTop() {
 }
 
 export default function App() {
-  const isBlogSubdomain = window.location.hostname.startsWith('blogs.');
-
   return (
     <Router>
       <ScrollToTop />
       <div className="flex flex-col min-h-screen">
         <Navbar />
         <div className="flex-grow">
-          {isBlogSubdomain ? (
-            <Routes>
-              <Route path="/" element={<BlogList />} />
-              <Route path="/:slug" element={<BlogPost />} />
-            </Routes>
-          ) : (
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/blog" element={<BlogList />} />
-              <Route path="/blog/:slug" element={<BlogPost />} />
-              <Route path="/services/:id" element={<UnderConstruction />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/tasks" element={<Tasks />} />
-            </Routes>
-          )}
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/blog" element={<BlogList />} />
+            <Route path="/blog/:slug" element={<BlogPost />} />
+            <Route path="/services/:id" element={<UnderConstruction />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/tasks" element={<Tasks />} />
+          </Routes>
         </div>
         <Footer />
       </div>
