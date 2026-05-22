@@ -28,7 +28,7 @@ export default function BlogCard({ post, index }: BlogCardProps) {
       transition={{ delay: index * 0.1, duration: 0.5 }}
       className={`group relative flex-col overflow-hidden p-8 lg:p-10 rounded-3xl ${bgClass} shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-slate-200/60 backdrop-blur-sm transition-all duration-500 hover:shadow-[0_12px_40px_rgba(49,80,160,0.25)] hover:-translate-y-2 hover:scale-[1.02] flex`}
     >
-      <a href={`https://blogs.jyoshimanohar.com/${post.slug}`} target="_blank" rel="noopener noreferrer" className="block flex-grow transition-colors">
+      <Link to={`/blog/${post.slug}`} className="block flex-grow transition-colors">
         <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
         
         <div className="absolute top-8 right-8 lg:top-10 lg:right-10 opacity-0 transform translate-x-4 -translate-y-4 group-hover:opacity-100 group-hover:translate-x-0 group-hover:translate-y-0 transition-all duration-500 z-10 pointer-events-none">
@@ -55,7 +55,7 @@ export default function BlogCard({ post, index }: BlogCardProps) {
             <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform text-black group-hover:text-secondary" />
           </div>
         </div>
-      </a>
+      </Link>
     </motion.div>
   );
 }

@@ -57,7 +57,7 @@ export default function BlogPost() {
           </p>
           <Link 
             to="/blog" 
-            className="inline-flex items-center space-x-3 bg-primary text-white px-8 py-4 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
+            className="inline-flex items-center space-x-3 bg-primary text-white px-8 lg:px-10 py-4 lg:py-5 rounded-full font-bold uppercase tracking-[0.2em] text-xs hover:bg-primary/90 transition-all shadow-[0_8px_30px_rgb(49,80,160,0.3)] hover:shadow-[0_12px_40px_rgb(49,80,160,0.4)] hover:-translate-y-1"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Return to Ledger</span>
@@ -93,12 +93,12 @@ export default function BlogPost() {
           </Link>
           
           <div className="mb-6">
-            <span className="text-xs font-black text-secondary uppercase tracking-[0.3em]">
+            <span className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-bold tracking-widest uppercase text-xs px-4 py-2 rounded-full shadow-sm">
               {post.category}
             </span>
           </div>
           
-          <h1 className="text-[36px] font-black text-primary leading-tight tracking-tight mb-12">
+          <h1 className="text-4xl lg:text-5xl font-black text-primary leading-tight tracking-tight mb-12">
             {post.title}
           </h1>
           
@@ -147,7 +147,7 @@ export default function BlogPost() {
               </div>
             </div>
             <div className="text-left md:text-right">
-              <Link to="/#contact" className="inline-flex items-center bg-primary text-white px-10 py-5 text-xs font-black uppercase tracking-widest hover:bg-secondary transition-all rounded-md">
+              <Link to="/#contact" className="inline-flex items-center bg-primary text-white px-8 lg:px-10 py-4 lg:py-5 rounded-full font-bold uppercase tracking-[0.2em] text-xs hover:bg-primary/90 transition-all shadow-[0_8px_30px_rgb(49,80,160,0.3)] hover:shadow-[0_12px_40px_rgb(49,80,160,0.4)] hover:-translate-y-1">
                 Schedule Advice
               </Link>
             </div>

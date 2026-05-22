@@ -32,30 +32,32 @@ export default function BlogList() {
     : posts.filter(p => p.category === selectedCategory);
 
   return (
-    <main className="pt-32 pb-24 bg-accent min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <header className="mb-20">
+    <main className="pt-32 pb-24 bg-white min-h-screen">
+      <div className="max-w-7xl mx-auto px-6">
+        <header className="mb-16">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <p className="text-primary font-bold tracking-widest capitalize text-xs mb-6">Financial Intelligence</p>
-            <h1 className="text-5xl lg:text-6xl font-black text-primary mb-8 tracking-tighter leading-none">The Ledger.</h1>
-            <p className="text-sm lg:text-base text-black max-w-2xl font-normal leading-relaxed text-justify">
+            <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-bold tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm flex w-max">
+              <span>Financial Intelligence</span>
+            </div>
+            <h1 className="text-4xl lg:text-5xl font-black text-primary leading-tight tracking-tight mb-8">Insights.</h1>
+            <p className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-left max-w-2xl">
               In-depth analysis on the evolving world of finance, tax, and corporate policy.
             </p>
           </motion.div>
         </header>
 
-        <div className="flex flex-wrap items-center gap-2 mb-20 border-b border-border pb-8">
+        <div className="flex flex-wrap items-center gap-3 mb-16 border-b border-slate-100 pb-8">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-8 py-4 text-xs font-black uppercase tracking-[0.2em] transition-all border ${
+              className={`px-5 py-2.5 text-xs font-bold uppercase tracking-[0.1em] transition-all rounded-xl border ${
                 selectedCategory === cat
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-white text-black border-slate-200 hover:border-primary hover:text-primary'
+                  ? 'bg-primary text-white border-primary shadow-[0_4px_14px_0_rgba(49,80,160,0.39)]'
+                  : 'bg-white text-black border-slate-200 hover:border-primary/50 hover:bg-slate-50 hover:-translate-y-0.5 shadow-sm'
               }`}
             >
               {cat}

@@ -71,7 +71,7 @@ export default function Footer() {
             <ul className="space-y-4 text-sm font-medium text-white/70">
               <li><Link to="/" className="hover:text-white transition-colors">Home</Link></li>
               <li><Link to="/#services" className="hover:text-white transition-colors">Services</Link></li>
-              <li><a href="https://blogs.jyoshimanohar.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Blog</a></li>
+              <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
               <li><Link to="/#about" className="hover:text-white transition-colors">About</Link></li>
               <li><Link to="/#contact" className="hover:text-white transition-colors">Contact</Link></li>
             </ul>

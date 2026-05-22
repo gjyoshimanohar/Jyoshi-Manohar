@@ -121,14 +121,12 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 lg:mb-8 gap-8">
             <h2 className="text-4xl lg:text-5xl font-black text-primary leading-tight tracking-tight mb-8">Insights.</h2>
-            <a 
-              href="https://blogs.jyoshimanohar.com" 
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link 
+              to="/blog" 
               className="text-xs font-black uppercase tracking-[0.3em] text-[#FF6B4A] border-b-2 border-[#FF6B4A] pb-1 hover:text-primary hover:border-primary transition-all"
             >
               View All Analysis
-            </a>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
