@@ -25,6 +25,6 @@ jobs:
       - name: Write GCP Credentials
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM }}' > gcp-key.json
       - name: Deploy to Firebase
-        run: firebase deploy --only hosting,firestore:rules --project jyoshimanohar-com
+        run: firebase deploy --only hosting --project jyoshimanohar-com
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ./gcp-key.json
