@@ -957,104 +957,139 @@ export default function WorkspaceApp() {
                 className="w-full text-xs text-gray-600 outline-none placeholder:text-gray-400 resize-none h-10 mb-3"
               />
               
-              <div className="flex flex-wrap gap-2 mb-4 relative">
+              <div className="flex flex-wrap gap-2 mb-4">
                 {/* Due Date Picker Button */}
-                <button 
-                  onClick={() => { setShowDatePicker(!showDatePicker); setShowDeadlinePicker(false); setShowPriorityPicker(false); setShowRepeatPicker(false); }}
-                  className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
-                >
-                  <CalendarDays className="w-4 h-4 mr-1 text-green-600" />
-                  {newTaskDueDate ? (isToday(newTaskDueDate) ? 'Today' : format(newTaskDueDate, 'MMM d')) : 'Due date'}
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => { setShowDatePicker(!showDatePicker); setShowDeadlinePicker(false); setShowPriorityPicker(false); setShowRepeatPicker(false); setShowProjectPicker(false); }}
+                    className={`flex items-center px-2 py-1.5 text-xs font-medium border rounded-md transition ${showDatePicker ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}
+                  >
+                    <CalendarDays className="w-3.5 h-3.5 mr-1.5 text-green-600" />
+                    {newTaskDueDate ? (isToday(newTaskDueDate) ? 'Today' : format(newTaskDueDate, 'MMM d')) : 'Due date'}
+                    <ChevronDown className="w-3.5 h-3.5 ml-1.5 text-gray-400" />
+                  </button>
+                  {showDatePicker && (
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 shadow-xl rounded-lg p-2 w-auto animate-in fade-in zoom-in-95 duration-200">
+                      <DayPicker 
+                        mode="single" 
+                        selected={newTaskDueDate} 
+                        onSelect={(d) => { setNewTaskDueDate(d); setShowDatePicker(false); }} 
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Deadline Picker Button */}
-                <button 
-                  onClick={() => { setShowDeadlinePicker(!showDeadlinePicker); setShowDatePicker(false); setShowPriorityPicker(false); setShowRepeatPicker(false); }}
-                  className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
-                >
-                  <Clock className="w-4 h-4 mr-1 text-red-500" />
-                  {newTaskDeadline ? (isToday(newTaskDeadline) ? 'Today Deadline' : format(newTaskDeadline, 'MMM d')) : 'Deadline'}
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => { setShowDeadlinePicker(!showDeadlinePicker); setShowDatePicker(false); setShowPriorityPicker(false); setShowRepeatPicker(false); setShowProjectPicker(false); }}
+                    className={`flex items-center px-2 py-1.5 text-xs font-medium border rounded-md transition ${showDeadlinePicker ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}
+                  >
+                    <Clock className="w-3.5 h-3.5 mr-1.5 text-red-500" />
+                    {newTaskDeadline ? (isToday(newTaskDeadline) ? 'Today Deadline' : format(newTaskDeadline, 'MMM d')) : 'Deadline'}
+                    <ChevronDown className="w-3.5 h-3.5 ml-1.5 text-gray-400" />
+                  </button>
+                  {showDeadlinePicker && (
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 shadow-xl rounded-lg p-2 w-auto animate-in fade-in zoom-in-95 duration-200">
+                      <DayPicker 
+                        mode="single" 
+                        selected={newTaskDeadline} 
+                        onSelect={(d) => { setNewTaskDeadline(d); setShowDeadlinePicker(false); }} 
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Priority Picker Button */}
-                <button 
-                  onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowDatePicker(false); setShowDeadlinePicker(false); setShowRepeatPicker(false); }}
-                  className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
-                >
-                  <Flag className={`w-4 h-4 mr-1 ${getPriorityColor(newTaskPriority)}`} />
-                  Priority {newTaskPriority}
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowDatePicker(false); setShowDeadlinePicker(false); setShowRepeatPicker(false); setShowProjectPicker(false); }}
+                    className={`flex items-center px-2 py-1.5 text-xs font-medium border rounded-md transition ${showPriorityPicker ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}
+                  >
+                    <Flag className={`w-3.5 h-3.5 mr-1.5 ${getPriorityColor(newTaskPriority)}`} />
+                    Priority {newTaskPriority}
+                    <ChevronDown className="w-3.5 h-3.5 ml-1.5 text-gray-400" />
+                  </button>
+                  {showPriorityPicker && (
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 shadow-xl rounded-lg p-1 w-40 animate-in fade-in zoom-in-95 duration-200">
+                      {[1, 2, 3, 4].map(p => (
+                        <button 
+                          key={p} 
+                          onClick={() => { setNewTaskPriority(p); setShowPriorityPicker(false); }}
+                          className="w-full flex items-center px-3 py-2 text-xs hover:bg-gray-50 rounded-md transition-colors"
+                        >
+                          <Flag className={`w-3.5 h-3.5 mr-2 ${getPriorityColor(p)}`} />
+                          Priority {p}
+                          {newTaskPriority === p && <Check className="w-4 h-4 ml-auto text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Repeat Picker Button */}
-                <button 
-                  onClick={() => setShowRepeatPicker(!showRepeatPicker)}
-                  className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
-                >
-                  <Repeat className="w-4 h-4 mr-1 text-purple-500" />
-                  {newTaskRepeat === 'none' ? 'Repeat' : newTaskRepeat.charAt(0).toUpperCase() + newTaskRepeat.slice(1)}
-                </button>
-                
-                {/* Dropdowns (Absolute Positioned loosely) */}
-                {showDatePicker && (
-                  <div className="absolute top-8 left-0 z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-2">
-                    <DayPicker 
-                      mode="single" 
-                      selected={newTaskDueDate} 
-                      onSelect={(d) => { setNewTaskDueDate(d); setShowDatePicker(false); }} 
-                    />
-                  </div>
-                )}
-                {showDeadlinePicker && (
-                  <div className="absolute top-8 left-[90px] z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-2">
-                    <DayPicker 
-                      mode="single" 
-                      selected={newTaskDeadline} 
-                      onSelect={(d) => { setNewTaskDeadline(d); setShowDeadlinePicker(false); }} 
-                    />
-                  </div>
-                )}
-                {showPriorityPicker && (
-                  <div className="absolute top-8 left-[90px] z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-1 w-48">
-                    {[1, 2, 3, 4].map(p => (
-                      <button 
-                        key={p} 
-                        onClick={() => { setNewTaskPriority(p); setShowPriorityPicker(false); }}
-                        className="w-full flex items-center px-3 py-2 text-sm hover:bg-gray-50 rounded"
-                      >
-                        <Flag className={`w-4 h-4 mr-3 ${getPriorityColor(p)}`} />
-                        Priority {p}
-                        {newTaskPriority === p && <Check className="w-4 h-4 ml-auto text-gray-400" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {showRepeatPicker && (
-                  <div className="absolute top-8 left-[180px] z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-1 w-32">
-                    {['none', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'].map(r => (
-                      <button 
-                        key={r} 
-                        onClick={() => { setNewTaskRepeat(r as any); setShowRepeatPicker(false); }}
-                        className="w-full flex items-center px-3 py-2 text-sm hover:bg-gray-50 rounded"
-                      >
-                        {r === 'none' ? 'None' : r.charAt(0).toUpperCase() + r.slice(1)}
-                        {newTaskRepeat === r && <Check className="w-4 h-4 ml-auto text-gray-400" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="relative">
+                  <button 
+                    onClick={() => { setShowRepeatPicker(!showRepeatPicker); setShowDatePicker(false); setShowDeadlinePicker(false); setShowPriorityPicker(false); setShowProjectPicker(false); }}
+                    className={`flex items-center px-2 py-1.5 text-xs font-medium border rounded-md transition ${showRepeatPicker ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}
+                  >
+                    <Repeat className="w-3.5 h-3.5 mr-1.5 text-purple-500" />
+                    {newTaskRepeat === 'none' ? 'Repeat' : newTaskRepeat.charAt(0).toUpperCase() + newTaskRepeat.slice(1)}
+                    <ChevronDown className="w-3.5 h-3.5 ml-1.5 text-gray-400" />
+                  </button>
+                  {showRepeatPicker && (
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 shadow-xl rounded-lg p-1 w-32 animate-in fade-in zoom-in-95 duration-200">
+                      {['none', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'].map(r => (
+                        <button 
+                          key={r} 
+                          onClick={() => { setNewTaskRepeat(r as any); setShowRepeatPicker(false); }}
+                          className="w-full flex items-center px-3 py-2 text-xs hover:bg-gray-50 rounded-md transition-colors"
+                        >
+                          {r === 'none' ? 'None' : r.charAt(0).toUpperCase() + r.slice(1)}
+                          {newTaskRepeat === r && <Check className="w-4 h-4 ml-auto text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                <select 
-                  value={newTaskProject}
-                  onChange={(e) => setNewTaskProject(e.target.value)}
-                  className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2 py-1 outline-none appearance-none"
-                >
-                  <option value="inbox">Inbox</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                {/* Project Picker Dropdown */}
+                <div className="relative">
+                  <button 
+                    onClick={() => { setShowProjectPicker(!showProjectPicker); setShowDatePicker(false); setShowDeadlinePicker(false); setShowPriorityPicker(false); setShowRepeatPicker(false); }}
+                    className={`flex items-center px-3 py-1.5 text-xs font-medium border rounded-md transition ${showProjectPicker ? 'bg-gray-100 border-gray-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'}`}
+                  >
+                    <Inbox className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                    {newTaskProject === 'inbox' ? 'Inbox' : (projects.find(p => p.id === newTaskProject)?.name || 'Inbox')}
+                    <ChevronDown className="w-3.5 h-3.5 ml-2 text-gray-400" />
+                  </button>
+                  {showProjectPicker && (
+                    <div className="absolute bottom-full left-0 mb-1 z-50 bg-white border border-gray-200 shadow-xl rounded-lg p-1 w-48 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                      <button 
+                        onClick={() => { setNewTaskProject('inbox'); setShowProjectPicker(false); }}
+                        className="w-full flex items-center px-3 py-2 text-xs hover:bg-gray-50 rounded-md transition-colors"
+                      >
+                        <Inbox className="w-3.5 h-3.5 mr-2 text-primary" />
+                        Inbox
+                        {newTaskProject === 'inbox' && <Check className="w-4 h-4 ml-auto text-primary" />}
+                      </button>
+                      {projects.length > 0 && <div className="h-px bg-gray-100 my-1 mx-2" />}
+                      {projects.map(p => (
+                        <button 
+                          key={p.id} 
+                          onClick={() => { setNewTaskProject(p.id); setShowProjectPicker(false); }}
+                          className="w-full flex items-center px-3 py-2 text-xs hover:bg-gray-50 rounded-md transition-colors"
+                        >
+                          {renderIcon(p.icon, p.color, "w-3.5 h-3.5 mr-2")}
+                          <span className="truncate">{p.name}</span>
+                          {newTaskProject === p.id && <Check className="w-4 h-4 ml-auto text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center space-x-2">
                   <button 
