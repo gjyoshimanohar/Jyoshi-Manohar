@@ -15,3 +15,23 @@ export interface BlogPost {
   category: string;
   readTime: string;
 }
+
+export interface Todo {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  createdAt: number;
+  dueDate?: number | null;
+  priority?: number; // 1, 2, 3, 4
+  projectId?: string; // 'inbox' or custom ID
+}
+
+export interface Project {
+  id: string;
+  userId: string;
+  name: string;
+  color: string;
+  createdAt: number;
+}

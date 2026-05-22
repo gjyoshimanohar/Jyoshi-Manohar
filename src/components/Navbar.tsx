@@ -32,7 +32,7 @@ export default function Navbar() {
             </Link>
           </div>
 
-          <div className="hidden md:flex items-center space-x-10">
+          <div className="hidden md:flex items-center space-x-4 lg:space-x-8 xl:space-x-10">
             {navItems.map((item) => {
               // Determine if we should use an anchor tag or Link based on if it's a hash link
               const isHash = item.path.includes('#');
@@ -98,7 +98,7 @@ export default function Navbar() {
             })}
             <Link
               to="/#contact"
-              className="bg-primary text-white px-8 py-3 text-xs font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5"
+              className="bg-primary text-white px-5 lg:px-8 py-3 text-xs font-bold uppercase tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 whitespace-nowrap shrink-0"
             >
               Get Started
             </Link>

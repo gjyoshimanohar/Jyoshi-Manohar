@@ -3,62 +3,101 @@ import { Mail, Phone, MapPin, Linkedin, Twitter, Scale } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="bg-primary text-white/80 py-20 border-t border-white/20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 lg:gap-24">
-          <div className="col-span-1 md:col-span-2 space-y-8">
+    <footer className="relative bg-blue-950 text-white pt-16 pb-8 overflow-hidden mt-20">
+      {/* Background Decorative Rings/Circles in top right */}
+      <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none hidden md:block">
+        <svg className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 opacity-10" width="800" height="800" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+          {/* Outer Ring */}
+          <circle cx="400" cy="400" r="400" fill="currentColor" />
+          
+          {/* Middle Circle */}
+          <circle cx="400" cy="400" r="300" fill="#020617" />
+          
+          {/* Inner Circle */}
+          <circle cx="400" cy="400" r="200" fill="currentColor" />
+        </svg>
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Highlight CTA Box */}
+        <div className="bg-blue-900 rounded-2xl p-10 md:p-12 mb-12 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 shadow-xl">
+          <div className="max-w-3xl">
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-white tracking-tight leading-tight mb-4">
+              Ready to take your business to the next level?
+            </h2>
+            <p className="text-white/80 text-lg leading-relaxed max-w-2xl">
+              Let us handle your financial compliances so you can focus entirely on your vision and scaling up.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-4 shrink-0 w-full lg:w-auto">
+            <Link 
+              to="/#contact"
+              className="w-full sm:w-auto text-center inline-flex items-center justify-center px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-full transition-all"
+            >
+              Book your Appointment now
+            </Link>
+            <Link 
+              to="/#contact"
+              className="w-full sm:w-auto text-center inline-flex items-center justify-center px-8 py-4 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-full transition-all"
+            >
+              Contact us
+            </Link>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="w-full h-px bg-white/10 mb-12"></div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-12 lg:gap-8">
+          {/* Brand Col */}
+          <div className="col-span-1 md:col-span-4 space-y-6">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white flex items-center justify-center">
-                <span className="text-primary font-black text-sm tracking-tighter">JM</span>
+              <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm shadow-sm">
+                <span className="text-[#17459b] font-black text-lg tracking-tighter">JM</span>
               </div>
-              <span className="font-bold text-lg tracking-tight uppercase text-white">
+              <span className="font-bold text-xl tracking-tight text-white font-display uppercase">
                 Jyoshi Manohar
               </span>
             </div>
-            <p className="text-white/80 max-w-sm text-sm font-normal leading-relaxed text-justify">
-              Precision financial guidance for the modern era. Specializing in 
-              tax optimization and corporate value preservation.
+            <p className="text-white/70 text-sm font-medium leading-loose pt-2">
+              Precision financial guidance for the modern era. Specializing in tax optimization and corporate value preservation.
             </p>
-            <div className="flex space-x-6">
-              <a href="https://www.linkedin.com/in/jyoshimanoharg" target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors"><Linkedin className="h-4 w-4" /></a>
-              <a href="#" className="hover:text-secondary transition-colors"><Twitter className="h-4 w-4" /></a>
-              <a href="mailto:jyoshimanohar@icai.org" className="hover:text-secondary transition-colors"><Mail className="h-4 w-4" /></a>
-            </div>
           </div>
 
-          <div>
-            <h4 className="text-white text-xs font-black tracking-[0.25em] mb-8">Navigation</h4>
-            <ul className="space-y-4 text-xs font-bold uppercase tracking-widest">
-              <li><Link to="/" className="hover:text-secondary transition-colors">Overview</Link></li>
-              <li><a href="https://makeeazy.in/" target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors">MAKEEAZY</a></li>
-              <li><Link to="/#services" className="hover:text-secondary transition-colors">Expertise</Link></li>
-              <li><a href="https://blogs.jyoshimanohar.com" target="_blank" rel="noopener noreferrer" className="hover:text-secondary transition-colors">Analysis</a></li>
-              <li><Link to="/#about" className="hover:text-secondary transition-colors">About</Link></li>
-              <li><Link to="/admin" className="hover:text-secondary transition-colors">Admin</Link></li>
+          {/* Links 1 - Quick Links */}
+          <div className="col-span-1 md:col-span-2 md:col-start-5">
+            <h4 className="text-white font-bold text-sm uppercase mb-6 tracking-wide">Quick Links</h4>
+            <ul className="space-y-4 text-sm font-medium text-white/70">
+              <li><Link to="/" className="hover:text-white transition-colors">Home</Link></li>
+              <li><Link to="/#services" className="hover:text-white transition-colors">Services</Link></li>
+              <li><a href="https://blogs.jyoshimanohar.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Blog</a></li>
+              <li><Link to="/#about" className="hover:text-white transition-colors">About</Link></li>
+              <li><Link to="/#contact" className="hover:text-white transition-colors">Contact</Link></li>
             </ul>
           </div>
 
-          <div>
-            <h4 className="text-white text-xs font-black tracking-[0.25em] mb-8">Headquarters</h4>
-            <ul className="space-y-4 text-xs font-normal">
-              <li className="flex items-start space-x-3">
-                <MapPin className="h-4 w-4 text-secondary flex-shrink-0" />
-                <span>Hyderabad, TG</span>
-              </li>
-              <li className="flex items-center space-x-3">
-                <Phone className="h-4 w-4 text-secondary flex-shrink-0" />
-                <span>+91 9492377780</span>
-              </li>
+          {/* Links 2 - Internal */}
+          <div className="col-span-1 md:col-span-2">
+            <h4 className="text-white font-bold text-sm uppercase mb-6 tracking-wide">Internal</h4>
+            <ul className="space-y-4 text-sm font-medium text-white/70">
+              <li><Link to="/admin" className="hover:text-white transition-colors">Admin</Link></li>
+              <li><Link to="/tasks" className="hover:text-white transition-colors">Workspace</Link></li>
             </ul>
           </div>
-        </div>
-        
-        <div className="mt-20 pt-8 border-t border-white/20 text-center">
-          <p className="text-xs font-black uppercase tracking-[0.3em] text-white/80">
-            © {new Date().getFullYear()} Jyoshi Manohar. Semi-Qualified Chartered Accountant.
-          </p>
         </div>
       </div>
+      
+      {/* Scroll to Top Arrow (Optional) */}
+      <button 
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="absolute bottom-8 right-8 w-12 h-12 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center justify-center text-white transition-all shadow-lg"
+        aria-label="Scroll to top"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+      </button>
     </footer>
   );
 }

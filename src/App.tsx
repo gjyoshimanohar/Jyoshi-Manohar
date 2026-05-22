@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import BlogList from './pages/BlogList';
 import BlogPost from './pages/BlogPost';
 import Admin from './pages/Admin';
+import Tasks from './pages/Tasks';
 import UnderConstruction from './pages/UnderConstruction';
 
 function ScrollToTop() {
@@ -47,6 +48,7 @@ export default function App() {
               <Route path="/blog/:slug" element={<BlogPost />} />
               <Route path="/services/:id" element={<UnderConstruction />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/tasks" element={<Tasks />} />
             </Routes>
           )}
         </div>

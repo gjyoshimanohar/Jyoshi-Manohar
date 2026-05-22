@@ -245,35 +245,36 @@ export default function Admin() {
   return (
     <main className="pt-32 pb-24 bg-accent min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
             <p className="text-primary font-bold tracking-widest capitalize text-xs mb-6">Control Center</p>
-            <h1 className="text-4xl lg:text-5xl font-black text-primary tracking-tighter leading-none">Content Management</h1>
+            <h1 className="text-4xl lg:text-5xl font-black text-primary tracking-tighter leading-none">Management</h1>
           </div>
           <div className="flex items-center space-x-4">
-            {!confirmSeed ? (
-              <button
-                onClick={() => setConfirmSeed(true)}
-                className="flex items-center space-x-2 bg-white border border-border px-6 py-3 font-black uppercase text-xs tracking-widest hover:border-primary transition-all"
-              >
-                <Database className="h-4 w-4" />
-                <span>Sync Defaults</span>
-              </button>
-            ) : (
-              <div className="flex items-center space-x-2 bg-white border border-border pr-2 py-1 pl-4">
-                <span className="font-bold text-xs">Are you sure?</span>
-                <button onClick={() => { handleSeedData(); setConfirmSeed(false); }} className="px-3 py-2 bg-secondary text-white font-bold text-xs">Yes</button>
-                <button onClick={() => setConfirmSeed(false)} className="px-3 py-2 bg-slate-200 text-black font-bold text-xs">No</button>
-              </div>
-            )}
-            <button
-              onClick={() => setEditingPost({})}
-              className="flex items-center space-x-2 bg-primary text-white px-6 py-3 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Post</span>
-            </button>
-            <button onClick={handleLogout} className="p-3 text-black hover:text-primary transition-colors">
+                {!confirmSeed ? (
+                  <button
+                    onClick={() => setConfirmSeed(true)}
+                    className="flex items-center space-x-2 bg-white border border-border px-6 py-3 font-black uppercase text-xs tracking-widest hover:border-primary transition-all hidden sm:flex"
+                  >
+                    <Database className="h-4 w-4" />
+                    <span>Sync Defaults</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-2 bg-white border border-border pr-2 py-1 pl-4 hidden sm:flex">
+                    <span className="font-bold text-xs">Are you sure?</span>
+                    <button onClick={() => { handleSeedData(); setConfirmSeed(false); }} className="px-3 py-2 bg-secondary text-white font-bold text-xs">Yes</button>
+                    <button onClick={() => setConfirmSeed(false)} className="px-3 py-2 bg-slate-200 text-black font-bold text-xs">No</button>
+                  </div>
+                )}
+                <button
+                  onClick={() => setEditingPost({})}
+                  className="flex items-center space-x-2 bg-primary text-white px-6 py-3 font-black uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>New Post</span>
+                </button>
+            <button onClick={handleLogout} className="p-3 text-black hover:text-primary transition-colors flex items-center space-x-2">
+              <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Logout</span>
               <LogOut className="h-5 w-5" />
             </button>
           </div>
