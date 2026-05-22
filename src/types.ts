@@ -24,9 +24,10 @@ export interface Todo {
   completed: boolean;
   createdAt: number;
   dueDate?: number | null;
+  deadline?: number | null;
   priority?: number; // 1, 2, 3, 4
   projectId?: string; // 'inbox' or custom ID
-  repeat?: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'none'; // Repeat option
+  repeat?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'none'; // Repeat option
 }
 
 export interface Project {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Hash, MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, CalendarDays, FlagTriangleRight, Search, Repeat, Smile, Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Circle, BarChart2 } from 'lucide-react';
+import { Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Hash, MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, CalendarDays, FlagTriangleRight, Search, Repeat, Smile, Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Circle, BarChart2, Clock, Timer } from 'lucide-react';
 import { todoService } from '../services/todoService';
 import { Todo, Project } from '../types';
 import { auth } from '../lib/firebase';
@@ -51,6 +51,7 @@ export default function WorkspaceApp() {
   const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(false);
 
   const [editingTodoDateId, setEditingTodoDateId] = useState<string | null>(null);
+  const [editingTodoDeadlineId, setEditingTodoDeadlineId] = useState<string | null>(null);
 
   // Add Task State
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -59,8 +60,10 @@ export default function WorkspaceApp() {
   const [newTaskProject, setNewTaskProject] = useState<string>('inbox');
   const [newTaskPriority, setNewTaskPriority] = useState<number>(4);
   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(new Date());
-  const [newTaskRepeat, setNewTaskRepeat] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'none'>('none');
+  const [newTaskDeadline, setNewTaskDeadline] = useState<Date | undefined>(undefined);
+  const [newTaskRepeat, setNewTaskRepeat] = useState<'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'none'>('none');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showRepeatPicker, setShowRepeatPicker] = useState(false);
@@ -103,11 +106,13 @@ export default function WorkspaceApp() {
       projectId: newTaskProject,
       priority: newTaskPriority,
       dueDate: newTaskDueDate ? newTaskDueDate.getTime() : null,
+      deadline: newTaskDeadline ? newTaskDeadline.getTime() : null,
       repeat: newTaskRepeat,
     });
     
     setNewTaskTitle('');
     setNewTaskDesc('');
+    setNewTaskDeadline(undefined);
     setNewTaskRepeat('none');
     setIsAddingTask(false);
   };
@@ -147,7 +152,38 @@ export default function WorkspaceApp() {
   };
 
   const handleToggleTodo = async (todo: Todo) => {
-    await todoService.updateTodoStatus(todo.id, !todo.completed);
+    const newStatus = !todo.completed;
+    await todoService.updateTodoStatus(todo.id, newStatus);
+    
+    // If completing and has repeat, create next recurrence
+    if (newStatus && todo.repeat && todo.repeat !== 'none') {
+      const getNextDate = (currentDateMs: number | null | undefined) => {
+        if (!currentDateMs) return Date.now();
+        const current = new Date(currentDateMs);
+        switch (todo.repeat) {
+          case 'hourly': return current.setHours(current.getHours() + 1);
+          case 'daily': return current.setDate(current.getDate() + 1);
+          case 'weekly': return current.setDate(current.getDate() + 7);
+          case 'monthly': return current.setMonth(current.getMonth() + 1);
+          case 'yearly': return current.setFullYear(current.getFullYear() + 1);
+          default: return currentDateMs;
+        }
+      };
+
+      const newTodo = {
+        title: todo.title,
+        description: todo.description,
+        userId: todo.userId,
+        projectId: todo.projectId,
+        priority: todo.priority,
+        repeat: todo.repeat,
+        dueDate: todo.dueDate ? getNextDate(todo.dueDate) : null,
+        deadline: todo.deadline ? getNextDate(todo.deadline) : null,
+        completed: false
+      };
+      
+      await todoService.createTodo(newTodo);
+    }
   };
 
   const handleDeleteTodo = async (id: string, e: React.MouseEvent) => {
@@ -193,12 +229,16 @@ export default function WorkspaceApp() {
         return active.filter(t => !t.projectId || t.projectId === 'inbox');
       case 'today':
         return active.filter(t => {
-          if (!t.dueDate) return false;
-          const due = new Date(t.dueDate);
-          return isToday(due) || isPast(due);
+          const due = t.dueDate ? new Date(t.dueDate) : null;
+          const dl = t.deadline ? new Date(t.deadline) : null;
+          return (due && (isToday(due) || isPast(due))) || (dl && (isToday(dl) || isPast(dl)));
         });
       case 'upcoming':
-        return active.filter(t => t.dueDate && !isPast(new Date(t.dueDate)));
+        return active.filter(t => {
+          const due = t.dueDate ? new Date(t.dueDate) : null;
+          const dl = t.deadline ? new Date(t.deadline) : null;
+          return (due && (!isPast(due) || isToday(due))) || (dl && (!isPast(dl) || isToday(dl)));
+        });
       case 'project':
         return active.filter(t => t.projectId === selectedProjectId);
       default:
@@ -208,10 +248,18 @@ export default function WorkspaceApp() {
 
   const filteredTodos = getFilteredTodos();
   
-  // Sorting: High priority first, then due date
+  // Sorting: High priority first, then deadline/due date
   filteredTodos.sort((a, b) => {
     if ((a.priority || 4) !== (b.priority || 4)) return (a.priority || 4) - (b.priority || 4);
-    if (a.dueDate && b.dueDate) return a.dueDate - b.dueDate;
+    
+    // Use deadline if available, otherwise dueDate
+    const dateA = a.deadline || a.dueDate;
+    const dateB = b.deadline || b.dueDate;
+    
+    if (dateA && dateB) return dateA - dateB;
+    if (dateA) return -1;
+    if (dateB) return 1;
+
     return 0;
   });
 
@@ -259,6 +307,15 @@ export default function WorkspaceApp() {
     if (isTomorrow(date)) return <span className="text-orange-500 font-semibold text-xs flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> Tomorrow</span>;
     if (isPast(date)) return <span className="text-red-500 font-semibold text-xs flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> {format(date, 'MMM d')}</span>;
     return <span className="text-slate-500 text-xs flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> {format(date, 'MMM d')}</span>;
+  };
+
+  const formatTaskDeadline = (timestamp?: number | null) => {
+    if (!timestamp) return null;
+    const date = new Date(timestamp);
+    if (isToday(date)) return <span className="text-red-600 font-semibold text-xs flex items-center"><Clock className="w-3 h-3 mr-1" /> Deadline Today</span>;
+    if (isTomorrow(date)) return <span className="text-orange-600 font-semibold text-xs flex items-center"><Clock className="w-3 h-3 mr-1" /> Deadline Tomorrow</span>;
+    if (isPast(date)) return <span className="text-red-600 font-semibold text-xs flex items-center"><Clock className="w-3 h-3 mr-1" /> Overdue: {format(date, 'MMM d')}</span>;
+    return <span className="text-slate-500 text-xs flex items-center"><Clock className="w-3 h-3 mr-1" /> Deadline: {format(date, 'MMM d')}</span>;
   };
 
   if (loading) {
@@ -316,7 +373,7 @@ export default function WorkspaceApp() {
                 <span>Today</span>
               </div>
               <span className="text-xs text-gray-500">
-                {todos.filter(t => !t.completed && t.dueDate && (isToday(new Date(t.dueDate)) || isPast(new Date(t.dueDate)))).length || ''}
+                {todos.filter(t => !t.completed && ((t.dueDate && (isToday(new Date(t.dueDate)) || isPast(new Date(t.dueDate)))) || (t.deadline && (isToday(new Date(t.deadline)) || isPast(new Date(t.deadline)))))).length || ''}
               </span>
             </button>
             <button
@@ -553,7 +610,7 @@ export default function WorkspaceApp() {
                     <span>Today</span>
                   </div>
                   <span className="text-xs text-gray-500">
-                    {todos.filter(t => !t.completed && t.dueDate && (isToday(new Date(t.dueDate)) || isPast(new Date(t.dueDate)))).length || ''}
+                    {todos.filter(t => !t.completed && ((t.dueDate && (isToday(new Date(t.dueDate)) || isPast(new Date(t.dueDate)))) || (t.deadline && (isToday(new Date(t.deadline)) || isPast(new Date(t.deadline)))))).length || ''}
                   </span>
                 </button>
                 <button
@@ -747,7 +804,7 @@ export default function WorkspaceApp() {
                       <div className="flex items-center space-x-3">
                         <div className="relative">
                           <button 
-                            onClick={() => setEditingTodoDateId(todo.id)}
+                            onClick={() => { setEditingTodoDateId(todo.id); setEditingTodoDeadlineId(null); }}
                             className="hover:bg-gray-100 rounded px-1 -ml-1 transition-colors flex items-center h-5"
                           >
                             {formatTaskDate(todo.dueDate) || <span className="text-gray-400 text-[10px] flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> No Date</span>}
@@ -778,6 +835,45 @@ export default function WorkspaceApp() {
                                     className="w-full text-center text-xs text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-md transition-colors font-medium "
                                   >
                                     Clear due date
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <button 
+                            onClick={() => { setEditingTodoDeadlineId(todo.id); setEditingTodoDateId(null); }}
+                            className="hover:bg-gray-100 rounded px-1 -ml-1 transition-colors flex items-center h-5"
+                          >
+                            {formatTaskDeadline(todo.deadline) || <span className="text-gray-400 text-[10px] flex items-center"><Clock className="w-3 h-3 mr-1" /> No Deadline</span>}
+                          </button>
+                          {editingTodoDeadlineId === todo.id && (
+                            <div className="absolute top-6 left-0 z-[60] bg-white border border-gray-200 shadow-2xl rounded-lg p-2">
+                              <div className="flex justify-between items-center mb-2 px-2 pt-1 border-b border-gray-100 pb-2">
+                                <span className="text-sm font-medium text-gray-700">Change deadline</span>
+                                <button onClick={() => setEditingTodoDeadlineId(null)} className="text-gray-500 hover:bg-gray-100 p-1 rounded-md">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <DayPicker
+                                mode="single"
+                                selected={todo.deadline ? new Date(todo.deadline) : undefined}
+                                onSelect={(date) => {
+                                  todoService.updateTodo(todo.id, { deadline: date ? date.getTime() : null });
+                                  setEditingTodoDeadlineId(null);
+                                }}
+                              />
+                              {todo.deadline && (
+                                <div className="border-t border-gray-100 pt-2 mt-2">
+                                  <button
+                                    onClick={() => {
+                                      todoService.updateTodo(todo.id, { deadline: null });
+                                      setEditingTodoDeadlineId(null);
+                                    }}
+                                    className="w-full text-center text-xs text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-md transition-colors font-medium "
+                                  >
+                                    Clear deadline
                                   </button>
                                 </div>
                               )}
@@ -841,7 +937,16 @@ export default function WorkspaceApp() {
                 type="text"
                 placeholder="Task name"
                 value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNewTaskTitle(val);
+                  const lower = val.toLowerCase();
+                  if (/\bhourly\b/.test(lower)) setNewTaskRepeat('hourly');
+                  else if (/\bdaily\b/.test(lower)) setNewTaskRepeat('daily');
+                  else if (/\bweekly\b/.test(lower)) setNewTaskRepeat('weekly');
+                  else if (/\bmonthly\b/.test(lower)) setNewTaskRepeat('monthly');
+                  else if (/\byearly\b/.test(lower)) setNewTaskRepeat('yearly');
+                }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAddTask(); }}
                 className="w-full font-medium text-[#202020] text-sm outline-none placeholder:text-gray-400 mb-1"
               />
@@ -855,16 +960,25 @@ export default function WorkspaceApp() {
               <div className="flex flex-wrap gap-2 mb-4 relative">
                 {/* Due Date Picker Button */}
                 <button 
-                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  onClick={() => { setShowDatePicker(!showDatePicker); setShowDeadlinePicker(false); setShowPriorityPicker(false); setShowRepeatPicker(false); }}
                   className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
                 >
                   <CalendarDays className="w-4 h-4 mr-1 text-green-600" />
                   {newTaskDueDate ? (isToday(newTaskDueDate) ? 'Today' : format(newTaskDueDate, 'MMM d')) : 'Due date'}
                 </button>
 
+                {/* Deadline Picker Button */}
+                <button 
+                  onClick={() => { setShowDeadlinePicker(!showDeadlinePicker); setShowDatePicker(false); setShowPriorityPicker(false); setShowRepeatPicker(false); }}
+                  className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
+                >
+                  <Clock className="w-4 h-4 mr-1 text-red-500" />
+                  {newTaskDeadline ? (isToday(newTaskDeadline) ? 'Today Deadline' : format(newTaskDeadline, 'MMM d')) : 'Deadline'}
+                </button>
+
                 {/* Priority Picker Button */}
                 <button 
-                  onClick={() => setShowPriorityPicker(!showPriorityPicker)}
+                  onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowDatePicker(false); setShowDeadlinePicker(false); setShowRepeatPicker(false); }}
                   className="flex items-center px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition"
                 >
                   <Flag className={`w-4 h-4 mr-1 ${getPriorityColor(newTaskPriority)}`} />
@@ -890,6 +1004,15 @@ export default function WorkspaceApp() {
                     />
                   </div>
                 )}
+                {showDeadlinePicker && (
+                  <div className="absolute top-8 left-[90px] z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-2">
+                    <DayPicker 
+                      mode="single" 
+                      selected={newTaskDeadline} 
+                      onSelect={(d) => { setNewTaskDeadline(d); setShowDeadlinePicker(false); }} 
+                    />
+                  </div>
+                )}
                 {showPriorityPicker && (
                   <div className="absolute top-8 left-[90px] z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-1 w-48">
                     {[1, 2, 3, 4].map(p => (
@@ -907,7 +1030,7 @@ export default function WorkspaceApp() {
                 )}
                 {showRepeatPicker && (
                   <div className="absolute top-8 left-[180px] z-10 bg-white border border-gray-200 shadow-2xl rounded-lg p-1 w-32">
-                    {['none', 'daily', 'weekly', 'monthly', 'yearly'].map(r => (
+                    {['none', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'].map(r => (
                       <button 
                         key={r} 
                         onClick={() => { setNewTaskRepeat(r as any); setShowRepeatPicker(false); }}
