@@ -55,5 +55,6 @@ export interface Project {
   color: string;
   icon?: string;
   folderId?: string | null;
+  viewType?: 'list' | 'kanban' | 'timeline';
   createdAt: number;
 }

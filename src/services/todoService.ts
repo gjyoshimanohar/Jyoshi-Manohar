@@ -141,13 +141,15 @@ export const todoService = {
     });
   },
 
-  createProject: async (name: string, color: string, userId: string, icon?: string) => {
+  createProject: async (name: string, color: string, userId: string, icon?: string, folderId?: string | null, viewType?: 'list' | 'kanban' | 'timeline') => {
     try {
       const newProject = {
         name,
         color,
         userId,
         icon: icon || null,
+        folderId: folderId || null,
+        viewType: viewType || 'list',
         createdAt: Date.now()
       };
       const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), newProject);
