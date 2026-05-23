@@ -1,48 +1,48 @@
 import { Service, BlogPost } from './types';
 
 export const services: Service[] = [
-  {
-    id: '1',
-    title: 'Business Advisory',
-    description: 'Strategic advice on business restructuring, mergers & acquisitions, and corporate governance for growth-oriented firms.',
-    iconName: 'BarChart'
-  },
-  {
-    id: '2',
-    title: 'Startup Advisory',
-    description: 'End-to-end support for startups including incorporation, funding consultancy, and specialized financial management.',
-    iconName: 'Rocket'
-  },
-  {
-    id: '3',
-    title: 'Taxation Services',
-    description: 'Expert guidance on Direct and Indirect tax planning, compliance, and representation for individuals and corporates.',
-    iconName: 'Calculator'
-  },
-  {
-    id: '4',
-    title: 'Audit & Assurance',
-    description: 'Internal audits and comprehensive assurance services to ensure financial integrity and compliance.',
-    iconName: 'ShieldCheck'
-  },
-  {
-    id: '5',
-    title: 'Compliance Services',
-    description: 'Expert guidance on corporate compliance, regulatory filings, and statutory requirements for seamless operations.',
-    iconName: 'ClipboardCheck'
-  }
+ {
+ id: '1',
+ title: 'Business Advisory',
+ description: 'Strategic advice on business restructuring, mergers & acquisitions, and corporate governance for growth-oriented firms.',
+ iconName: 'BarChart'
+ },
+ {
+ id: '2',
+ title: 'Startup Advisory',
+ description: 'End-to-end support for startups including incorporation, funding consultancy, and specialized financial management.',
+ iconName: 'Rocket'
+ },
+ {
+ id: '3',
+ title: 'Taxation Services',
+ description: 'Expert guidance on Direct and Indirect tax planning, compliance, and representation for individuals and corporates.',
+ iconName: 'Calculator'
+ },
+ {
+ id: '4',
+ title: 'Audit & Assurance',
+ description: 'Internal audits and comprehensive assurance services to ensure financial integrity and compliance.',
+ iconName: 'ShieldCheck'
+ },
+ {
+ id: '5',
+ title: 'Compliance Services',
+ description: 'Expert guidance on corporate compliance, regulatory filings, and statutory requirements for seamless operations.',
+ iconName: 'ClipboardCheck'
+ }
 ];
 
 export const blogPosts: BlogPost[] = [
-  {
-    id: '1',
-    title: 'Navigating New Tax Amendments for 2026',
-    slug: 'tax-amendments-2026',
-    excerpt: 'A deep dive into the recent changes in individual and corporate tax structures and how they impact your financial planning.',
-    category: 'Taxation',
-    date: 'May 10, 2026',
-    readTime: '6 min read',
-    content: `
+ {
+ id: '1',
+ title: 'Navigating New Tax Amendments for 2026',
+ slug: 'tax-amendments-2026',
+ excerpt: 'A deep dive into the recent changes in individual and corporate tax structures and how they impact your financial planning.',
+ category: 'Taxation',
+ date: 'May 10, 2026',
+ readTime: '6 min read',
+ content: `
 # Navigating New Tax Amendments for 2026
 
 The landscape of professional taxation is shifting rapidly. With the new 2026 amendments, both individuals and business owners need to be more vigilant than ever...
@@ -53,17 +53,17 @@ The landscape of professional taxation is shifting rapidly. With the new 2026 am
 3. **Corporate Surcharge Reductions**: Encouraging reinvestment in local manufacturing.
 
 As a Semi-Qualified Chartered Accountant, I recommend reviewing your portfolio before the next quarter...
-    `
-  },
-  {
-    id: '2',
-    title: '5 Financial Mistakes Startups Should Avoid',
-    slug: 'startup-financial-mistakes',
-    excerpt: 'Common pitfalls early-stage founders face and how internal audits can save your business from costly errors.',
-    category: 'Business Strategy',
-    date: 'April 22, 2026',
-    readTime: '4 min read',
-    content: `
+ `
+ },
+ {
+ id: '2',
+ title: '5 Financial Mistakes Startups Should Avoid',
+ slug: 'startup-financial-mistakes',
+ excerpt: 'Common pitfalls early-stage founders face and how internal audits can save your business from costly errors.',
+ category: 'Business Strategy',
+ date: 'April 22, 2026',
+ readTime: '4 min read',
+ content: `
 # 5 Financial Mistakes Startups Should Avoid
 
 Building a startup is exhilarating, but financial missteps can ground your vision before it takes flight.
@@ -73,31 +73,31 @@ One of the most frequent issues I see is the lack of a clear boundary between fo
 
 ### 2. Ignoring Cash Flow Projections
 Profit is not the same as cash. Many profitable companies fail because they couldn't pay their bills on time...
-    `
-  },
-  {
-    id: '3',
-    title: 'The Role of AI in Modern Auditing',
-    slug: 'ai-in-auditing',
-    excerpt: 'Exploring how artificial intelligence is enhancing accuracy and risk detection in internal auditing processes.',
-    category: 'Technology',
-    date: 'March 15, 2026',
-    readTime: '5 min read',
-    content: `
+ `
+ },
+ {
+ id: '3',
+ title: 'The Role of AI in Modern Auditing',
+ slug: 'ai-in-auditing',
+ excerpt: 'Exploring how artificial intelligence is enhancing accuracy and risk detection in internal auditing processes.',
+ category: 'Technology',
+ date: 'March 15, 2026',
+ readTime: '5 min read',
+ content: `
 # The Role of AI in Modern Auditing
 
 Artificial Intelligence is no longer a future concept—it is here, and it is revolutionizing the accounting path. From sample selection to anomaly detection, AI tools are making audits more robust...
-    `
-  },
-  {
-    id: '4',
-    title: 'New GST Rule Alert: Understanding Section 74A of the CGST Act (Effective FY 2024–25)',
-    slug: 'understanding-section-74a-cgst-act',
-    excerpt: 'A comprehensive guide to the newly introduced Section 74A of the CGST Act, its impact on GST compliance, demand, and recovery from FY 2024-25.',
-    category: 'Taxation',
-    date: '17 Jun 2025',
-    readTime: '7 min read',
-    content: `
+ `
+ },
+ {
+ id: '4',
+ title: 'New GST Rule Alert: Understanding Section 74A of the CGST Act (Effective FY 2024–25)',
+ slug: 'understanding-section-74a-cgst-act',
+ excerpt: 'A comprehensive guide to the newly introduced Section 74A of the CGST Act, its impact on GST compliance, demand, and recovery from FY 2024-25.',
+ category: 'Taxation',
+ date: '17 Jun 2025',
+ readTime: '7 min read',
+ content: `
 # New GST Rule Alert: Understanding Section 74A of the CGST Act (Effective FY 2024–25)
 
 If you’re a business owner, finance professional, or GST practitioner, **Section 74A** of the Central Goods and Services Tax (CGST) Act, 2017 is one update you need to pay attention to. Brought in by the **Finance Act (No. 2), 2024**, this new section simplifies the process of dealing with GST short payments and incorrect input tax credit (ITC) claims — especially from **FY 2024–25 onward**.
@@ -178,6 +178,6 @@ Make sure your systems, records, and processes are up to date from **FY 2024–2
 Need help assessing your GST risk under the new rules? Consult our team of GST experts early and stay ahead of the curve.
 
 *Stay tuned for more updates on GST law and tax reform. For personalized guidance, feel free to reach out in the comments or connect directly!*
-    `
-  }
+ `
+ }
 ];
