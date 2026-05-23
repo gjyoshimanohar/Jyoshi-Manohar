@@ -16,6 +16,12 @@ export interface BlogPost {
   readTime: string;
 }
 
+export interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
 export interface Todo {
   id: string;
   userId: string;
@@ -28,6 +34,18 @@ export interface Todo {
   priority?: number; // 1, 2, 3, 4
   projectId?: string; // 'inbox' or custom ID
   repeat?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'none'; // Repeat option
+  tags?: string[];
+  subtasks?: Subtask[];
+  deletedAt?: number;
+}
+
+export interface Folder {
+  id: string;
+  userId: string;
+  name: string;
+  isExpanded?: boolean;
+  color?: string;
+  createdAt: number;
 }
 
 export interface Project {
@@ -36,5 +54,6 @@ export interface Project {
   name: string;
   color: string;
   icon?: string;
+  folderId?: string | null;
   createdAt: number;
 }

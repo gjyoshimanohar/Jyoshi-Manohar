@@ -1,9 +1,10 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Todo, Project } from '../types';
+import { Todo, Project, Folder } from '../types';
 
 const COLLECTION_NAME = 'todos';
 const PROJECTS_COLLECTION = 'projects';
+const FOLDERS_COLLECTION = 'folders';
 
 // For firestore rules error handling
 enum OperationType {
@@ -91,6 +92,24 @@ export const todoService = {
     }
   },
 
+  softDeleteTodo: async (todoId: string) => {
+    try {
+      const todoRef = doc(db, COLLECTION_NAME, todoId);
+      await updateDoc(todoRef, { deletedAt: Date.now() });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${todoId}`);
+    }
+  },
+
+  restoreTodo: async (todoId: string) => {
+    try {
+      const todoRef = doc(db, COLLECTION_NAME, todoId);
+      await updateDoc(todoRef, { deletedAt: null });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${todoId}`);
+    }
+  },
+
   deleteTodo: async (todoId: string) => {
     try {
       const todoRef = doc(db, COLLECTION_NAME, todoId);
@@ -153,6 +172,61 @@ export const todoService = {
       await deleteDoc(projectRef);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `${PROJECTS_COLLECTION}/${projectId}`);
+    }
+  },
+
+  // Folder methods
+  subscribeToFolders: (userId: string, callback: (folders: Folder[]) => void, errorCallback?: (error: any) => void) => {
+    const q = query(
+      collection(db, FOLDERS_COLLECTION),
+      where("userId", "==", userId)
+    );
+    return onSnapshot(q, (snapshot) => {
+      const folders = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Folder[];
+      folders.sort((a, b) => a.createdAt - b.createdAt);
+      callback(folders);
+    }, (error) => {
+      if (errorCallback) {
+        errorCallback(error);
+      } else {
+        handleFirestoreError(error, OperationType.LIST, FOLDERS_COLLECTION);
+      }
+    });
+  },
+
+  createFolder: async (name: string, userId: string) => {
+    try {
+      const newFolder = {
+        name,
+        userId,
+        isExpanded: true,
+        createdAt: Date.now()
+      };
+      const docRef = await addDoc(collection(db, FOLDERS_COLLECTION), newFolder);
+      return { id: docRef.id, ...newFolder } as Folder;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, FOLDERS_COLLECTION);
+    }
+  },
+
+  updateFolder: async (folderId: string, data: Partial<Folder>) => {
+    try {
+      const folderRef = doc(db, FOLDERS_COLLECTION, folderId);
+      await updateDoc(folderRef, data);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${FOLDERS_COLLECTION}/${folderId}`);
+    }
+  },
+
+  deleteFolder: async (folderId: string) => {
+    try {
+      const folderRef = doc(db, FOLDERS_COLLECTION, folderId);
+      await deleteDoc(folderRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${FOLDERS_COLLECTION}/${folderId}`);
     }
   }
 };

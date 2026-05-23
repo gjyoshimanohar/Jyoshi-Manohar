@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Hash, MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, CalendarDays, FlagTriangleRight, Search, Repeat, Smile, Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Circle, BarChart2, Clock, Timer } from 'lucide-react';
 import { todoService } from '../services/todoService';
-import { Todo, Project } from '../types';
+import { Todo, Project, Folder as FolderType } from '../types';
 import { auth } from '../lib/firebase';
 import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
@@ -16,6 +16,18 @@ const PROJECT_ICONS: Record<string, React.ElementType> = {
 
 const AVAILABLE_ICONS = Object.keys(PROJECT_ICONS);
 
+const FOLDER_COLORS = [
+  '#9ca3af', // gray (default)
+  '#ef4444', // red
+  '#f97316', // orange
+  '#eab308', // yellow
+  '#22c55e', // green
+  '#06b6d4', // cyan
+  '#3b82f6', // blue
+  '#8b5cf6', // violet
+  '#d946ef', // fuchsia
+];
+
 const renderIcon = (name: string | undefined | null, defaultColor: string = '#6b7280', className: string = "w-5 h-5 mr-2") => {
   if (name && PROJECT_ICONS[name]) {
     const IconC = PROJECT_ICONS[name];
@@ -27,11 +39,12 @@ const renderIcon = (name: string | undefined | null, defaultColor: string = '#6b
   return <Hash className={className} style={{ color: defaultColor }} />;
 };
 
-type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project' | 'trends';
+type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project' | 'trends' | 'completed' | 'trash';
 
 export default function WorkspaceApp() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [folders, setFolders] = useState<FolderType[]>([]);
   const [loading, setLoading] = useState(true);
   
   // App State
@@ -43,15 +56,46 @@ export default function WorkspaceApp() {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectIcon, setNewProjectIcon] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
+  const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, message: string, onConfirm: () => void} | null>(null);
 
   // Edit Project State
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectIcon, setEditProjectIcon] = useState('');
+  const [editProjectFolderId, setEditProjectFolderId] = useState<string | null>(null);
   const [showEditEmojiPicker, setShowEditEmojiPicker] = useState(false);
 
   const [editingTodoDateId, setEditingTodoDateId] = useState<string | null>(null);
   const [editingTodoDeadlineId, setEditingTodoDeadlineId] = useState<string | null>(null);
+  const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
+
+  // Timer State
+  const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(25 * 60);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerMode, setTimerMode] = useState<'work' | 'break'>('work');
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timerRunning && timeRemaining > 0) {
+      interval = setInterval(() => {
+        setTimeRemaining(prev => prev - 1);
+      }, 1000);
+    } else if (timeRemaining === 0) {
+      setTimerRunning(false);
+      // Play sound or notification here ideally
+      if (timerMode === 'work') {
+        setTimerMode('break');
+        setTimeRemaining(5 * 60);
+        // We could auto-start break, but standard is to pause and let user start
+      } else {
+        setTimerMode('work');
+        setTimeRemaining(25 * 60);
+      }
+    }
+    return () => clearInterval(interval);
+  }, [timerRunning, timeRemaining, timerMode]);
 
   // Add Task State
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -73,6 +117,7 @@ export default function WorkspaceApp() {
     
     let unsubTodos = () => {};
     let unsubProjects = () => {};
+    let unsubFolders = () => {};
 
     try {
       unsubTodos = todoService.subscribeToUserTodos(auth.currentUser.uid, (fetchedTodos) => {
@@ -82,6 +127,9 @@ export default function WorkspaceApp() {
       unsubProjects = todoService.subscribeToProjects(auth.currentUser.uid, (fetchedProjects) => {
         setProjects(fetchedProjects);
       });
+      unsubFolders = todoService.subscribeToFolders(auth.currentUser.uid, (fetchedFolders) => {
+        setFolders(fetchedFolders);
+      });
     } catch(e) {
       console.error(e);
       setLoading(false);
@@ -90,6 +138,7 @@ export default function WorkspaceApp() {
     return () => {
       unsubTodos();
       unsubProjects();
+      unsubFolders();
     };
   }, []);
 
@@ -119,11 +168,73 @@ export default function WorkspaceApp() {
 
   const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this project and all its tasks?')) {
-      await todoService.deleteProject(projectId);
-      if (selectedProjectId === projectId) {
-        setViewMode('inbox');
-        setSelectedProjectId(null);
+    setConfirmDialog({
+      isOpen: true,
+      message: 'Are you sure you want to delete this project and all its tasks?',
+      onConfirm: async () => {
+        await todoService.deleteProject(projectId);
+        if (selectedProjectId === projectId) {
+          setViewMode('inbox');
+          setSelectedProjectId(null);
+        }
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const handleMoveProjectToFolder = async (projectId: string, folderId: string | null) => {
+    await todoService.updateProject(projectId, { folderId });
+  };
+
+  const handleCreateFolder = async (name: string) => {
+    if (!name.trim() || !auth.currentUser) return;
+    await todoService.createFolder(name.trim(), auth.currentUser.uid);
+  };
+
+  const handleDeleteFolder = async (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmDialog({
+      isOpen: true,
+      message: 'Are you sure you want to delete this folder? Projects inside will be kept outside.',
+      onConfirm: async () => {
+        // First move child projects out
+        const childProjects = projects.filter(p => p.folderId === folderId);
+        for (const p of childProjects) {
+          await handleMoveProjectToFolder(p.id, null);
+        }
+        await todoService.deleteFolder(folderId);
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const [isAddingFolder, setIsAddingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [editFolderColor, setEditFolderColor] = useState('');
+  const [showEditFolderColorPicker, setShowEditFolderColorPicker] = useState(false);
+
+  const handleStartEditFolder = (folder: FolderType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingFolderId(folder.id);
+    setEditFolderName(folder.name);
+    setEditFolderColor(folder.color || FOLDER_COLORS[0]);
+  };
+
+  const handleSaveEditFolder = async (folderId: string, e: React.FormEvent) => {
+    e.preventDefault();
+    if (editFolderName.trim()) {
+      try {
+        await todoService.updateFolder(folderId, {
+          name: editFolderName.trim(),
+          color: editFolderColor
+        });
+        setEditingFolderId(null);
+        setShowEditFolderColorPicker(false);
+      } catch (error) {
+        console.error("Failed to update folder", error);
       }
     }
   };
@@ -133,6 +244,7 @@ export default function WorkspaceApp() {
     setEditingProjectId(project.id);
     setEditProjectName(project.name);
     setEditProjectIcon(project.icon || '');
+    setEditProjectFolderId(project.folderId || null);
   };
 
   const handleSaveEditProject = async (projectId: string, e: React.FormEvent) => {
@@ -141,7 +253,8 @@ export default function WorkspaceApp() {
       try {
         await todoService.updateProject(projectId, {
           name: editProjectName.trim(),
-          icon: editProjectIcon
+          icon: editProjectIcon,
+          folderId: editProjectFolderId
         });
         setEditingProjectId(null);
         setShowEditEmojiPicker(false);
@@ -188,7 +301,28 @@ export default function WorkspaceApp() {
 
   const handleDeleteTodo = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await todoService.deleteTodo(id);
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    
+    if (todo.deletedAt) {
+      // Hard delete
+      setConfirmDialog({
+        isOpen: true,
+        message: 'Are you sure you want to delete this task permanently?',
+        onConfirm: async () => {
+          await todoService.deleteTodo(id);
+          setConfirmDialog(null);
+        }
+      });
+    } else {
+      // Soft delete
+      await todoService.softDeleteTodo(id);
+    }
+  };
+
+  const handleRestoreTodo = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await todoService.restoreTodo(id);
   };
 
   const getTrendsData = () => {
@@ -214,11 +348,19 @@ export default function WorkspaceApp() {
 
   // Filter Tasks
   const getFilteredTodos = () => {
-    let active = todos.filter(t => !t.completed);
+    let baseTodos = todos;
+    
+    if (viewMode === 'trash') {
+      baseTodos = todos.filter(t => t.deletedAt);
+    } else if (viewMode === 'completed') {
+      baseTodos = todos.filter(t => t.completed && !t.deletedAt);
+    } else {
+      baseTodos = todos.filter(t => !t.completed && !t.deletedAt);
+    }
 
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
-      active = active.filter(t => 
+      baseTodos = baseTodos.filter(t => 
         t.title.toLowerCase().includes(lowerQuery) || 
         (t.description && t.description.toLowerCase().includes(lowerQuery))
       );
@@ -226,23 +368,26 @@ export default function WorkspaceApp() {
 
     switch (viewMode) {
       case 'inbox':
-        return active.filter(t => !t.projectId || t.projectId === 'inbox');
+        return baseTodos.filter(t => !t.projectId || t.projectId === 'inbox');
       case 'today':
-        return active.filter(t => {
+        return baseTodos.filter(t => {
           const due = t.dueDate ? new Date(t.dueDate) : null;
           const dl = t.deadline ? new Date(t.deadline) : null;
           return (due && (isToday(due) || isPast(due))) || (dl && (isToday(dl) || isPast(dl)));
         });
       case 'upcoming':
-        return active.filter(t => {
+        return baseTodos.filter(t => {
           const due = t.dueDate ? new Date(t.dueDate) : null;
           const dl = t.deadline ? new Date(t.deadline) : null;
           return (due && (!isPast(due) || isToday(due))) || (dl && (!isPast(dl) || isToday(dl)));
         });
       case 'project':
-        return active.filter(t => t.projectId === selectedProjectId);
+        return baseTodos.filter(t => t.projectId === selectedProjectId);
+      case 'completed':
+      case 'trash':
+      case 'trends':
       default:
-        return active;
+        return baseTodos;
     }
   };
 
@@ -269,6 +414,8 @@ export default function WorkspaceApp() {
       case 'today': return 'Today';
       case 'upcoming': return 'Upcoming';
       case 'trends': return 'Trends & Analytics';
+      case 'completed': return 'Completed Tasks';
+      case 'trash': return 'Trash';
       case 'project': {
         const p = projects.find(p => p.id === selectedProjectId);
         if (!p) return 'Project';
@@ -317,6 +464,220 @@ export default function WorkspaceApp() {
     if (isPast(date)) return <span className="text-red-600 font-semibold text-xs flex items-center"><Clock className="w-3 h-3 mr-1" /> Overdue: {format(date, 'MMM d')}</span>;
     return <span className="text-slate-500 text-xs flex items-center"><Clock className="w-3 h-3 mr-1" /> Deadline: {format(date, 'MMM d')}</span>;
   };
+
+  const renderProjectItem = (project: Project) => (
+    <div 
+      key={project.id} 
+      className="relative group"
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('projectId', project.id);
+      }}
+    >
+      {editingProjectId === project.id ? (
+        <form 
+          onSubmit={(e) => handleSaveEditProject(project.id, e)}
+          className="flex flex-col space-y-2 relative p-2"
+        >
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowEditEmojiPicker(!showEditEmojiPicker)}
+              className="p-1 rounded-md hover:bg-gray-200 border text-sm flex items-center justify-center shrink-0 w-8 h-8"
+            >
+              {renderIcon(editProjectIcon, project.color, "w-5 h-5")}
+            </button>
+            <input
+              type="text"
+              autoFocus
+              value={editProjectName}
+              onChange={(e) => setEditProjectName(e.target.value)}
+              className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
+            />
+            <button type="submit" disabled={!editProjectName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
+              <Check className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => { setEditingProjectId(null); setShowEditEmojiPicker(false); }} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {folders.length > 0 && (
+            <div className="flex items-center space-x-2 mt-1">
+              <Folder className="w-4 h-4 text-gray-400" />
+              <select 
+                value={editProjectFolderId || ''}
+                onChange={(e) => setEditProjectFolderId(e.target.value || null)}
+                className="w-full text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-1 py-1 outline-none"
+              >
+                <option value="">No Folder</option>
+                {folders.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {showEditEmojiPicker && (
+            <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 w-48 grid grid-cols-4 gap-2">
+               {AVAILABLE_ICONS.map(iconName => {
+                 const IconC = PROJECT_ICONS[iconName];
+                 return (
+                   <button
+                     key={iconName}
+                     type="button"
+                     onClick={() => {
+                       setEditProjectIcon(iconName);
+                       setShowEditEmojiPicker(false);
+                     }}
+                     className="p-2 hover:bg-gray-100 rounded flex items-center justify-center transition-colors"
+                     title={iconName}
+                   >
+                      <IconC className="w-5 h-5 text-gray-600" />
+                   </button>
+                 );
+               })}
+            </div>
+          )}
+        </form>
+      ) : (
+        <div className="flex items-center w-full">
+          <button
+            onClick={() => { 
+               setViewMode('project'); 
+               setSelectedProjectId(project.id); 
+               setIsAddingTask(false); 
+               if (window.innerWidth < 768) setIsSidebarOpen(false);
+            }}
+            className={`flex-1 flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'project' && selectedProjectId === project.id ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+          >
+            <div className="flex items-center space-x-3 truncate">
+              {renderIcon(project.icon, project.color, "w-5 h-5")}
+              <span className="truncate">{project.name}</span>
+            </div>
+            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <span 
+                onClick={(e) => handleStartEditProject(project, e)} 
+                className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 mr-1"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </span>
+              <span 
+                onClick={(e) => handleDeleteProject(project.id, e)} 
+                className="p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500"
+              >
+                <Trash2 className="w-4 h-4" />
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderProjectList = () => (
+    <div className="space-y-1">
+      {folders.map(folder => (
+        <div 
+          key={folder.id} 
+          className="mb-2 transition-colors relative"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add('bg-gray-50');
+          }}
+          onDragLeave={(e) => {
+            e.currentTarget.classList.remove('bg-gray-50');
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove('bg-gray-50');
+            const pid = e.dataTransfer.getData('projectId');
+            if (pid) handleMoveProjectToFolder(pid, folder.id);
+          }}
+        >
+          {editingFolderId === folder.id ? (
+            <form 
+              onSubmit={(e) => handleSaveEditFolder(folder.id, e)}
+              className="flex flex-col space-y-2 relative p-2"
+            >
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditFolderColorPicker(!showEditFolderColorPicker)}
+                  className="p-1 rounded-md hover:bg-gray-200 border text-sm flex items-center justify-center shrink-0 w-8 h-8"
+                >
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: editFolderColor }} />
+                </button>
+                <input
+                  type="text"
+                  autoFocus
+                  value={editFolderName}
+                  onChange={(e) => setEditFolderName(e.target.value)}
+                  className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
+                />
+                <button type="submit" disabled={!editFolderName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
+                  <Check className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => { setEditingFolderId(null); setShowEditFolderColorPicker(false); }} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              {showEditFolderColorPicker && (
+                <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 w-48 grid grid-cols-5 gap-2">
+                   {FOLDER_COLORS.map(color => (
+                     <button
+                       key={color}
+                       type="button"
+                       onClick={() => {
+                         setEditFolderColor(color);
+                         setShowEditFolderColorPicker(false);
+                       }}
+                       className="w-6 h-6 rounded-full mx-auto hover:ring-2 ring-offset-1 transition-all"
+                       style={{ backgroundColor: color, ringColor: color }}
+                       title={color}
+                     />
+                   ))}
+                </div>
+              )}
+            </form>
+          ) : (
+            <div className="flex items-center justify-between p-2 rounded-md group hover:bg-gray-100 border border-transparent">
+              <div className="flex items-center space-x-2 text-sm text-gray-700 font-medium w-full">
+                <Folder className="w-4 h-4 shrink-0" style={{ color: folder.color || '#9ca3af' }} />
+                <span className="truncate">{folder.name}</span>
+              </div>
+              <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span 
+                  onClick={(e) => handleStartEditFolder(folder, e)} 
+                  className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 mr-1 cursor-pointer"
+                  title="Rename/Color Picker"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </span>
+                <button 
+                  onClick={(e) => handleDeleteFolder(folder.id, e)}
+                  className="p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500 flex-shrink-0"
+                  title="Delete Folder"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="pl-4 space-y-1 mt-1 border-l-2 border-gray-100 ml-3">
+            {projects.filter(p => p.folderId === folder.id).map(renderProjectItem)}
+            {projects.filter(p => p.folderId === folder.id).length === 0 && (
+              <div className="text-xs text-gray-400 py-1 pl-2 italic">Drag projects here</div>
+            )}
+          </div>
+        </div>
+      ))}
+      
+      {projects.filter(p => !p.folderId).map(renderProjectItem)}
+      
+      {projects.length === 0 && folders.length === 0 && !isAddingProject && (
+        <div className="text-xs text-center text-gray-400 italic py-2">No projects yet</div>
+      )}
+    </div>
+  );
 
   if (loading) {
     return <div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
@@ -394,20 +755,83 @@ export default function WorkspaceApp() {
                 <span>Trends</span>
               </div>
             </button>
+            <button
+              onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); }}
+              className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'completed' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+            >
+              <div className="flex items-center space-x-3">
+                <Check className="w-5 h-5 text-gray-500" />
+                <span>Completed</span>
+              </div>
+            </button>
+            <button
+              onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); }}
+              className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'trash' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+            >
+              <div className="flex items-center space-x-3">
+                <Trash2 className="w-5 h-5 text-red-500" />
+                <span>Trash</span>
+              </div>
+            </button>
           </nav>
 
           <div className="mb-4">
             <div className="flex items-center justify-between px-2 text-gray-500 text-xs font-semibold mb-2 group">
               <span>My Projects</span>
-              <button 
-                className="opacity-0 group-hover:opacity-100 hover:bg-gray-200 p-1 rounded transition-all"
-                onClick={() => setIsAddingProject(true)}
-              >
-                <Plus className="w-3 h-3" />
-              </button>
+              <div className="opacity-0 group-hover:opacity-100 flex items-center transition-all">
+                <button 
+                  title="New Folder"
+                  className="hover:bg-gray-200 p-1 rounded mr-1"
+                  onClick={() => setIsAddingFolder(true)}
+                >
+                  <Folder className="w-3 h-3" />
+                </button>
+                <button 
+                  title="New Project"
+                  className="hover:bg-gray-200 p-1 rounded"
+                  onClick={() => setIsAddingProject(true)}
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
             </div>
             
             <AnimatePresence>
+              {isAddingFolder && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-2 px-2"
+                >
+                  <form 
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      handleCreateFolder(newFolderName);
+                      setNewFolderName('');
+                      setIsAddingFolder(false);
+                    }}
+                    className="flex items-center space-x-2"
+                  >
+                    <Folder className="w-4 h-4 text-gray-400 shrink-0 mx-1.5" />
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Folder name"
+                      value={newFolderName}
+                      onChange={(e) => setNewFolderName(e.target.value)}
+                      className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
+                    />
+                    <button type="submit" disabled={!newFolderName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button type="button" onClick={() => setIsAddingFolder(false)} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </form>
+                </motion.div>
+              )}
+
               {isAddingProject && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -481,87 +905,7 @@ export default function WorkspaceApp() {
               )}
             </AnimatePresence>
             
-            <div className="space-y-1">
-              {projects.map(project => (
-                <div key={project.id} className="relative group">
-                  {editingProjectId === project.id ? (
-                    <form 
-                      onSubmit={(e) => handleSaveEditProject(project.id, e)}
-                      className="flex flex-col space-y-2 relative p-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowEditEmojiPicker(!showEditEmojiPicker)}
-                          className="p-1 rounded-md hover:bg-gray-200 border text-sm flex items-center justify-center shrink-0 w-8 h-8"
-                        >
-                          {renderIcon(editProjectIcon, project.color, "w-5 h-5")}
-                        </button>
-                        <input
-                          type="text"
-                          autoFocus
-                          value={editProjectName}
-                          onChange={(e) => setEditProjectName(e.target.value)}
-                          className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
-                        />
-                        <button type="submit" disabled={!editProjectName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button type="button" onClick={() => { setEditingProjectId(null); setShowEditEmojiPicker(false); }} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {showEditEmojiPicker && (
-                        <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 w-48 grid grid-cols-4 gap-2">
-                           {AVAILABLE_ICONS.map(iconName => {
-                             const IconC = PROJECT_ICONS[iconName];
-                             return (
-                               <button
-                                 key={iconName}
-                                 type="button"
-                                 onClick={() => {
-                                   setEditProjectIcon(iconName);
-                                   setShowEditEmojiPicker(false);
-                                 }}
-                                 className="p-2 hover:bg-gray-100 rounded flex items-center justify-center transition-colors"
-                                 title={iconName}
-                               >
-                                  <IconC className="w-5 h-5 text-gray-600" />
-                               </button>
-                             );
-                           })}
-                        </div>
-                      )}
-                    </form>
-                  ) : (
-                    <button
-                      onClick={() => { setViewMode('project'); setSelectedProjectId(project.id); setIsAddingTask(false); }}
-                      className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'project' && selectedProjectId === project.id ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
-                    >
-                      <div className="flex items-center space-x-3 truncate">
-                        {renderIcon(project.icon, project.color, "w-5 h-5")}
-                        <span className="truncate">{project.name}</span>
-                      </div>
-                      <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span 
-                          onClick={(e) => handleStartEditProject(project, e)} 
-                          className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 mr-1"
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </span>
-                        <span 
-                          onClick={(e) => handleDeleteProject(project.id, e)} 
-                          className="p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </span>
-                      </div>
-                      <span className="text-xs text-gray-500 group-hover:hidden">{todos.filter(t => !t.completed && t.projectId === project.id).length || ''}</span>
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            {renderProjectList()}
           </div>
         </div>
       </motion.aside>
@@ -622,93 +966,31 @@ export default function WorkspaceApp() {
                     <span>Trends</span>
                   </div>
                 </button>
+                <button
+                  onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'completed' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Check className="w-5 h-5 text-gray-500" />
+                    <span>Completed</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'trash' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Trash2 className="w-5 h-5 text-red-500" />
+                    <span>Trash</span>
+                  </div>
+                </button>
               </nav>
 
               <div className="mb-4">
                 <div className="flex items-center justify-between px-2 text-gray-500 text-xs font-semibold mb-2">
                   <span>My Projects</span>
                 </div>
-                <div className="space-y-1">
-                  {projects.map(project => (
-                    <div key={project.id} className="relative group">
-                      {editingProjectId === project.id ? (
-                        <form 
-                          onSubmit={(e) => handleSaveEditProject(project.id, e)}
-                          className="flex flex-col space-y-2 relative p-2"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <button
-                              type="button"
-                              onClick={() => setShowEditEmojiPicker(!showEditEmojiPicker)}
-                              className="p-1 rounded-md hover:bg-gray-200 border text-sm flex items-center justify-center shrink-0 w-8 h-8"
-                            >
-                              {renderIcon(editProjectIcon, project.color, "w-5 h-5")}
-                            </button>
-                            <input
-                              type="text"
-                              autoFocus
-                              value={editProjectName}
-                              onChange={(e) => setEditProjectName(e.target.value)}
-                              className="w-full text-sm border focus:border-primary focus:ring-1 focus:ring-primary rounded-md px-2 py-1 outline-none"
-                            />
-                            <button type="submit" disabled={!editProjectName.trim()} className="text-white bg-primary p-1.5 rounded-md disabled:opacity-50">
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button type="button" onClick={() => { setEditingProjectId(null); setShowEditEmojiPicker(false); }} className="text-gray-500 hover:bg-gray-100 p-1.5 rounded-md">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                          {showEditEmojiPicker && (
-                            <div className="absolute top-10 left-0 z-50 bg-white border border-gray-200 rounded-lg shadow-xl p-2 w-48 grid grid-cols-4 gap-2">
-                               {AVAILABLE_ICONS.map(iconName => {
-                                 const IconC = PROJECT_ICONS[iconName];
-                                 return (
-                                   <button
-                                     key={iconName}
-                                     type="button"
-                                     onClick={() => {
-                                       setEditProjectIcon(iconName);
-                                       setShowEditEmojiPicker(false);
-                                     }}
-                                     className="p-2 hover:bg-gray-100 rounded flex items-center justify-center transition-colors"
-                                     title={iconName}
-                                   >
-                                      <IconC className="w-5 h-5 text-gray-600" />
-                                   </button>
-                                 );
-                               })}
-                            </div>
-                          )}
-                        </form>
-                      ) : (
-                        <button
-                          onClick={() => { setViewMode('project'); setSelectedProjectId(project.id); setIsAddingTask(false); setIsSidebarOpen(false); }}
-                          className={`w-full flex items-center justify-between p-2 rounded-md text-sm transition-colors ${viewMode === 'project' && selectedProjectId === project.id ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
-                        >
-                          <div className="flex items-center space-x-3 truncate">
-                            {renderIcon(project.icon, project.color, "w-5 h-5")}
-                            <span className="truncate">{project.name}</span>
-                          </div>
-                          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span 
-                              onClick={(e) => handleStartEditProject(project, e)} 
-                              className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 mr-1"
-                            >
-                              <MoreHorizontal className="w-4 h-4" />
-                            </span>
-                            <span 
-                              onClick={(e) => handleDeleteProject(project.id, e)} 
-                              className="p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </span>
-                          </div>
-                          <span className="text-xs text-gray-500 group-hover:hidden">{todos.filter(t => !t.completed && t.projectId === project.id).length || ''}</span>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                {renderProjectList()}
               </div>
               
               <div className="mt-8 border-t border-border pt-4">
@@ -739,26 +1021,87 @@ export default function WorkspaceApp() {
               </h1>
             </div>
             
-            {/* Search Input */}
-            <div className="relative flex-1 md:max-w-xs">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" />
+            {/* Header Actions */}
+            <div className="flex items-center space-x-3 flex-1 md:max-w-md justify-end">
+              {/* Search Input */}
+              <div className="relative flex-1 max-w-xs">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks..."
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm text-black placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-gray-50 focus:bg-white transition-colors"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  >
+                    <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
               </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search tasks..."
-                className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm text-black placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-gray-50 focus:bg-white transition-colors"
-              />
-              {searchQuery && (
+              
+              {/* Pomodoro Timer */}
+              <div className="relative">
                 <button 
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setIsTimerOpen(!isTimerOpen)}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors ${timerRunning ? 'border-[#ff4d4f] bg-[#fff1f0] text-[#cf1322]' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'}`}
                 >
-                  <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                  <Clock className="w-4 h-4" />
+                  <span className="text-sm font-semibold font-mono">
+                    {String(Math.floor(timeRemaining / 60)).padStart(2, '0')}:{String(timeRemaining % 60).padStart(2, '0')}
+                  </span>
                 </button>
-              )}
+                {isTimerOpen && (
+                  <div className="absolute top-12 right-0 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 z-50">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-sm font-semibold text-gray-800">Focus Timer</h4>
+                      <div className="flex space-x-1 bg-gray-100 p-0.5 rounded-md">
+                        <button 
+                          onClick={() => { setTimerMode('work'); setTimeRemaining(25*60); setTimerRunning(false); }}
+                          className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${timerMode === 'work' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                          Work
+                        </button>
+                        <button 
+                          onClick={() => { setTimerMode('break'); setTimeRemaining(5*60); setTimerRunning(false); }}
+                          className={`px-2 py-1 text-[10px] uppercase font-bold rounded ${timerMode === 'break' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                          Break
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-center mb-6 mt-2">
+                       <span className="text-5xl font-light tracking-tight text-gray-800 tabular-nums">
+                         {String(Math.floor(timeRemaining / 60)).padStart(2, '0')}:{String(timeRemaining % 60).padStart(2, '0')}
+                       </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => setTimerRunning(!timerRunning)}
+                        className={`w-full py-2 rounded-md font-medium text-sm transition-colors ${timerRunning ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-primary text-white hover:bg-primary/90'}`}
+                      >
+                        {timerRunning ? 'Pause' : 'Start'}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setTimerRunning(false);
+                          setTimeRemaining(timerMode === 'work' ? 25 * 60 : 5 * 60);
+                        }}
+                        className="w-full bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-md font-medium text-sm transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -796,12 +1139,27 @@ export default function WorkspaceApp() {
                     >
                       <Check className="w-3 h-3 text-gray-400 opacity-0 transition-opacity" />
                     </button>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-2 cursor-pointer" onClick={() => setSelectedTodoId(todo.id)}>
                       <p className={`text-sm text-[#202020] mb-1 ${todo.completed ? 'line-through text-gray-400' : ''}`}>{todo.title}</p>
                       {todo.description && (
                         <p className="text-xs text-gray-500 line-clamp-2 mb-1.5">{todo.description}</p>
                       )}
-                      <div className="flex items-center space-x-3">
+                      {todo.tags && todo.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1.5">
+                          {todo.tags.map(tag => (
+                            <span key={tag} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] rounded border border-gray-200">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {todo.subtasks && todo.subtasks.length > 0 && (
+                        <div className="text-[10px] text-gray-500 flex items-center mb-1.5">
+                           <Check className="w-3 h-3 mr-1" />
+                           {todo.subtasks.filter(s => s.completed).length} / {todo.subtasks.length} subtasks
+                        </div>
+                      )}
+                      <div className="flex items-center space-x-3" onClick={(e) => e.stopPropagation()}>
                         <div className="relative">
                           <button 
                             onClick={() => { setEditingTodoDateId(todo.id); setEditingTodoDeadlineId(null); }}
@@ -896,9 +1254,19 @@ export default function WorkspaceApp() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity ml-4 shrink-0">
+                      {viewMode === 'trash' && (
+                        <button 
+                          onClick={(e) => handleRestoreTodo(todo.id, e)}
+                          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+                          title="Restore task"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                        </button>
+                      )}
                       <button 
                         onClick={(e) => handleDeleteTodo(todo.id, e)}
                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                        title={viewMode === 'trash' ? "Delete permanently" : "Move to trash"}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1111,6 +1479,184 @@ export default function WorkspaceApp() {
           )}
         </div>
       </main>
+
+      {/* Task Details Modal */}
+      <AnimatePresence>
+        {selectedTodoId && (
+          <div className="fixed inset-0 z-[80] flex justify-end bg-black/20 p-0 sm:p-4 backdrop-blur-sm" onClick={() => setSelectedTodoId(null)}>
+            <motion.div 
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+              className="bg-white w-full sm:w-[450px] shadow-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-xl flex flex-col overflow-hidden"
+            >
+              {(() => {
+                const todo = todos.find(t => t.id === selectedTodoId);
+                if (!todo) return null;
+                return (
+                  <>
+                    <div className="flex items-center justify-between border-b border-gray-100 p-4">
+                      <div className="flex items-center text-sm font-medium text-gray-500">
+                        {todo.projectId && todo.projectId !== 'inbox' 
+                          ? <><Folder className="w-4 h-4 mr-2" />{projects.find(p => p.id === todo.projectId)?.name}</>
+                          : <><Inbox className="w-4 h-4 mr-2" />Inbox</>
+                        }
+                      </div>
+                      <button onClick={() => setSelectedTodoId(null)} className="p-2 hover:bg-gray-100 rounded-md text-gray-500">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6">
+                      <div className="flex items-start">
+                        <button 
+                          onClick={() => handleToggleTodo(todo)}
+                          className="mr-3 mt-1 w-5 h-5 flex shrink-0 items-center justify-center rounded-full border border-gray-300 hover:bg-gray-100"
+                        >
+                          {todo.completed && <Check className="w-3 h-3 text-primary" />}
+                        </button>
+                        <input
+                           className={`text-xl font-semibold outline-none w-full bg-transparent ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}
+                           value={todo.title}
+                           onChange={(e) => todoService.updateTodo(todo.id, { title: e.target.value })}
+                        />
+                      </div>
+                      
+                      <div className="mt-6 space-y-4">
+                        <div className="flex flex-col">
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Description / Notes</label>
+                          <textarea
+                            placeholder="Add extra details or markdown notes here..."
+                            className="w-full text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 focus:bg-white border focus:border-primary focus:ring-1 focus:ring-primary rounded-lg p-3 min-h-[100px] outline-none transition-colors resize-none"
+                            value={todo.description || ''}
+                            onChange={(e) => todoService.updateTodo(todo.id, { description: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="flex flex-col">
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tags</label>
+                          <div className="flex flex-wrap gap-2">
+                             {todo.tags?.map(tag => (
+                               <span key={tag} className="flex items-center px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md border border-gray-200">
+                                 #{tag}
+                                 <button 
+                                   onClick={() => todoService.updateTodo(todo.id, { tags: todo.tags?.filter(t => t !== tag) })}
+                                   className="ml-1 text-gray-400 hover:text-red-500"
+                                 >
+                                   <X className="w-3 h-3" />
+                                 </button>
+                               </span>
+                             ))}
+                             <input 
+                               type="text" 
+                               placeholder="Add tag and press Enter"
+                               className="text-xs outline-none bg-transparent border-b border-dashed border-gray-300 focus:border-primary py-1 w-32"
+                               onKeyDown={(e) => {
+                                 if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                                   const newTag = e.currentTarget.value.trim().replace(/^#/, '');
+                                   const currentTags = todo.tags || [];
+                                   if (!currentTags.includes(newTag)) {
+                                     todoService.updateTodo(todo.id, { tags: [...currentTags, newTag] });
+                                   }
+                                   e.currentTarget.value = '';
+                                 }
+                               }}
+                             />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Subtasks</label>
+                          <div className="space-y-2">
+                            {todo.subtasks?.map(subtask => (
+                              <div key={subtask.id} className="flex items-center group">
+                                <button 
+                                  onClick={() => {
+                                    const newSubtasks = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
+                                    todoService.updateTodo(todo.id, { subtasks: newSubtasks });
+                                  }}
+                                  className={`mr-2 w-4 h-4 flex shrink-0 items-center justify-center rounded border ${subtask.completed ? 'bg-primary border-primary' : 'border-gray-300'}`}
+                                >
+                                  {subtask.completed && <Check className="w-3 h-3 text-white" />}
+                                </button>
+                                <input
+                                  type="text"
+                                  className={`flex-1 text-sm outline-none bg-transparent ${subtask.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}
+                                  value={subtask.title}
+                                  onChange={(e) => {
+                                    const newSubtasks = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, title: e.target.value } : s);
+                                    todoService.updateTodo(todo.id, { subtasks: newSubtasks });
+                                  }}
+                                />
+                                <button 
+                                  onClick={() => {
+                                    todoService.updateTodo(todo.id, { subtasks: todo.subtasks?.filter(s => s.id !== subtask.id) });
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                            <div className="flex items-center mt-2">
+                              <Plus className="w-4 h-4 mr-2 text-primary" />
+                              <input 
+                                type="text"
+                                placeholder="Add a subtask..."
+                                className="text-sm outline-none bg-transparent flex-1 placeholder:text-primary"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                                    const newSubtask = { id: Date.now().toString(), title: e.currentTarget.value.trim(), completed: false };
+                                    todoService.updateTodo(todo.id, { subtasks: [...(todo.subtasks || []), newSubtask] });
+                                    e.currentTarget.value = '';
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Dialog */}
+      <AnimatePresence>
+        {confirmDialog?.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 p-4 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full"
+            >
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Action</h3>
+              <p className="text-sm text-gray-600 mb-6">{confirmDialog.message}</p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors border border-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDialog.onConfirm}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
