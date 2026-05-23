@@ -38,6 +38,22 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+function cleanUndefined<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(cleanUndefined) as unknown as T;
+  }
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = cleanUndefined(value);
+    }
+  }
+  return cleaned as T;
+}
+
 export const todoService = {
   subscribeToUserTodos: (userId: string, callback: (todos: Todo[]) => void, errorCallback?: (error: any) => void) => {
     const q = query(
@@ -67,8 +83,9 @@ export const todoService = {
         ...todoData,
         createdAt: Date.now()
       };
-      const docRef = await addDoc(collection(db, COLLECTION_NAME), newTodo);
-      return { id: docRef.id, ...newTodo } as Todo;
+      const cleaned = cleanUndefined(newTodo);
+      const docRef = await addDoc(collection(db, COLLECTION_NAME), cleaned);
+      return { id: docRef.id, ...cleaned } as Todo;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, COLLECTION_NAME);
     }
@@ -77,7 +94,7 @@ export const todoService = {
   updateTodo: async (todoId: string, updates: Partial<Todo>) => {
     try {
       const todoRef = doc(db, COLLECTION_NAME, todoId);
-      await updateDoc(todoRef, updates);
+      await updateDoc(todoRef, cleanUndefined(updates));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${todoId}`);
     }
@@ -141,7 +158,7 @@ export const todoService = {
     });
   },
 
-  createProject: async (name: string, color: string, userId: string, icon?: string, folderId?: string | null, viewType?: 'list' | 'kanban' | 'timeline') => {
+  createProject: async (name: string, color: string, userId: string, icon?: string, folderId?: string | null, viewType?: 'list' | 'kanban' | 'timeline', sections?: string[]) => {
     try {
       const newProject = {
         name,
@@ -150,10 +167,12 @@ export const todoService = {
         icon: icon || null,
         folderId: folderId || null,
         viewType: viewType || 'list',
+        sections: sections || null,
         createdAt: Date.now()
       };
-      const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), newProject);
-      return { id: docRef.id, ...newProject } as Project;
+      const cleaned = cleanUndefined(newProject);
+      const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), cleaned);
+      return { id: docRef.id, ...cleaned } as Project;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, PROJECTS_COLLECTION);
     }
@@ -162,7 +181,7 @@ export const todoService = {
   updateProject: async (projectId: string, data: Partial<Project>) => {
     try {
       const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
-      await updateDoc(projectRef, data);
+      await updateDoc(projectRef, cleanUndefined(data));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${PROJECTS_COLLECTION}/${projectId}`);
     }
@@ -217,7 +236,7 @@ export const todoService = {
   updateFolder: async (folderId: string, data: Partial<Folder>) => {
     try {
       const folderRef = doc(db, FOLDERS_COLLECTION, folderId);
-      await updateDoc(folderRef, data);
+      await updateDoc(folderRef, cleanUndefined(data));
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `${FOLDERS_COLLECTION}/${folderId}`);
     }

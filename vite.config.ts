@@ -7,12 +7,24 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+    build: {
+      outDir: 'dist',
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'react-router-dom', 'motion', 'lucide-react'],
+            firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth'],
+            editor: ['react-quill-new', 'suneditor', 'suneditor-react'],
+            charts: ['recharts', 'date-fns', 'react-day-picker'],
+            dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
+          }
+        }
+      }
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve('.'),
       },
     },
     server: {

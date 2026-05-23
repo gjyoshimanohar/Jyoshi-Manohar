@@ -37,6 +37,7 @@ export interface Todo {
   tags?: string[];
   subtasks?: Subtask[];
   deletedAt?: number;
+  sectionName?: string | null;
 }
 
 export interface Folder {
@@ -56,5 +57,6 @@ export interface Project {
   icon?: string;
   folderId?: string | null;
   viewType?: 'list' | 'kanban' | 'timeline';
+  sections?: string[];
   createdAt: number;
 }

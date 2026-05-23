@@ -7,7 +7,7 @@ import {
   Camera, Book, Heart, Star, Zap, Circle, BarChart2, Clock, Timer,
   Flame, HelpCircle, RefreshCw, Bell, Award, Sparkles, FolderOpen,
   Milestone, BookOpen, Smile, Play, Volume2, ShieldCheck, Target,
-  GraduationCap, ArrowUpDown, Hourglass, Lightbulb
+  GraduationCap, ArrowUpDown, Hourglass, Lightbulb, Minimize2, Maximize2
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
 import { Todo, Project, Folder as FolderType } from '../types';
@@ -52,6 +52,43 @@ const renderIcon = (name: string | undefined | null, defaultColor: string = '#6b
   return <Hash className={className} style={{ color: defaultColor }} />;
 };
 
+const PROJECT_TEMPLATES = [
+  {
+    id: 'none',
+    name: 'Custom (No Template)',
+    icon: 'Hash',
+    sections: []
+  },
+  {
+    id: 'study_session',
+    name: 'Study Session Preset',
+    color: '#38bdf8',
+    icon: 'GraduationCap',
+    sections: ['To Read', 'Practice Questions', 'Revision Notes', 'Completed Reviews']
+  },
+  {
+    id: 'client_audit',
+    name: 'Client Audit Preset',
+    color: '#2F6BE6',
+    icon: 'Briefcase',
+    sections: ['Planning & Risk Assessment', 'Substantive Testing', 'Review & Audit Report', 'Partner Sign-off']
+  },
+  {
+    id: 'tax_filing',
+    name: 'Tax Filing Preset',
+    color: '#fb923c',
+    icon: 'Award',
+    sections: ['Data Gathering', 'Computation', 'Review Checklists', 'Filing & E-verification']
+  },
+  {
+    id: 'weekly_sprint',
+    name: 'Weekly Sprint Preset',
+    color: '#4ade80',
+    icon: 'Zap',
+    sections: ['Backlog', 'To Do (This Week)', 'In Progress', 'Completed']
+  }
+];
+
 type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project' | 'trends' | 'completed' | 'trash';
 
 export default function WorkspaceApp() {
@@ -73,6 +110,7 @@ export default function WorkspaceApp() {
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectIcon, setNewProjectIcon] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('none');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [listColor, setListColor] = useState('#2F6BE6');
   const [listViewType, setListViewType] = useState<'list' | 'kanban' | 'timeline'>('list');
@@ -124,7 +162,7 @@ export default function WorkspaceApp() {
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskProject, setNewTaskProject] = useState<string>('inbox');
   const [newTaskPriority, setNewTaskPriority] = useState<number>(4);
-  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(new Date());
+  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
   const [newTaskDeadline, setNewTaskDeadline] = useState<Date | undefined>(undefined);
   const [newTaskRepeat, setNewTaskRepeat] = useState<'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'none'>('none');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -145,6 +183,27 @@ export default function WorkspaceApp() {
   const [sortOrder, setSortOrder] = useState<'priority' | 'date'>('priority');
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [showSmartTips, setShowSmartTips] = useState(false);
+
+  // Kanban Board Custom Section Action States
+  const [isAddingSection, setIsAddingSection] = useState(false);
+  const [newSectionValue, setNewSectionValue] = useState('');
+  const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
+  const [editingSectionValue, setEditingSectionValue] = useState('');
+  const [activeSectionMenu, setActiveSectionMenu] = useState<string | null>(null);
+  const [activeAddingSection, setActiveAddingSection] = useState<string | null>(null);
+  const [newTaskTitleInline, setNewTaskTitleInline] = useState('');
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [draggingOverSection, setDraggingOverSection] = useState<string | null>(null);
+
+  // Tags and Kanban placeholder variables to satisfy legacy types / bypassed conditional loops safely
+  const sidebarSelectedTag: string | null = null;
+  const kanbanSelectedTag: string | null = null;
+  const collapsedKanbanColumns: Record<string, boolean> = {};
+  const newTaskTagsInline = '';
+  const setSidebarSelectedTag = (val: any) => {};
+  const setKanbanSelectedTag = (val: any) => {};
+  const setCollapsedKanbanColumns = (val: any) => {};
+  const setNewTaskTagsInline = (val: string) => {};
 
   // Standard Pomo countdown ticker in standard task loops
   useEffect(() => {
@@ -376,33 +435,61 @@ export default function WorkspaceApp() {
     const isUpcomingView = viewMode === 'upcoming';
     const currentBaseProjId = (viewMode === 'project' && selectedProjectId) ? selectedProjectId : 'inbox';
     
+    // Auto-detect hashtags: e.g. "FR Class #Study"
+    const hashtagRegex = /#(\w+)/g;
+    const detectedTags: string[] = [];
+    let match;
+    while ((match = hashtagRegex.exec(titleStr)) !== null) {
+      detectedTags.push(match[1]);
+    }
+    // Clean hashtags from titleStr
+    const cleanedTitle = titleStr.replace(hashtagRegex, '').trim();
+
     const { projectId: targetProjectId, matchedProjectName } = determineProjectByTitle(
-      titleStr.trim(),
+      cleanedTitle,
       projects,
       currentBaseProjId
     );
 
+    // Calculate due date based on user state or view mode fallback
     let dueDateVal: number | null = null;
-    if (isTodayView) {
-      dueDateVal = Date.now();
-    } else if (isUpcomingView) {
-      dueDateVal = Date.now() + 24 * 60 * 60 * 1000;
+    if (newTaskDueDate) {
+      dueDateVal = startOfDay(newTaskDueDate).getTime();
+    } else {
+      // Keep view tab fallback if no custom date is chosen
+      if (isTodayView) {
+        dueDateVal = startOfDay(new Date()).getTime();
+      } else if (isUpcomingView) {
+        dueDateVal = startOfDay(new Date(Date.now() + 24 * 60 * 60 * 1000)).getTime();
+      }
     }
 
     await todoService.createTodo({
-      title: titleStr.trim(),
+      title: cleanedTitle,
+      description: newTaskDesc.trim(),
       userId: auth.currentUser.uid,
       completed: false,
       projectId: targetProjectId,
-      priority: 4,
+      priority: newTaskPriority,
       dueDate: dueDateVal,
-      repeat: 'none',
+      repeat: newTaskRepeat,
+      tags: detectedTags.length > 0 ? detectedTags : undefined,
     });
 
     if (matchedProjectName && targetProjectId !== currentBaseProjId) {
-      setAutoProjectNotice(`Auto-categorized task to "${matchedProjectName}"`);
+      setAutoProjectNotice(`Auto-categorized task to "${cleanedTitle !== titleStr ? cleanedTitle : matchedProjectName}"`);
       setTimeout(() => setAutoProjectNotice(null), 4000);
     }
+
+    // Reset task creator state values
+    setNewTaskTitle('');
+    setNewTaskDesc('');
+    setNewTaskPriority(4);
+    setNewTaskDueDate(undefined);
+    setNewTaskRepeat('none');
+    setShowDatePicker(false);
+    setShowPriorityPicker(false);
+    setShowRepeatPicker(false);
   };
 
   const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
@@ -483,6 +570,93 @@ export default function WorkspaceApp() {
 
   const handleToggleTodo = async (todo: Todo) => {
     await todoService.updateTodoStatus(todo.id, !todo.completed);
+  };
+
+  // Kanban Board custom sections helper handlers
+  const formatCardDate = (timestamp: number | null | undefined) => {
+    if (!timestamp) return null;
+    const dateObj = new Date(timestamp);
+    if (isToday(dateObj)) return "Today";
+    if (isTomorrow(dateObj)) return "Tomorrow";
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (isSameDay(dateObj, yesterday)) return "Yesterday";
+    return format(dateObj, 'MMM dd');
+  };
+
+  const handleCreateSection = async () => {
+    if (!newSectionValue.trim() || !selectedProjectId) return;
+    const nameTrimmed = newSectionValue.trim();
+    const currentProj = projects.find(p => p.id === selectedProjectId);
+    if (!currentProj) return;
+    const currentSections = currentProj.sections || [];
+    if (currentSections.includes(nameTrimmed)) {
+      setIsAddingSection(false);
+      return;
+    }
+    const updatedSections = [...currentSections, nameTrimmed];
+    await todoService.updateProject(selectedProjectId, { sections: updatedSections });
+    setNewSectionValue('');
+    setIsAddingSection(false);
+  };
+
+  const handleSaveRenameSection = async (oldName: string) => {
+    if (!editingSectionValue.trim() || !selectedProjectId) return;
+    const newName = editingSectionValue.trim();
+    if (newName === oldName) {
+      setEditingSectionName(null);
+      return;
+    }
+    const currentProj = projects.find(p => p.id === selectedProjectId);
+    if (!currentProj) return;
+    
+    const updatedSections = (currentProj.sections || []).map(s => s === oldName ? newName : s);
+    await todoService.updateProject(selectedProjectId, { sections: updatedSections });
+    
+    const matchingTodos = todos.filter(t => t.projectId === selectedProjectId && t.sectionName === oldName);
+    for (const t of matchingTodos) {
+      await todoService.updateTodo(t.id, { sectionName: newName });
+    }
+    setEditingSectionName(null);
+  };
+
+  const handleDeleteSection = async (sectionName: string) => {
+    if (!selectedProjectId) return;
+    const currentProj = projects.find(p => p.id === selectedProjectId);
+    if (!currentProj) return;
+    
+    const updatedSections = (currentProj.sections || []).filter(s => s !== sectionName);
+    await todoService.updateProject(selectedProjectId, { sections: updatedSections });
+    
+    const matchingTodos = todos.filter(t => t.projectId === selectedProjectId && t.sectionName === sectionName);
+    for (const t of matchingTodos) {
+      await todoService.updateTodo(t.id, { sectionName: null });
+    }
+  };
+
+  const handleAddTaskToSection = async (sectionName: string, titleStr: string, tagsStr: string = '') => {
+    if (!titleStr.trim() || !auth.currentUser || !selectedProjectId) return;
+    
+    const tagsArray = tagsStr.trim()
+      ? tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
+    
+    await todoService.createTodo({
+      title: titleStr.trim(),
+      userId: auth.currentUser.uid,
+      completed: false,
+      projectId: selectedProjectId,
+      priority: 4,
+      dueDate: Date.now(),
+      repeat: 'none',
+      sectionName: sectionName === "Not Sectioned" ? null : sectionName,
+      tags: tagsArray.length > 0 ? tagsArray : undefined,
+    });
+  };
+
+  const handleMoveTodoToSection = async (todoId: string, sectionName: string) => {
+    const targetSection = sectionName === "Not Sectioned" ? null : sectionName;
+    await todoService.updateTodo(todoId, { sectionName: targetSection });
   };
 
   const handleDeleteTodo = async (todoId: string, e: React.MouseEvent) => {
@@ -1054,7 +1228,7 @@ export default function WorkspaceApp() {
               {/* Inbox today metrics filters */}
               <nav className="space-y-0.5">
                 <button
-                  onClick={() => { setViewMode('today'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); }}
+                  onClick={() => { setViewMode('today'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
                   className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] font-black' : 'hover:bg-gray-100 text-gray-700 font-semibold'}`}
                 >
                   <div className="flex items-center space-x-2.5">
@@ -1065,7 +1239,7 @@ export default function WorkspaceApp() {
                 </button>
 
                 <button
-                  onClick={() => { setViewMode('upcoming'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); }}
+                  onClick={() => { setViewMode('upcoming'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
                   className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#2F6BE6] font-black' : 'hover:bg-gray-100 text-gray-700 font-semibold'}`}
                 >
                   <div className="flex items-center space-x-2.5">
@@ -1075,7 +1249,7 @@ export default function WorkspaceApp() {
                 </button>
 
                 <button
-                  onClick={() => { setViewMode('inbox'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); }}
+                  onClick={() => { setViewMode('inbox'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
                   className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 font-black' : 'hover:bg-gray-100 text-gray-700 font-semibold'}`}
                 >
                   <div className="flex items-center space-x-2.5">
@@ -1153,41 +1327,20 @@ export default function WorkspaceApp() {
                 {renderProjectList()}
               </div>
 
-              {/* Tag filters section */}
-              <div className="h-px bg-gray-200/60 my-4" />
-              <div className="mb-4 text-left px-2">
-                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-2.5">Filters / Tags</span>
-                <p className="text-[10.5px] text-gray-400 leading-relaxed mb-3 italic">Tasks filtered by list, prioritising, streaked tag criteria.</p>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[9.5px] font-semibold text-gray-500 flex items-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#2F6BE6] mr-1" />
-                    Raghuveer
-                  </span>
-                  <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[9.5px] font-semibold text-gray-500 flex items-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1" />
-                    CAFinal
-                  </span>
-                  <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[9.5px] font-semibold text-gray-500 flex items-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 mr-1" />
-                    Spiritual
-                  </span>
-                </div>
-              </div>
-
               {/* Completed trash anchors */}
               <div className="h-px bg-gray-200/60 my-4" />
               <div className="space-y-0.5">
                 <button
-                  onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); }}
+                  onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
                   className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 font-bold' : 'hover:bg-gray-100 text-gray-600'}`}
                 >
                   <div className="flex items-center space-x-2.5">
                     <Check className="w-4 h-4 text-green-500" />
                     <span>Completed Logs</span>
                   </div>
-                </button>
+                  </button>
                 <button
-                  onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); }}
+                  onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
                   className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 font-bold' : 'hover:bg-gray-100 text-gray-600'}`}
                 >
                   <div className="flex items-center space-x-2.5">
@@ -1318,51 +1471,7 @@ export default function WorkspaceApp() {
               </>
             )}
 
-            {viewMode === 'project' && selectedProjectId && (
-              <div className="flex items-center space-x-1 border border-gray-200 bg-gray-50/50 p-1 rounded-xl">
-                {/* List View button */}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const currentProj = projects.find(p => p.id === selectedProjectId);
-                    if (currentProj) {
-                      await todoService.updateProject(currentProj.id, { viewType: 'list' });
-                    }
-                  }}
-                  className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                    projects.find(p => p.id === selectedProjectId)?.viewType !== 'kanban'
-                      ? 'bg-white shadow-sm text-blue-600 border border-gray-150'
-                      : 'text-gray-500 hover:text-gray-800 border border-transparent'
-                  }`}
-                  title="List View"
-                >
-                  <Menu className="w-3.5 h-3.5" />
-                  <span className="text-[10px] hidden md:inline">List</span>
-                </button>
 
-                {/* Kanban View button */}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const currentProj = projects.find(p => p.id === selectedProjectId);
-                    if (currentProj) {
-                      await todoService.updateProject(currentProj.id, { viewType: 'kanban' });
-                    }
-                  }}
-                  className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                    projects.find(p => p.id === selectedProjectId)?.viewType === 'kanban'
-                      ? 'bg-white shadow-sm text-blue-600 border border-gray-150'
-                      : 'text-gray-500 hover:text-gray-800 border border-transparent'
-                  }`}
-                  title="Kanban View"
-                >
-                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                    <path d="M4 19h4V5H4v14zm6-14v14h4V5h-4zm6 14h4V5h-4v14z" />
-                  </svg>
-                  <span className="text-[10px] hidden md:inline">Kanban</span>
-                </button>
-              </div>
-            )}
 
             {/* Smart Tips bulb */}
             <button 
@@ -1504,277 +1613,816 @@ export default function WorkspaceApp() {
                 </div>
               ) : (
                 <div className="w-full">
-                  {viewMode === 'project' && projects.find(p => p.id === selectedProjectId)?.viewType === 'kanban' ? (
+                  {false ? (
                     <div className="w-full">
-                      {/* Unified capsule quick task input (hidden in trash and completed views) */}
-                      {viewMode !== 'trash' && viewMode !== 'completed' && (
-                        <div className="relative mb-6">
-                          <span className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gray-400">
-                            <Plus className="w-4 h-4" />
-                          </span>
+                      {/* ELEGANT TAGS/LABELS FILTER BAR FOR ORGANIZATIONAL FILTERING */}
+                      {(() => {
+                        const projectTodos = todos.filter(t => t.projectId === selectedProjectId && !t.deletedAt);
+                        const uniqueProjectTags = Array.from(new Set(projectTodos.flatMap(t => t.tags || [])));
+                        
+                        if (uniqueProjectTags.length === 0) return null;
+                        return (
+                          <div className="bg-gray-50/50 border border-gray-150 rounded-2xl p-3.5 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+                            <div className="flex items-center gap-2.5 overflow-x-auto select-none no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0">
+                                Filter by label:
+                              </span>
+                              <button
+                                onClick={() => setKanbanSelectedTag(null)}
+                                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                                  !kanbanSelectedTag 
+                                    ? 'bg-[#2F6BE6] text-white shadow-sm' 
+                                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                All ({projectTodos.length})
+                              </button>
+                              {uniqueProjectTags.map((tag) => {
+                                const count = projectTodos.filter(t => t.tags && t.tags.includes(tag)).length;
+                                return (
+                                  <button
+                                    key={tag}
+                                    onClick={() => setKanbanSelectedTag(kanbanSelectedTag === tag ? null : tag)}
+                                    className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${
+                                      kanbanSelectedTag === tag 
+                                        ? 'bg-[#2F6BE6] text-white shadow-sm' 
+                                        : 'bg-white border border-gray-200 text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    <span>🏷️ {tag}</span>
+                                    <span className={`text-[9.5px] font-bold rounded-full px-1.5 ${
+                                      kanbanSelectedTag === tag 
+                                        ? 'bg-white/25 text-white' 
+                                        : 'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {count}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            
+                            {kanbanSelectedTag && (
+                              <button 
+                                onClick={() => setKanbanSelectedTag(null)}
+                                className="text-xs font-bold text-[#2F6BE6] hover:text-blue-600 shrink-0 text-left sm:text-right"
+                              >
+                                Clear filter
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      <div className="w-full max-w-full overflow-x-auto text-left py-2" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="flex gap-6 items-start h-full pb-6 min-w-max select-none">
+                          {(() => {
+                            const currentProj = projects.find(p => p.id === selectedProjectId);
+                            const rawSections = currentProj?.sections || [];
+                            // Replicate visual alignment from image: "Not Sectioned" is always the starting default section columns
+                            const sectionsList = rawSections.includes("Not Sectioned") 
+                              ? rawSections 
+                              : ["Not Sectioned", ...rawSections];
+
+                            return (
+                              <>
+                                {sectionsList.map((sectionName) => {
+                                  const sectionTasks = allActiveViewTodos.filter(t => {
+                                    const matchesSection = sectionName === "Not Sectioned" 
+                                      ? (!t.sectionName || t.sectionName === "Not Sectioned") 
+                                      : t.sectionName === sectionName;
+                                    if (!matchesSection) return false;
+                                    if (kanbanSelectedTag) {
+                                      return t.tags && t.tags.includes(kanbanSelectedTag);
+                                    }
+                                    return true;
+                                  });
+                                  const inactiveTasks = sectionTasks.filter(t => !t.completed);
+                                  const completedTasksList = sectionTasks.filter(t => t.completed);
+                                
+                                  const isColumnCollapsed = collapsedKanbanColumns[sectionName] ?? false;
+
+                                  if (isColumnCollapsed) {
+                                    return (
+                                      <div 
+                                        key={sectionName}
+                                        onClick={() => setCollapsedKanbanColumns(prev => ({ ...prev, [sectionName]: false }))}
+                                        className="w-[56px] min-h-[480px] bg-gray-50/50 border border-gray-150 rounded-2xl p-2.5 flex flex-col items-center justify-start gap-4 transition-all shrink-0 select-none cursor-pointer hover:bg-gray-100/30 group/collapsedCol border-dashed hover:border-blue-300"
+                                        title={`Maximize "${sectionName}" Column`}
+                                      >
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCollapsedKanbanColumns(prev => ({ ...prev, [sectionName]: false }));
+                                          }}
+                                          className="p-1.5 hover:bg-gray-200 text-gray-500 rounded-lg transition"
+                                        >
+                                          <Maximize2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <div className="flex flex-col items-center gap-2 pt-1">
+                                          <span className="text-[10px] bg-gray-150 text-gray-600 px-1.5 py-0.5 rounded-full font-black min-w-[20px] text-center">
+                                            {inactiveTasks.length}
+                                          </span>
+                                        </div>
+                                        <div 
+                                          className="text-xs font-black text-gray-500 capitalize tracking-wider flex-1 text-center select-none"
+                                          style={{ writingMode: 'vertical-lr', textOrientation: 'mixed' }}
+                                        >
+                                          {sectionName}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  const isCollapsed = collapsedSections[sectionName] ?? false;
+                                const isDraggingOver = draggingOverSection === sectionName;
+
+                                // Show max 5 completed inline to prevent clutter; link the rest to "View more"
+                                const showAllCompleted = false; // can link or expand or show "View more"
+                                const visibleCompleted = completedTasksList.slice(0, 5);
+                                const hasMoreCompleted = completedTasksList.length > 5;
+
+                                return (
+                                  <div 
+                                    key={sectionName}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDragEnter={() => setDraggingOverSection(sectionName)}
+                                    onDragLeave={() => {
+                                      // Only cancel drag-over if moving to another element
+                                    }}
+                                    onDrop={async (e) => {
+                                      e.preventDefault();
+                                      const id = e.dataTransfer.getData("text/plain");
+                                      if (id) {
+                                        await handleMoveTodoToSection(id, sectionName);
+                                      }
+                                      setDraggingOverSection(null);
+                                    }}
+                                    className={`w-[290px] min-h-[480px] bg-transparent rounded-2xl p-2.5 flex flex-col transition-all shrink-0 ${
+                                      isDraggingOver ? 'bg-blue-50/40 border-2 border-dashed border-blue-400/50' : 'border border-transparent'
+                                    }`}
+                                  >
+                                    {/* SECTION COLUMN HEADER */}
+                                    <div className="mb-4 pb-2 border-b border-gray-100/50 flex items-center justify-between">
+                                      {editingSectionName === sectionName ? (
+                                        <div className="flex items-center gap-1.5 w-full">
+                                          <input
+                                            type="text"
+                                            value={editingSectionValue}
+                                            onChange={(e) => setEditingSectionValue(e.target.value)}
+                                            onKeyDown={async (e) => {
+                                              if (e.key === 'Enter') {
+                                                await handleSaveRenameSection(sectionName);
+                                              } else if (e.key === 'Escape') {
+                                                setEditingSectionName(null);
+                                              }
+                                            }}
+                                            className="text-xs font-bold border border-gray-200 focus:border-blue-500 focus:outline-[#3b82f6] rounded-lg px-2 py-1 bg-white text-black w-full"
+                                            autoFocus
+                                          />
+                                          <button
+                                            onClick={() => handleSaveRenameSection(sectionName)}
+                                            className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg transition"
+                                          >
+                                            <Check className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => setEditingSectionName(null)}
+                                            className="p-1.5 bg-gray-150 hover:bg-gray-200 text-gray-500 rounded-lg transition"
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center justify-between w-full group/secHeader">
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <h3 className="text-xs font-black text-gray-700 capitalize tracking-wide truncate">
+                                              {sectionName}
+                                            </h3>
+                                            <span className="text-[10px] text-gray-400 font-black">
+                                              {inactiveTasks.length}
+                                            </span>
+                                          </div>
+ 
+                                          <div className="flex items-center gap-1 opacity-0 group-hover/secHeader:opacity-100 focus-within:opacity-100 transition-opacity">
+                                            <button
+                                              onClick={() => {
+                                                setNewTaskTitleInline('');
+                                                setActiveAddingSection(sectionName === activeAddingSection ? null : sectionName);
+                                              }}
+                                              className="p-1 hover:bg-gray-100 text-gray-500 rounded-md transition"
+                                              title="Add task to section"
+                                            >
+                                              <Plus className="w-3.5 h-3.5" />
+                                            </button>
+
+                                            <button
+                                              onClick={() => setCollapsedKanbanColumns(prev => ({ ...prev, [sectionName]: true }))}
+                                              className="p-1 hover:bg-gray-100 text-gray-450 hover:text-gray-650 rounded-md transition"
+                                              title="Minimize column"
+                                            >
+                                              <Minimize2 className="w-3.5 h-3.5" />
+                                            </button>
+ 
+                                            <div className="relative">
+                                              <button
+                                                onClick={() => setActiveSectionMenu(activeSectionMenu === sectionName ? null : sectionName)}
+                                                className="p-1 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-md transition"
+                                              >
+                                                <MoreHorizontal className="w-3.5 h-3.5" />
+                                              </button>
+ 
+                                              {activeSectionMenu === sectionName && (
+                                                <>
+                                                  <div className="fixed inset-0 z-30" onClick={() => setActiveSectionMenu(null)} />
+                                                  <div className="absolute right-0 mt-1 bg-white border border-gray-100 shadow-xl rounded-xl py-1 w-36 z-40 text-left">
+                                                    <button
+                                                      onClick={() => {
+                                                        setCollapsedKanbanColumns(prev => ({ ...prev, [sectionName]: true }));
+                                                        setActiveSectionMenu(null);
+                                                      }}
+                                                      className="w-full text-[10px] font-bold text-gray-700 hover:bg-gray-50 px-3 py-1.5 text-left block"
+                                                    >
+                                                      Minimize Column
+                                                    </button>
+                                                    {sectionName !== "Not Sectioned" ? (
+                                                      <>
+                                                        <button
+                                                          onClick={() => {
+                                                            setEditingSectionName(sectionName);
+                                                            setEditingSectionValue(sectionName);
+                                                            setActiveSectionMenu(null);
+                                                          }}
+                                                          className="w-full text-[10px] font-bold text-gray-700 hover:bg-gray-50 px-3 py-1.5 text-left block"
+                                                        >
+                                                          Rename Section
+                                                        </button>
+                                                        <button
+                                                          onClick={async () => {
+                                                            setActiveSectionMenu(null);
+                                                            if (confirm(`Are you sure you want to delete section "${sectionName}"? Tasks in this column will be moved to 'Not Sectioned'.`)) {
+                                                              await handleDeleteSection(sectionName);
+                                                            }
+                                                          }}
+                                                          className="w-full text-[10px] font-bold text-red-600 hover:bg-red-50 px-3 py-1.5 text-left block"
+                                                        >
+                                                          Delete Section
+                                                        </button>
+                                                      </>
+                                                    ) : (
+                                                      <div className="px-3 py-1 bg-gray-50 text-[9px] text-gray-400 font-bold border-t border-gray-100">
+                                                        Default project column
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* INNER TASK CARDS CONTAINER */}
+                                    <div className="space-y-3 flex-1 overflow-y-auto max-h-[460px] pr-1" style={{ scrollbarWidth: 'none' }}>
+                                      {/* Quick task adder inline top of column */}
+                                      {activeAddingSection === sectionName && (
+                                        <div className="bg-white border border-gray-150 rounded-2xl p-2.5 mb-3 shadow-md animate-in fade-in zoom-in-95 duration-100">
+                                          <input
+                                            type="text"
+                                            placeholder="What needs to be done?"
+                                            value={newTaskTitleInline}
+                                            onChange={(e) => setNewTaskTitleInline(e.target.value)}
+                                            onKeyDown={async (e) => {
+                                              if (e.key === 'Enter' && newTaskTitleInline.trim()) {
+                                                await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline);
+                                                setNewTaskTitleInline('');
+                                                setNewTaskTagsInline('');
+                                                setActiveAddingSection(null);
+                                              } else if (e.key === 'Escape') {
+                                                setActiveAddingSection(null);
+                                              }
+                                            }}
+                                            className="w-full text-xs font-bold border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400"
+                                            autoFocus
+                                          />
+                                          <input
+                                            type="text"
+                                            placeholder="Labels / Sub-categories (comma-sep)"
+                                            value={newTaskTagsInline}
+                                            onChange={(e) => setNewTaskTagsInline(e.target.value)}
+                                            onKeyDown={async (e) => {
+                                              if (e.key === 'Enter' && newTaskTitleInline.trim()) {
+                                                await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline);
+                                                setNewTaskTitleInline('');
+                                                setNewTaskTagsInline('');
+                                                setActiveAddingSection(null);
+                                              } else if (e.key === 'Escape') {
+                                                setActiveAddingSection(null);
+                                              }
+                                            }}
+                                            className="w-full text-[10.5px] font-semibold border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400 mt-1.5"
+                                          />
+                                          <div className="flex justify-end gap-1.5 mt-2">
+                                            <button
+                                              onClick={() => {
+                                                setActiveAddingSection(null);
+                                                setNewTaskTagsInline('');
+                                              }}
+                                              className="text-[9.5px] text-gray-500 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg font-bold"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              onClick={async () => {
+                                                if (newTaskTitleInline.trim()) {
+                                                  await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline);
+                                                  setNewTaskTitleInline('');
+                                                  setNewTaskTagsInline('');
+                                                  setActiveAddingSection(null);
+                                                }
+                                              }}
+                                              className="text-[9.5px] text-white bg-blue-500 hover:bg-blue-600 px-3 py-1.5 rounded-lg font-bold"
+                                            >
+                                              Add
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* ACTIVE PENDING TASKS */}
+                                      {inactiveTasks.map((todo) => {
+                                        // Priority specific border and hover styles to replicate circular checkboxes perfectly
+                                        let borderPrio = "border-gray-300 hover:border-blue-500";
+                                        let checkColor = "text-blue-500";
+                                        if (todo.priority === 1) {
+                                          borderPrio = "border-red-500 hover:bg-red-50 text-red-500";
+                                        } else if (todo.priority === 2) {
+                                          borderPrio = "border-orange-500 hover:bg-orange-50 text-[#f97316]";
+                                        } else if (todo.priority === 3) {
+                                          borderPrio = "border-blue-500 hover:bg-blue-50 text-blue-500";
+                                        }
+
+                                        const formattedDate = formatCardDate(todo.dueDate);
+
+                                        return (
+                                          <motion.div
+                                            key={todo.id}
+                                            layoutId={todo.id}
+                                            draggable
+                                            onDragStart={(e) => {
+                                              e.dataTransfer.setData("text/plain", todo.id);
+                                            }}
+                                            className={`bg-white rounded-2xl border border-gray-100 p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all cursor-grab active:cursor-grabbing text-left flex flex-col gap-1.5 group select-none relative duration-100 ${
+                                              todo.priority === 1 ? 'border-l-2 border-l-red-400' : ''
+                                            }`}
+                                            onClick={() => setSelectedTodoId(todo.id)}
+                                          >
+                                            <div className="flex items-start gap-2.5">
+                                              {/* Beautiful Round TickTick Checkbox to complete */}
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleToggleTodo(todo);
+                                                }}
+                                                className={`mt-0.5 w-[16px] h-[16px] shrink-0 rounded-full border-2 flex items-center justify-center bg-white transition-colors duration-200 ${borderPrio}`}
+                                              >
+                                                <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity duration-150" />
+                                              </button>
+
+                                              <div className="min-w-0 flex-1">
+                                                <span className="text-[11.5px] font-bold text-gray-800 break-words leading-relaxed leading-snug">
+                                                  {todo.title}
+                                                </span>
+                                                {todo.description && (
+                                                  <p className="text-[9.5px] text-gray-400 font-medium leading-relaxed mt-0.5 line-clamp-2">
+                                                    {todo.description}
+                                                  </p>
+                                                )}
+                                              </div>
+
+                                              {/* Clean delete option within hover actions */}
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleDeleteTodo(todo.id, e);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 rounded transition shrink-0"
+                                                title="Delete task"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+
+                                            {/* Beautiful Label Pills */}
+                                            {todo.tags && todo.tags.length > 0 && (
+                                              <div className="flex flex-wrap gap-1 mt-1 pl-[23px]">
+                                                {todo.tags.map((tg, idx) => (
+                                                  <span 
+                                                    key={idx} 
+                                                    className="px-1.5 py-0.5 bg-gray-50 text-[8.5px] font-extrabold text-[#2F6BE6] rounded border border-gray-150 flex items-center gap-1 hover:bg-white transition"
+                                                  >
+                                                    🏷️ {tg}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
+
+                                            {/* Date / Recurrence cycle line */}
+                                            {formattedDate && (
+                                              <div className="flex items-center gap-1.5 text-[9px] font-black tracking-wide text-blue-500 pl-[23px] mt-0.5">
+                                                <span>{formattedDate}</span>
+                                                {todo.repeat && todo.repeat !== 'none' && (
+                                                  <Repeat className="w-2.5 h-2.5 text-blue-400" />
+                                                )}
+                                              </div>
+                                            )}
+                                          </motion.div>
+                                        );
+                                      })}
+
+                                      {inactiveTasks.length === 0 && (
+                                        <div 
+                                          onClick={() => {
+                                            setNewTaskTitleInline('');
+                                            setActiveAddingSection(sectionName);
+                                          }}
+                                          className="text-center py-6 border border-dashed border-gray-100 rounded-2xl text-[10.5px] text-gray-400 cursor-pointer hover:bg-gray-50/50 hover:text-gray-500 transition-colors"
+                                        >
+                                          No tasks. Click + to add.
+                                        </div>
+                                      )}
+
+                                      {/* COMPLETED TASKS COLLAPSIBLE */}
+                                      {completedTasksList.length > 0 && (
+                                        <div className="pt-2 duration-100">
+                                          <button
+                                            onClick={() => setCollapsedSections(prev => ({
+                                              ...prev,
+                                              [sectionName]: !prev[sectionName]
+                                            }))}
+                                            className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 hover:text-gray-600 transition tracking-wide py-1.5 w-full text-left"
+                                          >
+                                            {!isCollapsed ? (
+                                              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                                            ) : (
+                                              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
+                                            )}
+                                            <span>Completed</span>
+                                            <span className="bg-gray-100 px-1.5 py-0.5 rounded-full text-[8.5px] font-bold">
+                                              {completedTasksList.length}
+                                            </span>
+                                          </button>
+
+                                          {!isCollapsed && (
+                                            <div className="space-y-2 mt-2 pl-0.5 duration-100 animate-in slide-in-from-top-1 duration-150">
+                                              {visibleCompleted.map((todo) => (
+                                                <div
+                                                  key={todo.id}
+                                                  className="bg-white/55 rounded-xl border border-gray-100/60 p-2.5 flex items-start gap-2.5 text-left opacity-70 group"
+                                                  onClick={() => setSelectedTodoId(todo.id)}
+                                                >
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleToggleTodo(todo);
+                                                    }}
+                                                    className="mt-0.5 w-[14px] h-[14px] shrink-0 rounded-full border border-gray-400 bg-gray-100 flex items-center justify-center text-gray-400"
+                                                  >
+                                                    <Check className="w-2 h-2 text-gray-500 font-bold" />
+                                                  </button>
+
+                                                  <div className="min-w-0 flex-1">
+                                                    <span className="text-[10.5px] font-bold text-gray-400 line-through truncate block">
+                                                      {todo.title}
+                                                    </span>
+                                                    <div className="text-[8.5px] text-gray-400 font-bold tracking-wide mt-0.5">
+                                                      Completed {formatCardDate(todo.dueDate) || "Today"}
+                                                    </div>
+                                                  </div>
+
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleDeleteTodo(todo.id, e);
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-red-500 rounded transition shrink-0"
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                  </button>
+                                                </div>
+                                              ))}
+
+                                              {hasMoreCompleted && (
+                                                <button
+                                                  onClick={() => {
+                                                    setViewMode('completed');
+                                                    setSelectedProjectId(null);
+                                                  }}
+                                                  className="text-[9.5px] text-blue-500 hover:text-blue-600 font-black tracking-wide block pt-1.5 pl-5 cursor-pointer"
+                                                >
+                                                  View more completed logs
+                                                </button>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* ADDS INLINE NEW SECTION COLUMN */}
+                              {isAddingSection ? (
+                                <div className="w-[280px] shrink-0 bg-gray-50/50 border border-dashed border-gray-200 rounded-2xl p-4 flex flex-col gap-2 shadow-sm">
+                                  <input
+                                    type="text"
+                                    placeholder="Enter Column Section Name..."
+                                    value={newSectionValue}
+                                    onChange={(e) => setNewSectionValue(e.target.value)}
+                                    onKeyDown={async (e) => {
+                                      if (e.key === 'Enter') {
+                                        await handleCreateSection();
+                                      } else if (e.key === 'Escape') {
+                                        setIsAddingSection(false);
+                                      }
+                                    }}
+                                    className="text-xs font-bold border border-gray-200 focus:outline-[#3b82f6] rounded-xl p-2.5 bg-white text-black"
+                                    autoFocus
+                                  />
+                                  <div className="flex items-center gap-2 justify-end">
+                                    <button
+                                      onClick={() => setIsAddingSection(false)}
+                                      className="text-[9.5px] text-gray-500 hover:bg-gray-100 font-bold px-2.5 py-1.5 rounded-lg transition"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={handleCreateSection}
+                                      disabled={!newSectionValue.trim()}
+                                      className="text-[9.5px] text-white bg-blue-500 hover:bg-blue-600 font-bold px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                    >
+                                      Add Section
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setNewSectionValue('');
+                                    setIsAddingSection(true);
+                                  }}
+                                  className="flex items-center gap-1.5 text-xs font-black text-blue-500 hover:text-blue-600 hover:bg-blue-50/10 px-4 py-2 rounded-xl transition-all shrink-0 mt-1"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  <span>New section</span>
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                  ) : (
+                    <div className="w-full">
+                  {/* Unified capsule quick task input (hidden in trash and completed views) */}
+                  {viewMode !== 'trash' && viewMode !== 'completed' && (
+                    <div className="bg-white border border-gray-200 shadow-md rounded-2xl p-4 mb-6 transition-all focus-within:shadow-lg focus-within:border-gray-300">
+                      {/* Title & Input Row */}
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-1 flex items-center justify-center text-gray-400 shrink-0">
+                          <Plus className="w-4 h-4 text-primary" />
+                        </span>
+                        <div className="flex-1 space-y-1.5">
                           <input
                             type="text"
                             placeholder={`+ Add task to "${viewMode === 'project' ? (projects.find(p=>p.id===selectedProjectId)?.name || 'Inbox') : 'Inbox'}"... (Press Enter)`}
+                            value={newTaskTitle}
+                            onChange={(e) => setNewTaskTitle(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                                handleUnifiedQuickAdd(e.currentTarget.value);
-                                e.currentTarget.value = '';
+                              if (e.key === 'Enter' && newTaskTitle.trim()) {
+                                handleUnifiedQuickAdd(newTaskTitle);
                               }
                             }}
-                            className="w-full text-xs sm:text-sm bg-gray-100/60 hover:bg-gray-100/80 focus:bg-white border border-[#ececec] focus:border-gray-200 focus:outline-[#10B981] pl-11 pr-4 py-3 rounded-full transition-all text-black placeholder:text-gray-400 font-bold select-text cursor-text"
+                            className="w-full text-xs sm:text-sm bg-transparent outline-none text-black placeholder:text-gray-400 font-bold"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Add note or description (optional)"
+                            value={newTaskDesc}
+                            onChange={(e) => setNewTaskDesc(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && newTaskTitle.trim()) {
+                                handleUnifiedQuickAdd(newTaskTitle);
+                              }
+                            }}
+                            className="w-full text-[11px] bg-transparent outline-none text-gray-500 placeholder:text-gray-400 font-medium"
                           />
                         </div>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start mt-2">
-                        {/* COLUMN 1: TO DO */}
-                        <div className="bg-[#f8f9fc] rounded-2xl p-4 border border-gray-150 flex flex-col min-h-[500px] shadow-sm">
-                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200/60">
-                            <div className="flex items-center space-x-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                              <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider">To Do</h3>
-                            </div>
-                            <span className="text-[10px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-bold">
-                              {allActiveViewTodos.filter(t => !t.completed && (!t.priority || t.priority === 4)).length}
-                            </span>
-                          </div>
-
-                          <div className="space-y-3 flex-1 overflow-y-auto max-h-[500px] pr-0.5">
-                            {allActiveViewTodos.filter(t => !t.completed && (!t.priority || t.priority === 4)).map(todo => (
-                              <motion.div
-                                key={todo.id}
-                                layoutId={todo.id}
-                                className="bg-white rounded-xl border border-gray-150 p-3 shadow-sm hover:shadow-md transition-all relative group cursor-pointer text-left animate-in fade-in zoom-in-95 duration-100"
-                                onClick={() => setSelectedTodoId(todo.id)}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleTodo(todo);
-                                      }}
-                                      className="mt-0.5 w-[16px] h-[16px] shrink-0 rounded-full border-2 border-gray-300 hover:border-primary flex items-center justify-center bg-white"
-                                    >
-                                      <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-[#2F6BE6]" />
-                                    </button>
-                                    <div className="min-w-0 flex-1">
-                                      <span className="text-xs font-bold text-gray-800 break-words leading-relaxed">{todo.title}</span>
-                                      {todo.description && (
-                                        <p className="text-[10px] text-gray-400 font-medium leading-normal mt-1 line-clamp-2">{todo.description}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-gray-50 text-[10px]">
-                                  {/* Arrow controls to elevate or move priority */}
-                                  <button
-                                    type="button"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await todoService.updateTodo(todo.id, { priority: 2 });
-                                    }}
-                                    className="text-gray-500 hover:text-blue-600 bg-gray-50 border border-gray-150 py-1 px-2 rounded-lg font-bold flex items-center space-x-1 transition"
-                                    title="Mark In-Progress / Urgent"
-                                  >
-                                    <span>In-Progress</span>
-                                    <svg className="w-3 h-3 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                    </svg>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteTodo(todo.id, e);
-                                    }}
-                                    className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </motion.div>
-                            ))}
-
-                            {allActiveViewTodos.filter(t => !t.completed && (!t.priority || t.priority === 4)).length === 0 && (
-                              <div className="text-center py-8 text-gray-400 text-[11px] italic">
-                                No tasks to do.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* COLUMN 2: IN PROGRESS / URGENT */}
-                        <div className="bg-[#fff9f6] rounded-2xl p-4 border border-orange-100 flex flex-col min-h-[500px] shadow-sm">
-                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-orange-200">
-                            <div className="flex items-center space-x-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-orange-400" />
-                              <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider">In Progress</h3>
-                            </div>
-                            <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">
-                              {allActiveViewTodos.filter(t => !t.completed && t.priority && t.priority < 4).length}
-                            </span>
-                          </div>
-
-                          <div className="space-y-3 flex-1 overflow-y-auto max-h-[500px] pr-0.5">
-                            {allActiveViewTodos.filter(t => !t.completed && t.priority && t.priority < 4).map(todo => (
-                              <motion.div
-                                key={todo.id}
-                                layoutId={todo.id}
-                                className="bg-white rounded-xl border border-orange-105 p-3 shadow-sm hover:shadow-md transition-all relative group cursor-pointer border-l-[3px] border-l-orange-400 pl-3 text-left animate-in fade-in zoom-in-95 duration-100"
-                                onClick={() => setSelectedTodoId(todo.id)}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleTodo(todo);
-                                      }}
-                                      className="mt-0.5 w-[16px] h-[16px] shrink-0 rounded-full border border-orange-450 hover:border-primary flex items-center justify-center bg-white"
-                                    >
-                                      <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-orange-600" />
-                                    </button>
-                                    <div className="min-w-0 flex-1">
-                                      <span className="text-xs font-bold text-gray-800 break-words leading-relaxed">{todo.title}</span>
-                                      {todo.description && (
-                                        <p className="text-[10px] text-gray-400 font-medium leading-normal mt-1 line-clamp-2">{todo.description}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-gray-50 text-[10px]">
-                                  {/* Arrow controls to elevate or move priority */}
-                                  <button
-                                    type="button"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await todoService.updateTodo(todo.id, { priority: 4 });
-                                    }}
-                                    className="text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-150 py-1 px-2 rounded-lg font-bold flex items-center space-x-1 transition"
-                                    title="Demote to standard standard checklist item"
-                                  >
-                                    <svg className="w-3 h-3 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                                    </svg>
-                                    <span>To Do</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteTodo(todo.id, e);
-                                    }}
-                                    className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </motion.div>
-                            ))}
-
-                            {allActiveViewTodos.filter(t => !t.completed && t.priority && t.priority < 4).length === 0 && (
-                              <div className="text-center py-8 text-gray-400 text-[11px] italic">
-                                No urgent or in progress tasks.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* COLUMN 3: DONE */}
-                        <div className="bg-[#f5fbf7] rounded-2xl p-4 border border-emerald-100 flex flex-col min-h-[500px] shadow-sm">
-                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-emerald-200">
-                            <div className="flex items-center space-x-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                              <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider">Done</h3>
-                            </div>
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
-                              {allActiveViewTodos.filter(t => t.completed).length}
-                            </span>
-                          </div>
-
-                          <div className="space-y-3 flex-1 overflow-y-auto max-h-[500px] pr-0.5">
-                            {allActiveViewTodos.filter(t => t.completed).map(todo => (
-                              <motion.div
-                                key={todo.id}
-                                layoutId={todo.id}
-                                className="bg-white rounded-xl border border-emerald-50 p-3 shadow-sm hover:shadow-md transition-all relative group cursor-pointer opacity-75 text-left animate-in fade-in zoom-in-95 duration-100"
-                                onClick={() => setSelectedTodoId(todo.id)}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleTodo(todo);
-                                      }}
-                                      className="mt-0.5 w-[16px] h-[16px] shrink-0 rounded-full border border-emerald-500 bg-emerald-50 hover:bg-emerald-100/50 flex items-center justify-center text-emerald-600"
-                                    >
-                                      <Check className="w-2.5 h-2.5 text-emerald-600 font-black" />
-                                    </button>
-                                    <div className="min-w-0 flex-1">
-                                      <span className="text-xs font-bold text-gray-500 line-through break-words leading-relaxed">{todo.title}</span>
-                                      {todo.description && (
-                                        <p className="text-[10px] text-gray-400 font-medium leading-normal mt-1 line-clamp-2">{todo.description}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between mt-3.5 pt-2 border-t border-gray-50 text-[10px]">
-                                  <span className="text-emerald-600 font-medium text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded">
-                                    Completed
-                                  </span>
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteTodo(todo.id, e);
-                                    }}
-                                    className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </motion.div>
-                            ))}
-
-                            {allActiveViewTodos.filter(t => t.completed).length === 0 && (
-                              <div className="text-center py-8 text-gray-400 text-[11px] italic">
-                                No completed tasks here yet.
-                              </div>
-                            )}
-                          </div>
-                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="w-full">
-                      {/* Unified capsule quick task input (hidden in trash and completed views) */}
-                  {viewMode !== 'trash' && viewMode !== 'completed' && (
-                    <div className="relative mb-6">
-                      <span className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-gray-400">
-                        <Plus className="w-4 h-4" />
-                      </span>
-                      <input
-                        type="text"
-                        placeholder={`+ Add task to "${viewMode === 'project' ? (projects.find(p=>p.id===selectedProjectId)?.name || 'Inbox') : 'Inbox'}"... (Press Enter)`}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                            handleUnifiedQuickAdd(e.currentTarget.value);
-                            e.currentTarget.value = '';
-                          }
-                        }}
-                        className="w-full text-xs sm:text-sm bg-gray-100/60 hover:bg-gray-100/80 focus:bg-white border border-[#ececec] focus:border-gray-200 focus:outline-none pl-11 pr-4 py-3 rounded-full transition-all text-black placeholder:text-gray-400 font-bold select-text cursor-text"
-                      />
+
+                      <div className="h-px bg-gray-100 my-3" />
+
+                      {/* Tool Options Action Bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          
+                          {/* 1. Due Date Selector */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => { setShowDatePicker(!showDatePicker); setShowPriorityPicker(false); setShowRepeatPicker(false); }}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all border ${newTaskDueDate ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+                            >
+                              <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
+                              <span>{newTaskDueDate ? format(newTaskDueDate, 'MMM d, yyyy') : 'No Date'}</span>
+                              <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                            </button>
+                            <AnimatePresence>
+                              {showDatePicker && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                  transition={{ duration: 0.12 }}
+                                  className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-3 w-[265px]"
+                                >
+                                  {/* Quick Presets */}
+                                  <div className="grid grid-cols-2 gap-1.5 mb-2.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setNewTaskDueDate(startOfDay(new Date()));
+                                        setShowDatePicker(false);
+                                      }}
+                                      className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                                    >
+                                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                                      Today
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const tomorrow = new Date();
+                                        tomorrow.setDate(tomorrow.getDate() + 1);
+                                        setNewTaskDueDate(startOfDay(tomorrow));
+                                        setShowDatePicker(false);
+                                      }}
+                                      className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                                    >
+                                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                                      Tomorrow
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextWeek = new Date();
+                                        nextWeek.setDate(nextWeek.getDate() + 7);
+                                        setNewTaskDueDate(startOfDay(nextWeek));
+                                        setShowDatePicker(false);
+                                      }}
+                                      className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                                    >
+                                      <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
+                                      Next Week
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setNewTaskDueDate(undefined);
+                                        setShowDatePicker(false);
+                                      }}
+                                      className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
+                                    >
+                                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                                      Clear Date
+                                    </button>
+                                  </div>
+                                  <div className="h-px bg-gray-100 my-2.5" />
+                                  <DayPicker
+                                    mode="single"
+                                    selected={newTaskDueDate}
+                                    onSelect={(d) => {
+                                      setNewTaskDueDate(d ? startOfDay(d) : undefined);
+                                      setShowDatePicker(false);
+                                    }}
+                                  />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                          {/* 2. Priority Selector */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowDatePicker(false); setShowRepeatPicker(false); }}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all border ${newTaskPriority < 4 ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+                            >
+                              <Flag className={`w-3.5 h-3.5 ${getPriorityColor(newTaskPriority)} ${newTaskPriority < 4 ? 'fill-current' : ''}`} />
+                              <span>P{newTaskPriority}</span>
+                              <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                            </button>
+                            <AnimatePresence>
+                              {showPriorityPicker && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                  transition={{ duration: 0.12 }}
+                                  className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-40"
+                                >
+                                  {[
+                                    { level: 1, label: 'P1 Urgent' },
+                                    { level: 2, label: 'P2 High' },
+                                    { level: 3, label: 'P3 Medium' },
+                                    { level: 4, label: 'P4 None' }
+                                  ].map(({ level, label }) => {
+                                    const isSelected = newTaskPriority === level;
+                                    return (
+                                      <button
+                                        key={level}
+                                        type="button"
+                                        onClick={() => {
+                                          setNewTaskPriority(level);
+                                          setShowPriorityPicker(false);
+                                        }}
+                                        className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-bold rounded-lg transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+                                      >
+                                        <span className="flex items-center">
+                                          <Flag className={`w-3.5 h-3.5 mr-2 ${getPriorityColor(level)} ${level < 4 ? 'fill-current' : ''}`} />
+                                          {label}
+                                        </span>
+                                        {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                                      </button>
+                                    );
+                                  })}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                          {/* 3. Repeat Selector */}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => { setShowRepeatPicker(!showRepeatPicker); setShowDatePicker(false); setShowPriorityPicker(false); }}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all border ${newTaskRepeat !== 'none' ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+                            >
+                              <Repeat className="w-3.5 h-3.5" />
+                              <span className="capitalize">{newTaskRepeat}</span>
+                              <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                            </button>
+                            <AnimatePresence>
+                              {showRepeatPicker && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                  transition={{ duration: 0.12 }}
+                                  className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-44"
+                                >
+                                  {['none', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'].map(item => {
+                                    const isSelected = newTaskRepeat === item;
+                                    return (
+                                      <button
+                                        key={item}
+                                        type="button"
+                                        onClick={() => {
+                                          setNewTaskRepeat(item as any);
+                                          setShowRepeatPicker(false);
+                                        }}
+                                        className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-bold rounded-lg transition-colors capitalize ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+                                      >
+                                        <span>{item}</span>
+                                        {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                                      </button>
+                                    );
+                                  })}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+
+                        </div>
+
+                        {/* Submit Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleUnifiedQuickAdd(newTaskTitle)}
+                          disabled={!newTaskTitle.trim()}
+                          className="flex items-center gap-1 px-4 py-1.5 text-xs bg-primary text-white rounded-xl disabled:opacity-40 font-bold transition-all shadow-md hover:bg-[#203673] duration-150 select-none cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Task</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -2037,7 +2685,7 @@ export default function WorkspaceApp() {
                 placeholder="Description / Notes"
                 value={newTaskDesc}
                 onChange={(e) => setNewTaskDesc(e.target.value)}
-                className="w-full text-xs text-gray-600 outline-none placeholder:text-gray-400 resize-none h-12 mb-3"
+                className="w-full text-xs text-gray-600 outline-none placeholder:text-gray-400 resize-none h-12 mb-2"
               />
               <div className="flex justify-end space-x-2">
                 <button onClick={() => setIsAddingTask(false)} className="px-3 py-1.5 text-xs hover:bg-gray-100 text-gray-600 rounded">
@@ -2185,97 +2833,186 @@ export default function WorkspaceApp() {
                       <div className="grid grid-cols-3 gap-2.5 mt-5 border-b border-gray-150 pb-5">
                         {/* Due Date */}
                         <div className="relative">
-                          <label className="block text-[9.5px] font-black text-gray-400 uppercase tracking-widest mb-1">Due Date</label>
+                          <label className="block text-[9.5px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Due Date</label>
                           <button 
                             onClick={() => { setShowDetailDatePicker(!showDetailDatePicker); setShowDetailRepeatPicker(false); setShowDetailPriorityPicker(false); }}
-                            className="w-full flex items-center justify-between px-2.5 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold hover:bg-gray-50 transition text-gray-700"
+                            className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-bold transition ${showDetailDatePicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
                           >
-                            <span className="truncate">
+                            <span className="truncate flex items-center gap-1.5">
+                              <CalendarIcon className={`w-3.5 h-3.5 ${todo.dueDate ? 'text-primary' : 'text-gray-400'}`} />
                               {todo.dueDate ? format(new Date(todo.dueDate), 'MMM d, yyyy') : 'No Date'}
                             </span>
-                            <ChevronDown className="w-3 h-3 text-gray-400 shrink-0 ml-1" />
+                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailDatePicker ? 'rotate-180' : ''}`} />
                           </button>
-                          {showDetailDatePicker && (
-                            <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 shadow-2xl rounded-xl p-2">
-                              <DayPicker 
-                                mode="single" 
-                                selected={todo.dueDate ? new Date(todo.dueDate) : undefined} 
-                                onSelect={(d) => { 
-                                  todoService.updateTodo(todo.id, { dueDate: d ? d.getTime() : null }); 
-                                  setShowDetailDatePicker(false); 
-                                }} 
-                              />
-                            </div>
-                          )}
+                          <AnimatePresence>
+                            {showDetailDatePicker && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-3 w-[265px]"
+                              >
+                                {/* Quick Presets */}
+                                <div className="grid grid-cols-2 gap-1.5 mb-2.5">
+                                  <button
+                                    onClick={() => {
+                                      todoService.updateTodo(todo.id, { dueDate: startOfDay(new Date()).getTime() });
+                                      setShowDetailDatePicker(false);
+                                    }}
+                                    className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                                  >
+                                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                                    Today
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const tomorrow = new Date();
+                                      tomorrow.setDate(tomorrow.getDate() + 1);
+                                      todoService.updateTodo(todo.id, { dueDate: startOfDay(tomorrow).getTime() });
+                                      setShowDetailDatePicker(false);
+                                    }}
+                                    className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                                  >
+                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                                    Tomorrow
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const nextWeek = new Date();
+                                      nextWeek.setDate(nextWeek.getDate() + 7);
+                                      todoService.updateTodo(todo.id, { dueDate: startOfDay(nextWeek).getTime() });
+                                      setShowDetailDatePicker(false);
+                                    }}
+                                    className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                                  >
+                                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
+                                    Next Week
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      todoService.updateTodo(todo.id, { dueDate: null });
+                                      setShowDetailDatePicker(false);
+                                    }}
+                                    className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
+                                  >
+                                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                                    Clear Date
+                                  </button>
+                                </div>
+                                <div className="h-px bg-gray-100 my-2.5" />
+                                <DayPicker 
+                                  mode="single" 
+                                  selected={todo.dueDate ? new Date(todo.dueDate) : undefined} 
+                                  onSelect={(d) => { 
+                                    todoService.updateTodo(todo.id, { dueDate: d ? startOfDay(d).getTime() : null }); 
+                                    setShowDetailDatePicker(false); 
+                                  }} 
+                                />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
 
                         {/* Priority Picker */}
                         <div className="relative">
-                          <label className="block text-[9.5px] font-black text-gray-400 uppercase tracking-widest mb-1">Priority</label>
+                          <label className="block text-[9.5px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
                           <button 
                             onClick={() => { setShowDetailPriorityPicker(!showDetailPriorityPicker); setShowDetailDatePicker(false); setShowDetailRepeatPicker(false); }}
-                            className="w-full flex items-center justify-between px-2.5 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold hover:bg-gray-50 transition text-gray-700"
+                            className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-bold transition ${showDetailPriorityPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
                           >
                             <span className="flex items-center gap-1.5 truncate">
-                              <Flag className={`w-3.5 h-3.5 ${getPriorityColor(todo.priority || 4)}`} />
+                              <Flag className={`w-3.5 h-3.5 ${getPriorityColor(todo.priority || 4)} fill-current`} />
                               P{todo.priority || 4}
                             </span>
-                            <ChevronDown className="w-3 h-3 text-gray-400 shrink-0 ml-1" />
+                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailPriorityPicker ? 'rotate-180' : ''}`} />
                           </button>
-                          {showDetailPriorityPicker && (
-                            <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 shadow-2xl rounded-xl p-1 w-32">
-                              {[1, 2, 3, 4].map(p => (
-                                <button
-                                  key={p}
-                                  onClick={() => {
-                                    todoService.updateTodo(todo.id, { priority: p });
-                                    setShowDetailPriorityPicker(false);
-                                  }}
-                                  className="w-full flex items-center px-2 py-1.5 text-xs hover:bg-gray-50 rounded-lg"
-                                >
-                                  <Flag className={`w-3.5 h-3.5 mr-2 ${getPriorityColor(p)}`} />
-                                  P {p}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          <AnimatePresence>
+                            {showDetailPriorityPicker && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-40"
+                              >
+                                {[
+                                  { level: 1, label: 'P1 Urgent' },
+                                  { level: 2, label: 'P2 High' },
+                                  { level: 3, label: 'P3 Medium' },
+                                  { level: 4, label: 'P4 None' }
+                                ].map(({ level, label }) => {
+                                  const isSelected = (todo.priority || 4) === level;
+                                  return (
+                                    <button
+                                      key={level}
+                                      onClick={() => {
+                                        todoService.updateTodo(todo.id, { priority: level });
+                                        setShowDetailPriorityPicker(false);
+                                      }}
+                                      className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-bold rounded-lg transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+                                    >
+                                      <span className="flex items-center">
+                                        <Flag className={`w-3.5 h-3.5 mr-2 ${getPriorityColor(level)} ${level < 4 ? 'fill-current' : ''}`} />
+                                        {label}
+                                      </span>
+                                      {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                                    </button>
+                                  );
+                                })}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
 
                         {/* Repeat Option */}
                         <div className="relative">
-                          <label className="block text-[9.5px] font-black text-gray-400 uppercase tracking-widest mb-1">Repeat</label>
+                          <label className="block text-[9.5px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Repeat</label>
                           <button 
                             onClick={() => { setShowDetailRepeatPicker(!showDetailRepeatPicker); setShowDetailDatePicker(false); setShowDetailPriorityPicker(false); }}
-                            className="w-full flex items-center justify-between px-2.5 py-1.5 border border-gray-200 rounded-xl text-xs font-semibold hover:bg-gray-50 transition text-gray-700"
+                            className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-bold transition ${showDetailRepeatPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
                           >
-                            <span className="truncate block font-semibold">
+                            <span className="truncate flex items-center gap-1.5 font-bold capitalize">
+                              <Repeat className={`w-3.5 h-3.5 ${(todo.repeat && todo.repeat !== 'none') ? 'text-primary' : 'text-gray-400'}`} />
                               {todo.repeat || 'none'}
                             </span>
-                            <ChevronDown className="w-3 h-3 text-gray-400 shrink-0 ml-1" />
+                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailRepeatPicker ? 'rotate-180' : ''}`} />
                           </button>
-                          {showDetailRepeatPicker && (
-                            <div className="absolute top-full right-0 mt-1 z-50 bg-white border border-gray-200 shadow-2xl rounded-xl p-1.5 w-48">
-                              {['none', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'].map(item => (
-                                <button
-                                  key={item}
-                                  onClick={() => {
-                                    todoService.updateTodo(todo.id, { repeat: item as any });
-                                    setShowDetailRepeatPicker(false);
-                                  }}
-                                  className="w-full text-left px-2 py-1.5 hover:bg-gray-50 rounded-lg text-xs capitalize"
-                                >
-                                  {item}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          <AnimatePresence>
+                            {showDetailRepeatPicker && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute top-full right-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-44"
+                              >
+                                {['none', 'hourly', 'daily', 'weekly', 'monthly', 'yearly'].map(item => {
+                                  const isSelected = (todo.repeat || 'none') === item;
+                                  return (
+                                    <button
+                                      key={item}
+                                      onClick={() => {
+                                        todoService.updateTodo(todo.id, { repeat: item as any });
+                                        setShowDetailRepeatPicker(false);
+                                      }}
+                                      className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-bold rounded-lg transition-colors capitalize ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+                                    >
+                                      <span className="truncate">{item}</span>
+                                      {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                                    </button>
+                                  );
+                                })}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       </div>
 
                       {/* Notes / Descriptions and subtasks checklist inside Drawer */}
                       <div className="mt-5 space-y-5">
                         <div className="flex flex-col text-left">
-                          <label className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest mb-2">Notes Notes</label>
+                          <label className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest mb-2">Notes</label>
                           <textarea
                             placeholder="Add detailed parameters or Markdown logs..."
                             className="text-xs w-full bg-gray-50/50 hover:bg-gray-50 border focus:bg-white focus:border-primary p-3 rounded-xl min-h-[90px] outline-none transition"
@@ -2283,6 +3020,8 @@ export default function WorkspaceApp() {
                             onChange={(e) => todoService.updateTodo(todo.id, { description: e.target.value })}
                           />
                         </div>
+
+
 
                         <div className="flex flex-col text-left">
                           <label className="text-[10.5px] font-black text-gray-400 uppercase tracking-widest mb-2">Subtasks</label>
@@ -2360,7 +3099,11 @@ export default function WorkspaceApp() {
                     {/* Mobile-only close button */}
                     <button
                       type="button"
-                      onClick={() => setIsAddingProject(false)}
+                      onClick={() => {
+                        setIsAddingProject(false);
+                        setSelectedTemplateId('none');
+                        setNewProjectName('');
+                      }}
                       className="md:hidden text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-150"
                     >
                       <X className="w-5 h-5" />
@@ -2382,6 +3125,56 @@ export default function WorkspaceApp() {
                         onChange={(e) => setNewProjectName(e.target.value)}
                         className="w-full text-xs sm:text-sm pl-10 pr-4 py-2.5 bg-white border border-gray-200 focus:border-blue-450 focus:ring-1 focus:ring-blue-450 rounded-xl outline-none transition text-black font-semibold shadow-sm"
                       />
+                    </div>
+
+                    {/* Choose Template dropdown */}
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex items-center space-x-4">
+                        <span className="text-xs font-bold text-gray-500 w-24 shrink-0">Choose Template</span>
+                        <select
+                          value={selectedTemplateId}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedTemplateId(val);
+                            const found = PROJECT_TEMPLATES.find(t => t.id === val);
+                            if (found && found.id !== 'none') {
+                              setNewProjectName(found.name);
+                              if (found.color) {
+                                setListColor(found.color);
+                              }
+                            } else if (val === 'none') {
+                              setNewProjectName('');
+                            }
+                          }}
+                          className="flex-1 max-w-[280px] text-xs bg-white border border-gray-200 hover:border-gray-300 focus:border-blue-400 rounded-xl px-3 py-2 outline-none font-bold text-gray-700 shadow-sm transition-colors cursor-pointer"
+                        >
+                          {PROJECT_TEMPLATES.map((tpl) => (
+                            <option key={tpl.id} value={tpl.id}>
+                              {tpl.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Display template pre-populated sections preview if selected */}
+                      {(() => {
+                        const tpl = PROJECT_TEMPLATES.find(t => t.id === selectedTemplateId);
+                        if (tpl && tpl.sections.length > 0) {
+                          return (
+                            <div className="pl-0 md:pl-28 animate-in fade-in slide-in-from-top-1 duration-150">
+                              <span className="text-[10px] uppercase font-black text-blue-500 tracking-wider block mb-1">Pre-populated board sections:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {tpl.sections.map((sec, idx) => (
+                                  <span key={idx} className="bg-blue-50 border border-blue-100 text-[10px] font-semibold text-[#2F6BE6] px-2 py-0.5 rounded-lg">
+                                    {sec}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     {/* List Color row */}
@@ -2442,17 +3235,7 @@ export default function WorkspaceApp() {
                           <Menu className="w-4.5 h-4.5" />
                         </button>
 
-                        {/* View Kanban Button */}
-                        <button
-                          type="button"
-                          onClick={() => setListViewType('kanban')}
-                          className={`p-2.5 border rounded-xl flex items-center justify-center transition-all relative ${listViewType === 'kanban' ? 'bg-[#ebf3ff]/80 border-[#2F6BE6] text-[#2F6BE6] shadow-sm' : 'border-gray-200 bg-gray-50/50 text-gray-400 hover:bg-gray-100/50'}`}
-                          title="Kanban Board View"
-                        >
-                          <svg className="w-4.5 h-4.5 fill-current" viewBox="0 0 24 24">
-                            <path d="M4 19h4V5H4v14zm6-14v14h4V5h-4zm6 14h4V5h-4v14z" />
-                          </svg>
-                        </button>
+
 
                         {/* View Timeline Button (With tiny Sparkles / Crown offset premium crown badge) */}
                         <button
@@ -2578,12 +3361,15 @@ export default function WorkspaceApp() {
                     </div>
                   </div>
                 </div>
-
                 {/* Cancel & Add operations buttons stacked aligned left */}
                 <div className="flex items-center space-x-2.5 mt-8 border-t border-gray-100 pt-5">
                   <button
                     type="button"
-                    onClick={() => setIsAddingProject(false)}
+                    onClick={() => {
+                      setIsAddingProject(false);
+                      setSelectedTemplateId('none');
+                      setNewProjectName('');
+                    }}
                     className="px-6 py-2 border border-gray-250 hover:bg-gray-50 text-gray-600 rounded-xl text-xs font-black shadow-sm transition-all"
                   >
                     Cancel
@@ -2594,15 +3380,19 @@ export default function WorkspaceApp() {
                     onClick={async () => {
                       if (newProjectName.trim() && auth.currentUser) {
                         const targetFolder = listFolderId === 'none' ? null : listFolderId;
+                        const template = PROJECT_TEMPLATES.find(t => t.id === selectedTemplateId);
+                        const sections = template ? template.sections : [];
                         await todoService.createProject(
                           newProjectName.trim(), 
                           listColor, 
                           auth.currentUser.uid, 
                           'Hash', // Use standard bullet or Hash or List icon as key
                           targetFolder,
-                          listViewType
+                          listViewType,
+                          sections
                         );
                         setNewProjectName('');
+                        setSelectedTemplateId('none');
                         setIsAddingProject(false);
                       }
                     }}
@@ -2618,7 +3408,11 @@ export default function WorkspaceApp() {
                 {/* Desktop close X icon top-right */}
                 <button
                   type="button"
-                  onClick={() => setIsAddingProject(false)}
+                  onClick={() => {
+                    setIsAddingProject(false);
+                    setSelectedTemplateId('none');
+                    setNewProjectName('');
+                  }}
                   className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-white transition-colors"
                 >
                   <X className="w-5 h-5" />
