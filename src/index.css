@@ -121,7 +121,23 @@
   color: #0f172a !important;
 }
 
+.rdp-month_grid {
+  border-collapse: collapse;
+  display: table !important;
+  width: 100%;
+  table-layout: fixed !important;
+}
+
+.rdp-weeks {
+  display: table-row-group !important;
+}
+
+.rdp-week {
+  display: table-row !important;
+}
+
 .rdp-weekday {
+  display: table-cell !important;
   width: 28px !important;
   height: 28px !important;
   padding: 0 !important;
@@ -134,6 +150,13 @@
 }
 
 .rdp-day {
+  display: table-cell !important;
+  padding: 0 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.rdp-day_button {
   width: 28px !important;
   height: 28px !important;
   border-radius: 8px !important;
@@ -144,21 +167,22 @@
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer !important;
-  transition: all 100ms !important;
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out !important;
 }
 
-.rdp-day:hover {
+.rdp-day_button:hover:not([disabled]) {
   background-color: #f1f5f9 !important;
   color: #0f172a !important;
 }
 
-.rdp-day_selected {
+.rdp-selected .rdp-day_button {
   background-color: #3150a0 !important;
   color: #ffffff !important;
   font-weight: 700 !important;
+  border: none !important;
 }
 
-.rdp-day_today {
+.rdp-today .rdp-day_button {
   border: 1.5px solid #3150a0 !important;
   color: #3150a0 !important;
   font-weight: 700 !important;
