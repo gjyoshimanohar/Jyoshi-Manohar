@@ -12,12 +12,19 @@ export default defineConfig(({mode}) => {
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
-          manualChunks: {
-            vendor: ['react', 'react-dom', 'react-router-dom', 'motion', 'lucide-react'],
-            firebase: ['firebase/app', 'firebase/firestore', 'firebase/auth'],
-            editor: ['react-quill-new', 'suneditor', 'suneditor-react'],
-            charts: ['recharts', 'date-fns', 'react-day-picker'],
-            dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities']
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('firebase')) {
+                return 'firebase';
+              }
+              if (id.includes('recharts') || id.includes('d3')) {
+                return 'charts';
+              }
+              if (id.includes('suneditor')) {
+                return 'editor';
+              }
+              return 'vendor';
+            }
           }
         }
       }

@@ -163,7 +163,7 @@ export default function PomodoroFocus() {
  Focus Pomodoro Space
  </span>
  <h2 className="text-2xl text-gray-900 mt-2">Time to Focus</h2>
- <p className="text-xs text-gray-500 mt-1">Boost performance with soothing synthesized background waves</p>
+ <p className="font-medium text-base text-gray-500 mt-1">Boost performance with soothing synthesized background waves</p>
  </div>
 
  {/* Mode selectors */}
@@ -264,7 +264,7 @@ export default function PomodoroFocus() {
  {/* Logged stats */}
  <div className="bg-gray-50 border border-gray-100 rounded-xl p-3.5 mt-6 flex items-center justify-between">
  <div className="text-left">
- <span className="text-[10px] font-medium text-gray-400 uppercase block tracking-wider">Today's Balance</span>
+ <span className="text-xs font-medium text-gray-400 uppercase block tracking-wider">Today's Balance</span>
  <span className="text-sm font-medium text-gray-700">{focusMinutesLogged} minutes logged</span>
  </div>
  <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />

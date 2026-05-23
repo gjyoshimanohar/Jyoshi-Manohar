@@ -171,14 +171,14 @@ export default function HabitsTracker({ userId }: HabitsTrackerProps) {
  <Target className="w-5 h-5 mr-2 text-[#1a2b58]" />
  Habit Ring Tracker
  </h2>
- <p className="text-xs text-gray-500">Cultivate regular disciplines through logging calendar steaks.</p>
+ <p className="font-medium text-base text-gray-500">Cultivate regular disciplines through logging calendar steaks.</p>
  </div>
 
  {/* Global Stats Board */}
  <div className="flex space-x-3 bg-[#1a2b58]/5 border border-[#1a2b58]/10 p-3 rounded-xl items-center">
  <Trophy className="w-6 h-6 text-[#1a2b58]" />
  <div>
- <span className="text-[10px] font-medium text-[#1a2b58] uppercase block tracking-wider">Total Active Habits</span>
+ <span className="text-xs font-medium text-[#1a2b58] uppercase block tracking-wider">Total Active Habits</span>
  <span className="text-sm text-[#1a2b58]">{habits.length} Tracking</span>
  </div>
  </div>
@@ -221,11 +221,11 @@ export default function HabitsTracker({ userId }: HabitsTrackerProps) {
  <div className="text-left">
  <h4 className="font-medium text-sm text-gray-900 leading-tight">{habit.name}</h4>
  <div className="flex items-center space-x-2 mt-1">
- <span className="text-[10px] bg-amber-50 text-amber-700 font-medium px-1.5 py-0.5 rounded-full flex items-center">
+ <span className="text-xs bg-amber-50 text-amber-700 font-medium px-1.5 py-0.5 rounded-full flex items-center">
  <Flame className="w-3 h-3 mr-0.5 text-amber-500 fill-amber-500" />
  {habit.streak} day streak
  </span>
- <span className="text-[10px] text-gray-400 font-medium">
+ <span className="text-xs text-gray-400 font-medium">
  Total {habit.totalCompletions} completions
  </span>
  </div>
@@ -239,7 +239,7 @@ export default function HabitsTracker({ userId }: HabitsTrackerProps) {
  const checked = habit.completions.includes(day.key);
  return (
  <div key={day.key} className="flex flex-col items-center">
- <span className={`text-[9px] font-medium uppercase mb-1 ${day.isToday ? 'text-[#1a2b58]' : 'text-gray-400'}`}>
+ <span className={`text-xs font-medium uppercase mb-1 ${day.isToday ? 'text-[#1a2b58]' : 'text-gray-400'}`}>
  {day.label}
  </span>
  <button
@@ -274,7 +274,7 @@ export default function HabitsTracker({ userId }: HabitsTrackerProps) {
  </h3>
  <div className="space-y-4">
  <div>
- <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Habit Title</label>
+ <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Habit Title</label>
  <input
  type="text"
  placeholder="e.g. Code every evening"
@@ -285,12 +285,12 @@ export default function HabitsTracker({ userId }: HabitsTrackerProps) {
  </div>
 
  <div>
- <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">Launch Icon/Emoji</label>
+ <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Launch Icon/Emoji</label>
  <div className="relative flex-1 group">
  <select
  value={newHabitIcon}
  onChange={(e) => setNewHabitIcon(e.target.value)}
- className="w-full text-xs sm:text-[13px] bg-white border border-gray-200 hover:border-blue-400 focus:border-primary focus:ring-4 focus:ring-primary/10 hover:shadow-md rounded-xl px-3 pr-8 py-2.5 outline-none font-medium text-gray-700 shadow-sm transition-all cursor-pointer appearance-none relative z-0"
+ className="w-full text-xs sm:text-sm bg-white border border-gray-200 hover:border-blue-400 focus:border-primary focus:ring-4 focus:ring-primary/10 hover:shadow-md rounded-xl px-3 pr-8 py-2.5 outline-none font-medium text-gray-700 shadow-sm transition-all cursor-pointer appearance-none relative z-0"
  >
  <option value="🎯">🎯 Target/Milestone</option>
  <option value="📚">📚 Study/Reading</option>

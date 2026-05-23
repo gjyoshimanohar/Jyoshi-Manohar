@@ -43,7 +43,7 @@ export default function BlogList() {
  <span>Financial Intelligence</span>
  </div>
  <h1 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">Insights.</h1>
- <p className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-left max-w-2xl">
+ <p className="space-y-6 text-base lg:text-base text-black font-medium leading-relaxed text-left max-w-2xl">
  In-depth analysis on the evolving world of finance, tax, and corporate policy.
  </p>
  </motion.div>

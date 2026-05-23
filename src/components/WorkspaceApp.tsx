@@ -246,40 +246,38 @@ export default function WorkspaceApp() {
  tags: ["CAFinal"],
  });
  }
-
- // Spiritual project (P3 bullet)
+ 
  const spiritual = await todoService.createProject("Spiritual", "#d946ef", uid, "Heart");
  if (spiritual) {
  await todoService.updateProject(spiritual.id, { folderId: studyFolder.id });
  await todoService.createTodo({
- title: "Bible Study",
+ title: "Morning Meditation",
  userId: uid,
- completed: true, // Completed
+ completed: false,
  projectId: spiritual.id,
- priority: 4, 
+ priority: 4,
  dueDate: Date.now(),
- tags: ["Spiritual", "Mediation"],
+ tags: ["Meditation"],
  });
  }
  }
 
- // Standalone direct lists
  await todoService.createProject("Work", "#ef4444", uid, "Briefcase");
  await todoService.createProject("Exercise", "#eab308", uid, "Zap");
 
- // Weekend countdown task
  await todoService.createTodo({
- title: "Weekend",
+ title: "Welcome to your new workspace! Try creating a task.",
  userId: uid,
  completed: false,
- priority: 3,
+ projectId: null, // Inbox
+ priority: 4,
  dueDate: Date.now(),
- tags: ["Countdown"],
+ tags: ["Welcome"],
  });
 
- localStorage.setItem(bootstrappedKey, 'true');
- } catch (e) {
- console.error("Failed bootstrapping TickTick demo state: ", e);
+ localStorage.setItem(bootstrappedKey, "true");
+ } catch (err) {
+ console.error("Failed to bootstrap data", err);
  } finally {
  setBootstrapping(false);
  }
@@ -325,6 +323,27 @@ export default function WorkspaceApp() {
  }, [loading, projects.length, folders.length, auth.currentUser]);
 
  const handleLogout = () => signOut(auth);
+
+ const handleClearAllData = async () => {
+ if (confirm('Are you sure you want to clear ALL your tasks, projects, and folders? This cannot be undone.')) {
+ try {
+ for (const todo of todos) {
+ await todoService.deleteTodo(todo.id);
+ }
+ for (const project of projects) {
+ await todoService.deleteProject(project.id);
+ }
+ for (const folder of folders) {
+ await todoService.deleteFolder(folder.id);
+ }
+ localStorage.removeItem(`ticktick_bootstrapped_${auth.currentUser?.uid}`);
+ alert('All data cleared successfully.');
+ } catch (err) {
+ console.error('Failed to clear data', err);
+ alert('Failed to clear some data');
+ }
+ }
+ };
 
  const handleAddTask = async () => {
  if (!newTaskTitle.trim() || !auth.currentUser) return;
@@ -829,7 +848,7 @@ export default function WorkspaceApp() {
  }
 
  return (
- <span className="flex items-center text-[10px] sm:text-[11px] font-semibold text-gray-500 bg-transparent transition-colors leading-none shrink-0 border border-gray-100 px-1.5 py-0.5 rounded-full select-none">
+ <span className="flex items-center text-xs sm:text-xs font-semibold text-gray-500 bg-transparent transition-colors leading-none shrink-0 border border-gray-100 px-1.5 py-0.5 rounded-full select-none">
  <IconComponent className="w-3 h-3 mr-1 text-gray-400" style={{ color: p.color || '#6B7280' }} />
  <span style={{ color: p.color ? `${p.color}e0` : '#6B7280' }}>{p.name}</span>
  </span>
@@ -886,7 +905,7 @@ export default function WorkspaceApp() {
  {/* Project tasks count badge */}
  <div className="flex items-center">
  {getProjectPendingCount(project.id) > 0 && (
- <span className="text-[10px] text-gray-400 font-semibold bg-gray-100 px-1.5 py-0.2 rounded-full mr-1.5">
+ <span className="text-xs text-gray-400 font-semibold bg-gray-100 px-1.5 py-0.2 rounded-full mr-1.5">
  {getProjectPendingCount(project.id)}
  </span>
  )}
@@ -942,7 +961,7 @@ export default function WorkspaceApp() {
  <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
  <span className="text-xs text-gray-700 font-medium truncate max-w-[120px]">{folder.name}</span>
  {getFolderPendingCount(folder.id) > 0 && (
- <span className="text-[9px] font-semibold text-gray-400 bg-gray-100 px-1 py-0.2 rounded-full">
+ <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-1 py-0.2 rounded-full">
  {getFolderPendingCount(folder.id)}
  </span>
  )}
@@ -969,7 +988,7 @@ export default function WorkspaceApp() {
  <div className="pl-3.5 border-l border-gray-200 ml-3.5 mt-1 space-y-0.5">
  {projects.filter(p => p.folderId === folder.id).map(renderProjectItem)}
  {projects.filter(p => p.folderId === folder.id).length === 0 && (
- <div className="text-[10px] text-gray-400 pl-1 py-1 italic">Empty folders list</div>
+ <div className="text-xs text-gray-400 pl-1 py-1 italic">Empty folders list</div>
  )}
  </div>
  </div>
@@ -979,7 +998,7 @@ export default function WorkspaceApp() {
  {projects.filter(p => !p.folderId).map(renderProjectItem)}
  
  {projects.length === 0 && folders.length === 0 && !isAddingProject && (
- <div className="text-[11px] text-center text-gray-400 italic py-2">No lists created</div>
+ <div className="text-xs text-center text-gray-400 italic py-2">No lists created</div>
  )}
  </div>
  );
@@ -1008,10 +1027,10 @@ export default function WorkspaceApp() {
  <div className="w-9 h-9 rounded-full bg-[#1a2b58] text-white flex items-center justify-center text-sm shadow border border-white">
  {auth.currentUser?.email?.charAt(0).toUpperCase()}
  </div>
- <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-yellow-400 text-[8px] flex items-center justify-center rounded-full text-black ring-1 ring-white" title="VIP Account">
+ <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-yellow-400 text-xs flex items-center justify-center rounded-full text-black ring-1 ring-white" title="VIP Account">
  ★
  </div>
- <div className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl whitespace-nowrap z-[100] transition-all origin-left">
+ <div className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl whitespace-nowrap z-[100] transition-all origin-left">
  {auth.currentUser?.email} (Pro Account)
  </div>
  </div>
@@ -1025,7 +1044,7 @@ export default function WorkspaceApp() {
  title="Tasks Checklist"
  >
  <ShieldCheck className="w-5 h-5" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Tasks Checklist
  </span>
  </button>
@@ -1036,7 +1055,7 @@ export default function WorkspaceApp() {
  title="Eisenhower Matrix"
  >
  <GripVertical className="w-5 h-5" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Eisenhower Matrix
  </span>
  </button>
@@ -1047,7 +1066,7 @@ export default function WorkspaceApp() {
  title="Habit Streaks"
  >
  <Target className="w-5 h-5" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Habits tracker
  </span>
  </button>
@@ -1058,7 +1077,7 @@ export default function WorkspaceApp() {
  title="Focus Timer Space"
  >
  <Clock className="w-5 h-5" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Timer Space
  </span>
  </button>
@@ -1069,7 +1088,7 @@ export default function WorkspaceApp() {
  title="Starred Goals"
  >
  <Star className="w-5 h-5" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Starred Goals
  </span>
  </button>
@@ -1080,7 +1099,7 @@ export default function WorkspaceApp() {
  title="Search Index"
  >
  <Search className="w-5 h-5" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Search Filters
  </span>
  </button>
@@ -1094,7 +1113,7 @@ export default function WorkspaceApp() {
  title="Cloud Synchronize"
  >
  <RefreshCw className="w-4 h-4" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Sync Network
  </span>
  </button>
@@ -1102,7 +1121,7 @@ export default function WorkspaceApp() {
  <div className="relative group cursor-pointer hover:bg-gray-200 p-2 text-gray-500 rounded-xl">
  <Bell className="w-4 h-4" />
  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
- <div className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-white border border-gray-100 text-gray-700 text-[10px] p-3 rounded-xl shadow-2xl z-50 whitespace-nowrap origin-left transition-all text-left">
+ <div className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-white border border-gray-100 text-gray-700 text-xs p-3 rounded-xl shadow-2xl z-50 whitespace-nowrap origin-left transition-all text-left">
  <span className="font-medium text-[#1a2b58] block mb-1">Alert Inbox</span>
  <span>All systems fully connected online ✓</span>
  </div>
@@ -1114,7 +1133,7 @@ export default function WorkspaceApp() {
  title="TickTick Guideline Help"
  >
  <HelpCircle className="w-4 h-4" />
- <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+ <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
  Help Manual
  </span>
  </button>
@@ -1128,42 +1147,42 @@ export default function WorkspaceApp() {
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'tasks' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <ShieldCheck className="w-5 h-5" />
- <span className="text-[8px] font-medium mt-1">Checklist</span>
+ <span className="text-xs font-medium mt-1">Checklist</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('matrix')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'matrix' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <GripVertical className="w-5 h-5" />
- <span className="text-[8px] font-medium mt-1">Matrix</span>
+ <span className="text-xs font-medium mt-1">Matrix</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('habits')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'habits' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Target className="w-5 h-5" />
- <span className="text-[8px] font-medium mt-1">Habits</span>
+ <span className="text-xs font-medium mt-1">Habits</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('focus')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'focus' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Clock className="w-5 h-5" />
- <span className="text-[8px] font-medium mt-1">Focus</span>
+ <span className="text-xs font-medium mt-1">Focus</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('starred')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'starred' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Star className="w-5 h-5" />
- <span className="text-[8px] font-medium mt-1">Starred</span>
+ <span className="text-xs font-medium mt-1">Starred</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('search')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'search' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Search className="w-5 h-5" />
- <span className="text-[8px] font-medium mt-1">Search</span>
+ <span className="text-xs font-medium mt-1">Search</span>
  </button>
  </div>
 
@@ -1187,7 +1206,7 @@ export default function WorkspaceApp() {
  <CalendarIcon className="w-4 h-4 text-green-600" />
  <span>Today</span>
  </div>
- {todayCount > 0 && <span className="text-[10px] text-gray-500 font-medium bg-white/65 px-1.5 py-0.2 rounded">{todayCount}</span>}
+ {todayCount > 0 && <span className="text-xs text-gray-500 font-medium bg-white/65 px-1.5 py-0.2 rounded">{todayCount}</span>}
  </button>
 
  <button
@@ -1208,7 +1227,7 @@ export default function WorkspaceApp() {
  <Inbox className="w-4 h-4 text-[#1a2b58]" />
  <span>Inbox</span>
  </div>
- {inboxCount > 0 && <span className="text-[10px] text-gray-500 font-medium bg-white/65 px-1.5 py-0.2 rounded">{inboxCount}</span>}
+ {inboxCount > 0 && <span className="text-xs text-gray-500 font-medium bg-white/65 px-1.5 py-0.2 rounded">{inboxCount}</span>}
  </button>
  </nav>
 
@@ -1216,34 +1235,8 @@ export default function WorkspaceApp() {
 
  {/* Lists section heading */}
  <div className="mb-2">
- <div className="flex items-center justify-between px-2 text-gray-400 text-[10px] uppercase tracking-widest mb-2 group">
- <span>Lists</span>
- <div className="flex items-center space-x-2">
- <button 
- title="New Collapsible Folder"
- className="hover:bg-gray-200 p-1 rounded-md text-gray-400 hover:text-gray-700"
- onClick={() => setIsAddingFolder(true)}
- >
- <FolderOpen className="w-3.5 h-3.5" />
- </button>
- <button 
- title="New List"
- className="hover:bg-gray-200 p-1 rounded-md text-gray-400 hover:text-gray-700"
- onClick={() => {
- setNewProjectName('');
- setListColor('#1a2b58');
- setListViewType('list');
- setListFolderId('none');
- setListType('task');
- setListSmartOption('all');
- setIsCreatingFolderInModal(false);
- setNewFolderNameInModal('');
- setIsAddingProject(true);
- }}
- >
- <Plus className="w-3.5 h-3.5" />
- </button>
- </div>
+ <div className="flex items-center justify-between px-2 text-gray-400 text-xs uppercase tracking-widest mb-2 group">
+ <span>Projects</span>
  </div>
  
  {/* Adding Folder inline card */}
@@ -1437,10 +1430,10 @@ export default function WorkspaceApp() {
  </span>
  </div>
  <div className="grid grid-cols-2 gap-2">
- <button onClick={() => setTimerRunning(!timerRunning)} className="py-1 px-2.5 rounded text-[11px] font-medium bg-primary text-white">
+ <button onClick={() => setTimerRunning(!timerRunning)} className="py-1 px-2.5 rounded text-xs font-medium bg-primary text-white">
  {timerRunning ? 'Pause' : 'Start'}
  </button>
- <button onClick={() => { setTimerRunning(false); setTimeRemaining(25 * 60); }} className="py-1 px-2.5 rounded text-[11px] font-medium bg-gray-100 text-gray-600">
+ <button onClick={() => { setTimerRunning(false); setTimeRemaining(25 * 60); }} className="py-1 px-2.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
  Reset
  </button>
  </div>
@@ -1471,7 +1464,7 @@ export default function WorkspaceApp() {
  title={`Sorting: ${sortOrder === 'priority' ? 'High Priorities First' : 'Due Date First'}`}
  >
  <ArrowUpDown className="w-4 h-4" />
- <span className="text-[9px] font-medium ml-1 hidden sm:inline uppercase">{sortOrder}</span>
+ <span className="text-xs font-medium ml-1 hidden sm:inline uppercase">{sortOrder}</span>
  </button>
 
  {/* Sync trigger mini button */}
@@ -1495,7 +1488,7 @@ export default function WorkspaceApp() {
 
  {isHeaderMenuOpen && (
  <div className="absolute top-8 right-0 w-52 bg-white border border-gray-150 rounded-xl shadow-2xl p-1.5 z-50 text-left scale-95 origin-top-right transition-transform animate-in fade-in duration-100">
- <div className="text-[9px] uppercase tracking-wider text-gray-400 px-2 py-1 border-b mb-1">List operations</div>
+ <div className="text-xs uppercase tracking-wider text-gray-400 px-2 py-1 border-b mb-1">List operations</div>
  <button 
  onClick={() => { handleTriggerSync(); setIsHeaderMenuOpen(false); }}
  className="w-full text-left text-xs p-2 text-gray-700 hover:bg-gray-50 flex items-center rounded-lg"
@@ -1537,25 +1530,25 @@ export default function WorkspaceApp() {
  <X className="w-3.5 h-3.5" />
  </button>
  </div>
- <p className="text-[10.5px] text-gray-500 leading-normal mb-3">
+ <p className="font-medium text-base text-gray-500 leading-normal mb-3">
  Type any keyword in your task title to instantly auto-categorize into its perfect project!
  </p>
  <div className="space-y-2">
- <div className="text-[10.2px] bg-red-50/50 p-2 rounded-lg border border-red-100 flex items-start gap-1.5">
+ <div className="text-xs bg-red-50/50 p-2 rounded-lg border border-red-100 flex items-start gap-1.5">
  <GraduationCap className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
  <div>
  <span className="font-medium text-red-900 block">CA Final</span>
  <span className="text-gray-500 font-mono">audit, ca, final, accounts, revision, test, exam</span>
  </div>
  </div>
- <div className="text-[10.2px] bg-purple-50/50 p-2 rounded-lg border border-purple-100 flex items-start gap-1.5">
+ <div className="text-xs bg-purple-50/50 p-2 rounded-lg border border-purple-100 flex items-start gap-1.5">
  <Smile className="w-4 h-4 text-purple-500 mt-0.5 shrink-0" />
  <div>
  <span className="font-medium text-purple-900 block">Spiritual</span>
  <span className="text-gray-500 font-mono">spiritual, bible, meditation, pray, devotional</span>
  </div>
  </div>
- <div className="text-[10.2px] bg-blue-50/50 p-2 rounded-lg border border-blue-100 flex items-start gap-1.5">
+ <div className="text-xs bg-blue-50/50 p-2 rounded-lg border border-blue-100 flex items-start gap-1.5">
  <BookOpen className="w-4 h-4 text-primary mt-0.5 shrink-0" />
  <div>
  <span className="font-medium text-blue-900 block">Research Items</span>
@@ -1602,7 +1595,7 @@ export default function WorkspaceApp() {
  return (
  <div className="bg-gray-50/50 border border-gray-150 rounded-2xl p-3.5 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
  <div className="flex items-center gap-2.5 overflow-x-auto select-none no-scrollbar" style={{ scrollbarWidth: 'none' }}>
- <span className="text-[10px] text-gray-400 uppercase tracking-widest shrink-0">
+ <span className="text-xs text-gray-400 uppercase tracking-widest shrink-0">
  Filter by label:
  </span>
  <button
@@ -1628,7 +1621,7 @@ export default function WorkspaceApp() {
  }`}
  >
  <span>🏷️ {tag}</span>
- <span className={`text-[9.5px] font-medium rounded-full px-1.5 ${
+ <span className={`text-xs font-medium rounded-full px-1.5 ${
  kanbanSelectedTag === tag 
  ? 'bg-white/25 text-white' 
  : 'bg-gray-100 text-gray-500'
@@ -1698,7 +1691,7 @@ export default function WorkspaceApp() {
  <Maximize2 className="w-3.5 h-3.5" />
  </button>
  <div className="flex flex-col items-center gap-2 pt-1">
- <span className="text-[10px] bg-gray-150 text-gray-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+ <span className="text-xs bg-gray-150 text-gray-600 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
  {inactiveTasks.length}
  </span>
  </div>
@@ -1777,7 +1770,7 @@ export default function WorkspaceApp() {
  <h3 className="text-xs text-gray-700 capitalize tracking-wide truncate">
  {sectionName}
  </h3>
- <span className="text-[10px] text-gray-400 ">
+ <span className="text-xs text-gray-400 ">
  {inactiveTasks.length}
  </span>
  </div>
@@ -1819,7 +1812,7 @@ export default function WorkspaceApp() {
  setCollapsedKanbanColumns(prev => ({ ...prev, [sectionName]: true }));
  setActiveSectionMenu(null);
  }}
- className="w-full text-[10px] font-medium text-gray-700 hover:bg-gray-50 px-3 py-1.5 text-left block"
+ className="w-full text-xs font-medium text-gray-700 hover:bg-gray-50 px-3 py-1.5 text-left block"
  >
  Minimize Column
  </button>
@@ -1831,7 +1824,7 @@ export default function WorkspaceApp() {
  setEditingSectionValue(sectionName);
  setActiveSectionMenu(null);
  }}
- className="w-full text-[10px] font-medium text-gray-700 hover:bg-gray-50 px-3 py-1.5 text-left block"
+ className="w-full text-xs font-medium text-gray-700 hover:bg-gray-50 px-3 py-1.5 text-left block"
  >
  Rename Section
  </button>
@@ -1842,13 +1835,13 @@ export default function WorkspaceApp() {
  await handleDeleteSection(sectionName);
  }
  }}
- className="w-full text-[10px] font-medium text-red-600 hover:bg-red-50 px-3 py-1.5 text-left block"
+ className="w-full text-xs font-medium text-red-600 hover:bg-red-50 px-3 py-1.5 text-left block"
  >
  Delete Section
  </button>
  </>
  ) : (
- <div className="px-3 py-1 bg-gray-50 text-[9px] text-gray-400 font-medium border-t border-gray-100">
+ <div className="px-3 py-1 bg-gray-50 text-xs text-gray-400 font-medium border-t border-gray-100">
  Default project column
  </div>
  )}
@@ -1899,7 +1892,7 @@ export default function WorkspaceApp() {
  setActiveAddingSection(null);
  }
  }}
- className="w-full text-[10.5px] font-semibold border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400 mt-1.5"
+ className="w-full text-xs font-semibold border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400 mt-1.5"
  />
  <div className="flex justify-end gap-1.5 mt-2">
  <button
@@ -1907,7 +1900,7 @@ export default function WorkspaceApp() {
  setActiveAddingSection(null);
  setNewTaskTagsInline('');
  }}
- className="text-[9.5px] text-gray-500 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg font-medium"
+ className="text-xs text-gray-500 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg font-medium"
  >
  Cancel
  </button>
@@ -1920,7 +1913,7 @@ export default function WorkspaceApp() {
  setActiveAddingSection(null);
  }
  }}
- className="text-[9.5px] text-white bg-primary hover:bg-primary hover:opacity-90 px-3 py-1.5 rounded-lg font-medium"
+ className="text-xs text-white bg-primary hover:bg-primary hover:opacity-90 px-3 py-1.5 rounded-lg font-medium"
  >
  Add
  </button>
@@ -1970,11 +1963,11 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1">
- <span className="text-[11.5px] font-medium text-gray-800 break-words leading-relaxed leading-snug">
+ <span className="text-xs font-medium text-gray-800 break-words leading-relaxed leading-snug">
  {todo.title}
  </span>
  {todo.description && (
- <p className="text-[9.5px] text-gray-400 font-medium leading-relaxed mt-0.5 line-clamp-2">
+ <p className="text-base text-gray-400 font-medium leading-relaxed mt-0.5 line-clamp-2">
  {todo.description}
  </p>
  )}
@@ -2000,7 +1993,7 @@ export default function WorkspaceApp() {
  {todo.tags.map((tg, idx) => (
  <span 
  key={idx} 
- className="px-1.5 py-0.5 bg-gray-50 text-[8.5px] font-medium text-[#1a2b58] rounded border border-gray-150 flex items-center gap-1 hover:bg-white transition"
+ className="px-1.5 py-0.5 bg-gray-50 text-xs font-medium text-[#1a2b58] rounded border border-gray-150 flex items-center gap-1 hover:bg-white transition"
  >
  🏷️ {tg}
  </span>
@@ -2010,7 +2003,7 @@ export default function WorkspaceApp() {
 
  {/* Date / Recurrence cycle line */}
  {formattedDate && (
- <div className="flex items-center gap-1.5 text-[9px] tracking-wide text-primary pl-[23px] mt-0.5">
+ <div className="flex items-center gap-1.5 text-xs tracking-wide text-primary pl-[23px] mt-0.5">
  <span>{formattedDate}</span>
  </div>
  )}
@@ -2024,7 +2017,7 @@ export default function WorkspaceApp() {
  setNewTaskTitleInline('');
  setActiveAddingSection(sectionName);
  }}
- className="text-center py-6 border border-dashed border-gray-100 rounded-2xl text-[10.5px] text-gray-400 cursor-pointer hover:bg-gray-50/50 hover:text-gray-500 transition-colors"
+ className="text-center py-6 border border-dashed border-gray-100 rounded-2xl text-xs text-gray-400 cursor-pointer hover:bg-gray-50/50 hover:text-gray-500 transition-colors"
  >
  No tasks. Click + to add.
  </div>
@@ -2038,7 +2031,7 @@ export default function WorkspaceApp() {
  ...prev,
  [sectionName]: !prev[sectionName]
  }))}
- className="flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-gray-600 transition tracking-wide py-1.5 w-full text-left"
+ className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition tracking-wide py-1.5 w-full text-left"
  >
  {!isCollapsed ? (
  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -2046,7 +2039,7 @@ export default function WorkspaceApp() {
  <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
  )}
  <span>Completed</span>
- <span className="bg-gray-100 px-1.5 py-0.5 rounded-full text-[8.5px] font-medium">
+ <span className="bg-gray-100 px-1.5 py-0.5 rounded-full text-xs font-medium">
  {completedTasksList.length}
  </span>
  </button>
@@ -2071,10 +2064,10 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1">
- <span className="text-[10.5px] font-medium text-gray-400 line-through truncate block">
+ <span className="text-xs font-medium text-gray-400 line-through truncate block">
  {todo.title}
  </span>
- <div className="text-[8.5px] text-gray-400 font-medium tracking-wide mt-0.5">
+ <div className="text-xs text-gray-400 font-medium tracking-wide mt-0.5">
  Completed {formatCardDate(todo.dueDate) || "Today"}
  </div>
  </div>
@@ -2098,7 +2091,7 @@ export default function WorkspaceApp() {
  setViewMode('completed');
  setSelectedProjectId(null);
  }}
- className="text-[9.5px] text-primary hover:text-primary hover:opacity-80 tracking-wide block pt-1.5 pl-5 cursor-pointer"
+ className="text-xs text-primary hover:text-primary hover:opacity-80 tracking-wide block pt-1.5 pl-5 cursor-pointer"
  >
  View more completed logs
  </button>
@@ -2133,14 +2126,14 @@ export default function WorkspaceApp() {
  <div className="flex items-center gap-2 justify-end">
  <button
  onClick={() => setIsAddingSection(false)}
- className="text-[9.5px] text-gray-500 hover:bg-gray-100 font-medium px-2.5 py-1.5 rounded-lg transition"
+ className="text-xs text-gray-500 hover:bg-gray-100 font-medium px-2.5 py-1.5 rounded-lg transition"
  >
  Cancel
  </button>
  <button
  onClick={handleCreateSection}
  disabled={!newSectionValue.trim()}
- className="text-[9.5px] text-white bg-primary hover:bg-primary hover:opacity-90 font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+ className="text-xs text-white bg-primary hover:bg-primary hover:opacity-90 font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-50"
  >
  Add Section
  </button>
@@ -2223,7 +2216,7 @@ export default function WorkspaceApp() {
  handleUnifiedQuickAdd(newTaskTitle);
  }
  }}
- className="w-full text-[11px] bg-transparent outline-none text-gray-500 placeholder:text-gray-400 font-medium"
+ className="w-full text-xs bg-transparent outline-none text-gray-500 placeholder:text-gray-400 font-medium"
  />
  </div>
  </div>
@@ -2239,7 +2232,7 @@ export default function WorkspaceApp() {
  <button
  type="button"
  onClick={() => { setShowDatePicker(!showDatePicker); setShowPriorityPicker(false); }}
- className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all border ${newTaskDueDate ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+ className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${newTaskDueDate ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
  >
  <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
  <span>{newTaskDueDate ? format(newTaskDueDate, 'MMM d, yyyy') : 'No Date'}</span>
@@ -2262,7 +2255,7 @@ export default function WorkspaceApp() {
  setNewTaskDueDate(startOfDay(new Date()));
  setShowDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
  Today
@@ -2275,7 +2268,7 @@ export default function WorkspaceApp() {
  setNewTaskDueDate(startOfDay(tomorrow));
  setShowDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-primary rounded-full" />
  Tomorrow
@@ -2288,7 +2281,7 @@ export default function WorkspaceApp() {
  setNewTaskDueDate(startOfDay(nextWeek));
  setShowDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
  Next Week
@@ -2299,7 +2292,7 @@ export default function WorkspaceApp() {
  setNewTaskDueDate(undefined);
  setShowDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
  Clear Date
@@ -2324,7 +2317,7 @@ export default function WorkspaceApp() {
  <button
  type="button"
  onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowDatePicker(false); }}
- className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all border ${newTaskPriority < 4 ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+ className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${newTaskPriority < 4 ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
  >
  <Flag className={`w-3.5 h-3.5 ${getPriorityColor(newTaskPriority)} ${newTaskPriority < 4 ? 'fill-current' : ''}`} />
  <span>P{newTaskPriority}</span>
@@ -2393,7 +2386,7 @@ export default function WorkspaceApp() {
  >
  {isCountdownExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
  <span>Countdown</span>
- <span className="text-[10px] bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
+ <span className="text-xs bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
  {allActiveViewTodos.filter(t => !t.completed && t.tags && t.tags.includes('Countdown')).length}
  </span>
  </button>
@@ -2414,7 +2407,7 @@ export default function WorkspaceApp() {
  <Hourglass className="w-4 h-4 animate-spin-slow" />
  </div>
  <span 
- className="text-xs sm:text-[13px] text-[#202020] font-medium truncate cursor-pointer hover:text-primary"
+ className="text-xs sm:text-sm text-[#202020] font-medium truncate cursor-pointer hover:text-primary"
  onClick={() => setSelectedTodoId(todo.id)}
  >
  {todo.title}
@@ -2423,7 +2416,7 @@ export default function WorkspaceApp() {
 
  <div className="flex items-center space-x-2 shrink-0">
  {renderItemProjectBadge(todo)}
- <span className="text-[9.5px] sm:text-[10.5px] text-[#1a2b58] font-medium bg-[#ebf3ff]/70 px-2 py-0.5 rounded-full select-none">
+ <span className="text-xs sm:text-xs text-[#1a2b58] font-medium bg-[#ebf3ff]/70 px-2 py-0.5 rounded-full select-none">
  Today
  </span>
  <button
@@ -2452,7 +2445,7 @@ export default function WorkspaceApp() {
  <span>
  {viewMode === 'today' ? `${format(new Date(), 'EEEE')}, Today` : viewMode === 'trash' ? 'Deleted Trash Bin' : viewMode === 'completed' ? 'Historical Active Logs' : getViewTitle()}
  </span>
- <span className="text-[10px] bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
+ <span className="text-xs bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
  {allActiveViewTodos.filter(t => !t.completed).length}
  </span>
  </button>
@@ -2488,11 +2481,11 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
- <span className="text-xs sm:text-[13px] text-[#202020] font-semibold leading-relaxed">
+ <span className="text-xs sm:text-sm text-[#202020] font-semibold leading-relaxed">
  {todo.title}
  </span>
  {todo.description && (
- <p className="text-[10.5px] text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
+ <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
  )}
  </div>
  </div>
@@ -2502,7 +2495,7 @@ export default function WorkspaceApp() {
 
  {/* Repeat loop icon / or single calendar icon badges */}
  {viewMode !== 'trash' && (
- <span className="text-[9.5px] sm:text-[10.5px] text-[#1a2b58] font-medium bg-[#ebf3ff]/70 px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none">
+ <span className="text-xs sm:text-xs text-[#1a2b58] font-medium bg-[#ebf3ff]/70 px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none">
  <CalendarIcon className="w-3 h-3 mr-1 text-primary/70" />
  Today
  </span>
@@ -2513,7 +2506,7 @@ export default function WorkspaceApp() {
  {viewMode === 'trash' && (
  <button
  onClick={(e) => handleRestoreTodo(todo.id, e)}
- className="p-1 px-1.5 opacity-0 group-hover:opacity-100 text-[10px] font-medium text-green-700 bg-green-50 rounded border border-green-100 hover:bg-green-100 transition-opacity"
+ className="p-1 px-1.5 opacity-0 group-hover:opacity-100 text-xs font-medium text-green-700 bg-green-50 rounded border border-green-100 hover:bg-green-100 transition-opacity"
  title="Restore task"
  >
  Restore
@@ -2537,7 +2530,7 @@ export default function WorkspaceApp() {
  <div className="text-center py-12 bg-white rounded-xl select-none">
  <ShieldCheck className="w-8 h-8 text-green-300 mx-auto mb-2" />
  <h4 className="font-medium text-xs text-gray-700">All targets met</h4>
- <p className="text-[10px] text-gray-400">Enjoy the rest of training day cycles.</p>
+ <p className="font-medium text-base text-gray-400">Enjoy the rest of training day cycles.</p>
  </div>
  )}
  </div>
@@ -2553,7 +2546,7 @@ export default function WorkspaceApp() {
  >
  {isCompletedSectionExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
  <span>Completed</span>
- <span className="text-[10px] bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
+ <span className="text-xs bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
  {allActiveViewTodos.filter(t => t.completed).length}
  </span>
  </button>
@@ -2579,7 +2572,7 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
- <span className="text-xs sm:text-[13px] text-gray-400 line-through font-semibold leading-relaxed truncate block">
+ <span className="text-xs sm:text-sm text-gray-400 line-through font-semibold leading-relaxed truncate block">
  {todo.title}
  </span>
  </div>
@@ -2587,7 +2580,7 @@ export default function WorkspaceApp() {
 
  <div className="flex items-center space-x-2.5 shrink-0 pl-2">
  {renderItemProjectBadge(todo)}
- <span className="text-[9.5px] sm:text-[10.5px] text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full select-none">
+ <span className="text-xs sm:text-xs text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full select-none">
  Today
  </span>
  <button
@@ -2603,7 +2596,7 @@ export default function WorkspaceApp() {
  </AnimatePresence>
 
  {allActiveViewTodos.filter(t => t.completed).length === 0 && (
- <div className="text-[10.5px] text-gray-400 italic font-semibold py-4 pl-1">
+ <div className="text-xs text-gray-400 italic font-semibold py-4 pl-1">
  No completed items log in this view yet.
  </div>
  )}
@@ -2681,7 +2674,7 @@ export default function WorkspaceApp() {
  <Star className="w-5 h-5 mr-2 text-[#1a2b58] fill-[#1a2b58]" />
  Starred High-Priorities
  </h2>
- <p className="text-xs text-gray-500">Focus solely on critical urgent P1 tasks.</p>
+ <p className="font-medium text-base text-gray-500">Focus solely on critical urgent P1 tasks.</p>
  </div>
  <div className="space-y-2">
  {todos.filter(t => !t.completed && !t.deletedAt && t.priority === 1).map(todo => (
@@ -2690,7 +2683,7 @@ export default function WorkspaceApp() {
  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
  <span className="text-xs font-medium text-gray-800">{todo.title}</span>
  </div>
- <span className="text-[10px] bg-red-100/75 text-red-700 font-medium px-2 py-0.5 rounded-full uppercase">P1 High Target</span>
+ <span className="text-xs bg-red-100/75 text-red-700 font-medium px-2 py-0.5 rounded-full uppercase">P1 High Target</span>
  </div>
  ))}
  {todos.filter(t => !t.completed && !t.deletedAt && t.priority === 1).length === 0 && (
@@ -2708,7 +2701,7 @@ export default function WorkspaceApp() {
  <div className="text-left w-full">
  <div className="mb-6">
  <h2 className="text-xl text-gray-900">Extensive Task Search</h2>
- <p className="text-xs text-gray-500">Perform deep filters across dates, tags, and projects.</p>
+ <p className="font-medium text-base text-gray-500">Perform deep filters across dates, tags, and projects.</p>
  </div>
  <div className="mb-6 flex space-x-2">
  <input
@@ -2723,7 +2716,7 @@ export default function WorkspaceApp() {
  {todos.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 10).map(todo => (
  <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3 bg-white border border-gray-100 hover:border-[#1a2b58] cursor-pointer rounded-xl flex justify-between items-center">
  <span className="text-xs font-medium">{todo.title}</span>
- <span className={`text-[9px] px-2 py-0.5 font-medium rounded-full ${todo.completed ? 'bg-gray-100 text-gray-400' : 'bg-green-100 text-green-700'}`}>
+ <span className={`text-xs px-2 py-0.5 font-medium rounded-full ${todo.completed ? 'bg-gray-100 text-gray-400' : 'bg-green-100 text-green-700'}`}>
  {todo.completed ? 'Completed' : 'Active'}
  </span>
  </div>
@@ -2811,7 +2804,7 @@ export default function WorkspaceApp() {
  <div className="grid grid-cols-3 gap-2.5 mt-5 border-b border-gray-150 pb-5">
  {/* Due Date */}
  <div className="relative">
- <label className="block text-[9.5px] text-gray-400 uppercase tracking-widest mb-1.5">Due Date</label>
+ <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Due Date</label>
  <button 
  onClick={() => { setShowDetailDatePicker(!showDetailDatePicker); setShowDetailPriorityPicker(false); }}
  className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailDatePicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
@@ -2838,7 +2831,7 @@ export default function WorkspaceApp() {
  todoService.updateTodo(todo.id, { dueDate: startOfDay(new Date()).getTime() });
  setShowDetailDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
  Today
@@ -2850,7 +2843,7 @@ export default function WorkspaceApp() {
  todoService.updateTodo(todo.id, { dueDate: startOfDay(tomorrow).getTime() });
  setShowDetailDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-primary rounded-full" />
  Tomorrow
@@ -2862,7 +2855,7 @@ export default function WorkspaceApp() {
  todoService.updateTodo(todo.id, { dueDate: startOfDay(nextWeek).getTime() });
  setShowDetailDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
  Next Week
@@ -2872,7 +2865,7 @@ export default function WorkspaceApp() {
  todoService.updateTodo(todo.id, { dueDate: null });
  setShowDetailDatePicker(false);
  }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
+ className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
  >
  <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
  Clear Date
@@ -2894,7 +2887,7 @@ export default function WorkspaceApp() {
 
  {/* Priority Picker */}
  <div className="relative">
- <label className="block text-[9.5px] text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
+ <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
  <button 
  onClick={() => { setShowDetailPriorityPicker(!showDetailPriorityPicker); setShowDetailDatePicker(false); }}
  className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailPriorityPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
@@ -2947,7 +2940,7 @@ export default function WorkspaceApp() {
  {/* Notes / Descriptions and subtasks checklist inside Drawer */}
  <div className="mt-5 space-y-5">
  <div className="flex flex-col text-left">
- <label className="text-[10.5px] text-gray-400 uppercase tracking-widest mb-2">Notes</label>
+ <label className="text-xs text-gray-400 uppercase tracking-widest mb-2">Notes</label>
  <textarea
  placeholder="Add detailed parameters or Markdown logs..."
  className="text-xs w-full bg-gray-50/50 hover:bg-gray-50 border focus:bg-white focus:border-primary p-3 rounded-xl min-h-[90px] outline-none transition"
@@ -2958,7 +2951,7 @@ export default function WorkspaceApp() {
 
 
  <div className="flex flex-col text-left">
- <label className="text-[10.5px] text-gray-400 uppercase tracking-widest mb-2">Subtasks</label>
+ <label className="text-xs text-gray-400 uppercase tracking-widest mb-2">Subtasks</label>
  <div className="space-y-1.5">
  {todo.subtasks?.map(subtask => (
  <div key={subtask.id} className="flex items-center group">
@@ -2967,7 +2960,7 @@ export default function WorkspaceApp() {
  const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
  todoService.updateTodo(todo.id, { subtasks: next });
  }}
- className={`mr-2 w-4 h-4 rounded border flex items-center justify-center text-[10px] font-medium ${subtask.completed ? 'bg-primary text-white border-primary' : 'border-gray-200 bg-gray-50'}`}
+ className={`mr-2 w-4 h-4 rounded border flex items-center justify-center text-xs font-medium ${subtask.completed ? 'bg-primary text-white border-primary' : 'border-gray-200 bg-gray-50'}`}
  >
  {subtask.completed ? '✓' : ''}
  </button>
@@ -3260,14 +3253,14 @@ export default function WorkspaceApp() {
  }
  }}
  disabled={!newFolderNameInModal.trim()}
- className="px-2.5 py-1.5 text-white bg-primary hover:bg-primary hover:opacity-90 disabled:opacity-50 rounded-lg text-[10px] shadow-sm transition-colors"
+ className="px-2.5 py-1.5 text-white bg-primary hover:bg-primary hover:opacity-90 disabled:opacity-50 rounded-lg text-xs shadow-sm transition-colors"
  >
  Save
  </button>
  <button
  type="button"
  onClick={() => setIsCreatingFolderInModal(false)}
- className="p-1 px-1.5 border border-gray-250 hover:bg-gray-50 text-gray-400 rounded-lg text-[10px] transition-colors"
+ className="p-1 px-1.5 border border-gray-250 hover:bg-gray-50 text-gray-400 rounded-lg text-xs transition-colors"
  >
  ✕
  </button>
@@ -3393,9 +3386,9 @@ export default function WorkspaceApp() {
 
  {/* Subtitle group 1 mockup */}
  <div className="mb-4">
- <div className="flex items-center space-x-1.5 text-[9px] font-medium text-gray-300 uppercase tracking-widest mb-2.5">
+ <div className="flex items-center space-x-1.5 text-xs font-medium text-gray-300 uppercase tracking-widest mb-2.5">
  <span>Countdown</span>
- <span className="text-[8.5px] bg-gray-100 font-medium px-1 rounded">1</span>
+ <span className="text-xs bg-gray-100 font-medium px-1 rounded">1</span>
  </div>
  <div className="flex items-center justify-between py-2 border-b border-gray-50/60 pl-1">
  <div className="flex items-center space-x-2">
@@ -3406,7 +3399,7 @@ export default function WorkspaceApp() {
  </div>
  {/* Live indicator today */}
  <span 
- className="text-[8.5px] font-medium px-1.5 py-0.2 rounded-full"
+ className="text-xs font-medium px-1.5 py-0.2 rounded-full"
  style={{ background: `${listColor}1a`, color: listColor }}
  >
  Today
@@ -3416,9 +3409,9 @@ export default function WorkspaceApp() {
 
  {/* Subtitle group 2 mockup */}
  <div>
- <div className="flex items-center space-x-1.5 text-[9px] font-medium text-gray-300 uppercase tracking-widest mb-2.5">
+ <div className="flex items-center space-x-1.5 text-xs font-medium text-gray-300 uppercase tracking-widest mb-2.5">
  <span>Active tasks</span>
- <span className="text-[8.5px] bg-gray-100 font-medium px-1 rounded">2</span>
+ <span className="text-xs bg-gray-100 font-medium px-1 rounded">2</span>
  </div>
  
  {/* Dummy item row 1 */}
@@ -3444,7 +3437,7 @@ export default function WorkspaceApp() {
  </div>
 
  {/* Bottom mockup info text */}
- <div className="text-[8.5px] text-gray-400 font-medium text-center border-t border-gray-50 pt-2.5 italic">
+ <div className="text-xs text-gray-400 font-medium text-center border-t border-gray-50 pt-2.5 italic">
  {listType === 'task' ? '☑ Task list type layout' : '❏ Note list type layout'} showing in {listViewType === 'list' ? 'sequential list' : listViewType === 'kanban' ? 'columns board' : 'gantt charts'} format.
  </div>
  </div>
@@ -3460,7 +3453,7 @@ export default function WorkspaceApp() {
  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/25 backdrop-blur-sm">
  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full border text-left">
  <h3 className=" text-sm text-gray-900 mb-2">Confirm Action</h3>
- <p className="text-xs text-gray-500 mb-5">{confirmDialog.message}</p>
+ <p className="font-medium text-base text-gray-500 mb-5">{confirmDialog.message}</p>
  <div className="flex justify-end space-x-2">
  <button onClick={() => setConfirmDialog(null)} className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded font-medium">
  Cancel

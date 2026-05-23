@@ -52,7 +52,7 @@ export default function BlogPost() {
  Insight<br/>
  <span className="text-primary/70">Not Found</span>
  </h2>
- <p className="text-black font-normal mb-10 text-sm leading-relaxed text-justify">
+ <p className="text-black font-medium mb-10 text-base leading-relaxed text-justify">
  The content you are looking for (slug: <span className="font-mono text-xs">{slug}</span>) does not exist. It may not have been synced properly. If you just seeded data, try refreshing.
  </p>
  <Link 
@@ -105,11 +105,11 @@ export default function BlogPost() {
  <div className="flex flex-wrap items-center justify-between gap-10 py-10 border-y border-border mb-16">
  <div className="flex items-center space-x-10">
  <div className="flex flex-col">
- <span className="text-[9px] text-black/50 uppercase tracking-widest mb-1">Published</span>
+ <span className="text-xs text-black/50 uppercase tracking-widest mb-1">Published</span>
  <span className="text-xs font-medium text-black uppercase tracking-widest">{post.date}</span>
  </div>
  <div className="flex flex-col">
- <span className="text-[9px] text-black/50 uppercase tracking-widest mb-1">Read Time</span>
+ <span className="text-xs text-black/50 uppercase tracking-widest mb-1">Read Time</span>
  <span className="text-xs font-medium text-black uppercase tracking-widest">{post.readTime}</span>
  </div>
  </div>
@@ -141,7 +141,7 @@ export default function BlogPost() {
  <div className="flex items-center space-x-8">
  <div>
  <h4 className="text-lg text-primary mb-1">Jyoshi Manohar</h4>
- <p className="text-xs font-medium text-black capitalize tracking-widest leading-relaxed text-justify">
+ <p className="text-base font-medium text-black capitalize tracking-widest leading-relaxed text-justify">
  Semi-Qualified Chartered Accountant <br /> Strategic Advisor
  </p>
  </div>

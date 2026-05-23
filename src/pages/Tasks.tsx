@@ -50,7 +50,7 @@ export default function Tasks() {
  >
  <div className="text-center mb-8">
  <h1 className="text-4xl text-primary mb-2">Workspace</h1>
- <p className="text-black font-normal">Please sign in to view your tasks</p>
+ <p className="text-black font-medium">Please sign in to view your tasks</p>
  </div>
  <form onSubmit={handleLogin} className="space-y-4">
  <div>

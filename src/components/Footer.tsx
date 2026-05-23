@@ -26,7 +26,7 @@ export default function Footer() {
  <h2 className="text-3xl md:text-4xl font-display font-medium text-white tracking-tight leading-tight mb-4">
  Ready to take your business to the next level?
  </h2>
- <p className="text-white/80 text-lg leading-relaxed max-w-2xl">
+ <p className="font-medium text-white/80 text-base leading-relaxed max-w-2xl">
  Let us handle your financial compliances so you can focus entirely on your vision and scaling up.
  </p>
  </div>
@@ -60,7 +60,7 @@ export default function Footer() {
  Jyoshi Manohar
  </span>
  </div>
- <p className="text-white/70 text-sm font-medium leading-loose pt-2">
+ <p className="text-white/70 text-base font-medium leading-loose pt-2">
  Precision financial guidance for the modern era. Specializing in tax optimization and corporate value preservation.
  </p>
  </div>

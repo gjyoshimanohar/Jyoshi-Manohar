@@ -19,7 +19,7 @@ export default function UnderConstruction() {
  Under Construction
  </h1>
  
- <p className="text-sm lg:text-base text-black mb-10 leading-relaxed text-justify">
+ <p className="font-medium text-base lg:text-base text-black mb-10 leading-relaxed text-justify">
  We are currently working on this page. Our service details will be available soon. Please check back later or contact us directly for more information.
  </p>
  

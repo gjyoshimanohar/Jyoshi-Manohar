@@ -99,7 +99,7 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  <div className="w-full flex flex-col h-full">
  <div className="mb-6">
  <h2 className="text-xl text-gray-900">Eisenhower Priority Matrix</h2>
- <p className="text-xs text-gray-500">Drag and drop cards across quadrants to optimize your focus workflow.</p>
+ <p className="font-medium text-base text-gray-500">Drag and drop cards across quadrants to optimize your focus workflow.</p>
  </div>
 
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
@@ -123,13 +123,13 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  {items.length} tasks
  </span>
  </div>
- <p className="text-[10px] text-gray-400 font-medium mb-3 italic">{q.desc}</p>
+ <p className="text-base text-gray-400 font-medium mb-3 italic">{q.desc}</p>
 
  {/* Box Cards */}
  <div className="flex-1 overflow-y-auto space-y-1.5 max-h-[260px] pr-1">
  {items.length === 0 ? (
  <div className="h-full min-h-[80px] border border-dashed border-gray-200 hover:border-gray-300 rounded-lg flex items-center justify-center transition-colors">
- <span className="text-[10px] text-gray-400">Drag/drop or create task here</span>
+ <span className="text-xs text-gray-400">Drag/drop or create task here</span>
  </div>
  ) : (
  items.map(item => (
@@ -144,11 +144,11 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  <span className="text-xs text-gray-800 font-semibold truncate flex-1 leading-normal pr-2">
  {item.title}
  </span>
- <span className="text-[10px] text-gray-400 select-none">⋮⋮</span>
+ <span className="text-xs text-gray-400 select-none">⋮⋮</span>
  </div>
  
  <div className="flex items-center justify-between mt-2 pt-1 border-t border-gray-50">
- <span className="text-[9px] text-gray-400 flex items-center">
+ <span className="text-xs text-gray-400 flex items-center">
  <Calendar className="w-2.5 h-2.5 mr-1" />
  {item.dueDate ? format(new Date(item.dueDate), 'MMM d') : 'No date'}
  </span>
@@ -162,7 +162,7 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  todoService.updateTodoStatus(item.id, true);
  }
  }}
- className="text-[9px] bg-green-50 hover:bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium transition-all"
+ className="text-xs bg-green-50 hover:bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium transition-all"
  >
  Done ✓
  </button>

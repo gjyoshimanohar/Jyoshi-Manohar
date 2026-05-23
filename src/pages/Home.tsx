@@ -67,7 +67,7 @@ export default function Home() {
  </div>
  <div>
  <h4 className="text-xl font-medium text-primary mb-2">Mission</h4>
- <p className="text-sm lg:text-base text-black/80 font-normal leading-relaxed text-justify">
+ <p className="text-base lg:text-base text-black/80 font-medium leading-relaxed text-justify">
  To provide reliable, practical, and end-to-end financial, taxation, compliance, accounting, payroll, and advisory solutions that reduce business complexity, support informed decision-making, and allow founders and business owners to focus on building and scaling their ventures.
  </p>
  </div>
@@ -79,7 +79,7 @@ export default function Home() {
  </div>
  <div>
  <h4 className="text-xl font-medium text-primary mb-2">Vision</h4>
- <p className="text-sm lg:text-base text-black/80 font-normal leading-relaxed text-justify">
+ <p className="text-base lg:text-base text-black/80 font-medium leading-relaxed text-justify">
  To become a trusted finance and compliance partner for startups and growing businesses by enabling them to operate with clarity, confidence, and long-term financial discipline.
  </p>
  </div>

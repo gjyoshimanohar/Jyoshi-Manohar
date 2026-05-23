@@ -18,11 +18,11 @@ export default function GuidePopup({ onClose }: GuidePopupProps) {
  >
  <X className="w-4 h-4" />
  </button>
- <span className="text-[10px] font-medium bg-white/20 text-white uppercase px-2 py-0.5 rounded-full tracking-widest">
+ <span className="text-xs font-medium bg-white/20 text-white uppercase px-2 py-0.5 rounded-full tracking-widest">
  TickTick Desktop Guide
  </span>
  <h3 className="text-xl mt-2">Welcome to your workspace</h3>
- <p className="text-xs text-white/80 mt-1">Discover high productivity and balance inside your structured environment.</p>
+ <p className="font-medium text-base text-white/80 mt-1">Discover high productivity and balance inside your structured environment.</p>
  </div>
 
  {/* Contents grid */}
@@ -33,7 +33,7 @@ export default function GuidePopup({ onClose }: GuidePopupProps) {
  </div>
  <div>
  <h4 className="font-medium text-sm text-gray-900 leading-normal">Task Columns</h4>
- <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+ <p className="font-medium text-base text-gray-500 mt-0.5 leading-relaxed">
  Matches your favorite TickTick screenshot directly! Includes a Countdown sidebar bucket for countdown targets, a primary Weekday block list with fast inline task addition, and collapsible check-offs.
  </p>
  </div>
@@ -45,7 +45,7 @@ export default function GuidePopup({ onClose }: GuidePopupProps) {
  </div>
  <div>
  <h4 className="font-medium text-sm text-gray-900 leading-normal">Eisenhower Quadrants</h4>
- <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+ <p className="font-medium text-base text-gray-500 mt-0.5 leading-relaxed">
  Sorts todos visually into four boxes under Urgency and Importance. Move priorities instantly via simple drag-and-drop!
  </p>
  </div>
@@ -57,7 +57,7 @@ export default function GuidePopup({ onClose }: GuidePopupProps) {
  </div>
  <div>
  <h4 className="font-medium text-sm text-gray-900 leading-normal">Habit Trackers</h4>
- <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+ <p className="font-medium text-base text-gray-500 mt-0.5 leading-relaxed">
  Instantly check-off regular routines over the calendar row to increase daily streaks! Your streak indexes are computed and synchronized matching your profile.
  </p>
  </div>
@@ -69,7 +69,7 @@ export default function GuidePopup({ onClose }: GuidePopupProps) {
  </div>
  <div>
  <h4 className="font-medium text-sm text-gray-900 leading-normal">Ambient Sound Synthesizers</h4>
- <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+ <p className="font-medium text-base text-gray-500 mt-0.5 leading-relaxed">
  The focus timer includes fully synthesized brown and white audio models, producing soothing real-time rainfall 🌧️ and fire-crackle 🏕️ directly in your client browser!
  </p>
  </div>

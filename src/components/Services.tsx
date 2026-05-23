@@ -11,7 +11,7 @@ export default function Services() {
  <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">
  Strategic Expertise.
  </h2>
- <p className="text-sm lg:text-base text-black font-normal leading-relaxed text-justify max-w-2xl mb-8">
+ <p className="text-base lg:text-base text-black font-medium leading-relaxed mb-8 max-w-none">
  Precision-driven solutions for complex regulatory environments. We provide smart tools, efficient systems, and updated processes.
  </p>
  </div>
@@ -48,11 +48,11 @@ export default function Services() {
  </div>
  )}
 
- <h3 className="relative z-10 text-xl lg:text-2xl font-medium text-primary mb-3 transition-colors duration-500 group-hover:text-secondary">
+ <h3 className="relative z-10 text-xl lg:text-2xl font-bold text-primary mb-3 transition-colors duration-500 group-hover:text-secondary">
  {service.title}
  </h3>
  
- <p className="relative z-10 text-sm text-black/70 font-normal leading-relaxed text-justify transition-colors duration-500 group-hover:text-black/90">
+ <p className="relative z-10 text-base text-black/70 font-medium leading-relaxed text-justify transition-colors duration-500 group-hover:text-black/90">
  {service.description}
  </p>
  </Link>

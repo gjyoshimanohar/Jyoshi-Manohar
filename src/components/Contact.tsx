@@ -33,14 +33,14 @@ export default function Contact() {
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-8">
  <div className="flex flex-col justify-between relative">
  <div className="relative z-10">
- <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm w-max">
+ <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-base px-4 py-2 rounded-full mb-8 shadow-sm w-max">
  Strategic Partnership
  </p>
  <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">
  Ready to <br />
  Secure Your Capital?
  </h2>
- <p className="text-sm lg:text-base text-black/70 font-normal leading-relaxed text-justify max-w-sm mb-12">
+ <p className="text-base lg:text-base text-black/70 font-medium leading-relaxed text-justify max-w-sm mb-12">
  Schedule a private session to discuss taxation, audit, or
  corporate strategy.
  </p>
@@ -99,7 +99,7 @@ export default function Contact() {
  <form className="space-y-8">
  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
  <div className="space-y-2">
- <label className="text-xs font-medium uppercase tracking-widest text-black/70 ml-1">
+ <label className="text-xs font-bold uppercase tracking-widest text-black/70 ml-1">
  First Name
  </label>
  <input
@@ -109,7 +109,7 @@ export default function Contact() {
  />
  </div>
  <div className="space-y-2">
- <label className="text-xs font-medium uppercase tracking-widest text-black/70 ml-1">
+ <label className="text-xs font-bold uppercase tracking-widest text-black/70 ml-1">
  Last Name
  </label>
  <input
@@ -119,7 +119,7 @@ export default function Contact() {
  />
  </div>
  <div className="space-y-2">
- <label className="text-xs font-medium uppercase tracking-widest text-black/70 ml-1">
+ <label className="text-xs font-bold uppercase tracking-widest text-black/70 ml-1">
  Email Address
  </label>
  <input
@@ -129,7 +129,7 @@ export default function Contact() {
  />
  </div>
  <div className="space-y-2">
- <label className="text-xs font-medium uppercase tracking-widest text-black/70 ml-1">
+ <label className="text-xs font-bold uppercase tracking-widest text-black/70 ml-1">
  Mobile Number
  </label>
  <input
@@ -140,7 +140,7 @@ export default function Contact() {
  </div>
  </div>
  <div className="space-y-2">
- <label className="text-xs font-medium uppercase tracking-widest text-black/70 ml-1">
+ <label className="text-xs font-bold uppercase tracking-widest text-black/70 ml-1">
  Area of Interest
  </label>
  <div className="relative" ref={dropdownRef}>
@@ -194,7 +194,7 @@ export default function Contact() {
  </div>
  </div>
  <div className="space-y-2">
- <label className="text-xs font-medium uppercase tracking-widest text-black/70 ml-1">
+ <label className="text-xs font-bold uppercase tracking-widest text-black/70 ml-1">
  Requirement Brief
  </label>
  <textarea

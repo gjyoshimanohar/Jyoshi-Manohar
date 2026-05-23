@@ -14,11 +14,11 @@ export default function Hero() {
  animate={{ opacity: 1, y: 0 }}
  transition={{ duration: 0.6 }}
  >
- <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm">
- <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+ <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-[10px] sm:text-xs md:text-sm whitespace-nowrap px-4 py-2 rounded-full mb-8 shadow-sm">
+ <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"></span>
  <span>Startup Consultant, Semi-Qualified Chartered Accountant</span>
  </p>
- <h1 className="text-7xl lg:text-[7rem] text-primary leading-[0.9] tracking-tighter mb-8 uppercase">
+ <h1 className="text-6xl lg:text-[112px] text-primary leading-[0.9] tracking-tighter mb-8 uppercase">
  Financial<br />
  Clarity<br />
  <span className="text-[#d0d7e1]">
@@ -27,7 +27,7 @@ export default function Hero() {
  Business.
  </span>
  </h1>
- <p className="text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-10 max-w-lg">
+ <p className="text-base lg:text-base text-black font-medium leading-relaxed text-justify mb-10 max-w-lg">
  Supporting every business and individual with trusted advisory, tax planning, and audit assurance services — no matter where you are in your journey.
  </p>
  

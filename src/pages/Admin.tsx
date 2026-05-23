@@ -192,7 +192,7 @@ export default function Admin() {
  >
  <div className="text-center mb-8">
  <h1 className="text-4xl text-primary mb-2">Admin Portal</h1>
- <p className="text-black font-normal">Please sign in to manage your blogs</p>
+ <p className="text-black font-medium">Please sign in to manage your blogs</p>
  </div>
  <form onSubmit={handleLogin} className="space-y-4">
  <div>
@@ -235,7 +235,7 @@ export default function Admin() {
  <div className="max-w-md w-full bg-white p-12 border border-border text-center">
  <X className="h-16 w-16 text-red-500 mx-auto mb-6" />
  <h1 className="text-3xl text-primary mb-4">Access Denied</h1>
- <p className="text-black mb-8 font-normal">You do not have permission to access the admin area.</p>
+ <p className="text-black mb-8 font-medium">You do not have permission to access the admin area.</p>
  <button onClick={handleLogout} className="text-primary uppercase tracking-widest underline decoration-2 underline-offset-4">Sign Out</button>
  </div>
  </div>
@@ -247,7 +247,7 @@ export default function Admin() {
  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
  <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
  <div>
- <p className="text-primary font-medium tracking-widest capitalize text-xs mb-6">Control Center</p>
+ <p className="text-primary font-medium tracking-widest capitalize text-base mb-6">Control Center</p>
  <h1 className="text-4xl lg:text-5xl text-primary tracking-tighter leading-none">Management</h1>
  </div>
  <div className="flex items-center space-x-4">
@@ -408,7 +408,7 @@ export default function Admin() {
  <div className="bg-white border border-border divide-y divide-border">
  {posts.length === 0 ? (
  <div className="p-20 text-center">
- <p className="text-black font-normal italic">No blogs published via database yet. Use "Sync Defaults" to migrate your existing content.</p>
+ <p className="text-black font-medium italic">No blogs published via database yet. Use "Sync Defaults" to migrate your existing content.</p>
  </div>
  ) : (
  posts.map((post) => (
@@ -420,7 +420,7 @@ export default function Admin() {
  <span className="text-xs font-medium text-black uppercase tracking-widest">{post.date}</span>
  </div>
  <h3 className="text-xl text-primary tracking-tight">{post.title}</h3>
- <p className="text-sm text-black mt-2 line-clamp-1">{post.excerpt}</p>
+ <p className="font-medium text-base text-black mt-2 line-clamp-1">{post.excerpt}</p>
  </div>
  <div className="flex items-center space-x-4">
  <button
