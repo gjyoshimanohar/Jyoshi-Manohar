@@ -11,9 +11,10 @@ interface EisenhowerMatrixProps {
   userId: string;
   projects?: Project[];
   onAutoCategorize?: (matchedProjectName: string) => void;
+  onToggleTodo?: (todo: Todo) => void;
 }
 
-export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, userId, projects, onAutoCategorize }: EisenhowerMatrixProps) {
+export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, userId, projects, onAutoCategorize, onToggleTodo }: EisenhowerMatrixProps) {
   const [newTitles, setNewTitles] = useState<Record<number, string>>({ 1: '', 2: '', 3: '', 4: '' });
 
   const activeTodos = todos.filter(t => !t.completed && !t.deletedAt);
@@ -156,7 +157,11 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              todoService.updateTodoStatus(item.id, true);
+                              if (onToggleTodo) {
+                                onToggleTodo(item);
+                              } else {
+                                todoService.updateTodoStatus(item.id, true);
+                              }
                             }}
                             className="text-[9px] bg-green-50 hover:bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold transition-all"
                           >

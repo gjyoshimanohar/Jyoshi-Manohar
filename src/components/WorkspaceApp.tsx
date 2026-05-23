@@ -12,7 +12,7 @@ import {
 import { todoService } from '../services/todoService';
 import { Todo, Project, Folder as FolderType } from '../types';
 import { auth } from '../lib/firebase';
-import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays } from 'date-fns';
+import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears } from 'date-fns';
 import { DayPicker } from 'react-day-picker';
 import { signOut } from 'firebase/auth';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -569,7 +569,52 @@ export default function WorkspaceApp() {
   };
 
   const handleToggleTodo = async (todo: Todo) => {
-    await todoService.updateTodoStatus(todo.id, !todo.completed);
+    const isCompleting = !todo.completed;
+    await todoService.updateTodoStatus(todo.id, isCompleting);
+
+    if (isCompleting && todo.repeat && todo.repeat !== 'none') {
+      let nextDue: Date | null = null;
+      let baseDate = todo.dueDate ? new Date(todo.dueDate) : new Date();
+
+      // If the due date was in the past (overdue), we base the next repetition from today
+      // so the user doesn't have to check it off multiple times to catch up.
+      const todayStart = startOfDay(new Date());
+      if (baseDate < todayStart) {
+        baseDate = todayStart;
+      }
+
+      switch (todo.repeat) {
+        case 'hourly':
+          nextDue = addHours(baseDate, 1);
+          break;
+        case 'daily':
+          nextDue = addDays(baseDate, 1);
+          break;
+        case 'weekly':
+          nextDue = addWeeks(baseDate, 1);
+          break;
+        case 'monthly':
+          nextDue = addMonths(baseDate, 1);
+          break;
+        case 'yearly':
+          nextDue = addYears(baseDate, 1);
+          break;
+      }
+
+      if (nextDue && auth.currentUser) {
+        const { id, completed, createdAt, deletedAt, ...rest } = todo;
+        
+        // Reset subtasks for the new recurring task
+        const resetSubtasks = rest.subtasks?.map(st => ({ ...st, completed: false }));
+        
+        await todoService.createTodo({
+          ...rest,
+          dueDate: nextDue.getTime(),
+          completed: false,
+          subtasks: resetSubtasks
+        });
+      }
+    }
   };
 
   // Kanban Board custom sections helper handlers
@@ -2710,6 +2755,7 @@ export default function WorkspaceApp() {
                 setAutoProjectNotice(`Auto-categorized task to "${matchedName}"`);
                 setTimeout(() => setAutoProjectNotice(null), 4000);
               }}
+              onToggleTodo={handleToggleTodo}
             />
           )}
 
