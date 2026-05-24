@@ -8,17 +8,41 @@ import { services } from '../data';
 export default function Navbar() {
  const [isOpen, setIsOpen] = React.useState(false);
  const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
+ const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+ React.useEffect(() => {
+  const handleOnline = () => setIsOnline(true);
+  const handleOffline = () => setIsOnline(false);
+
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+
+  return () => {
+   window.removeEventListener('online', handleOnline);
+   window.removeEventListener('offline', handleOffline);
+  };
+ }, []);
 
  const navItems = [
- { name: 'Home', path: '/' },
- { name: 'Services', path: '/#services' },
- { name: 'Blog', path: '/blog' },
- { name: 'About', path: '/#about' },
- { name: 'Contact', path: '/#contact' },
+  { name: 'Home', path: '/' },
+  { name: 'Services', path: '/#services' },
+  { name: 'Blog', path: '/blog' },
+  { name: 'About', path: '/#about' },
+  { name: 'Contact', path: '/#contact' },
  ];
 
  return (
- <nav className="fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
+  <>
+  {!isOnline && (
+   <div className="fixed top-0 inset-x-0 bg-amber-500 text-white text-xs font-semibold py-2 px-4 text-center z-[100] flex items-center justify-center gap-1.5 shadow-sm">
+    <span className="inline-block w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+    <span>Working in offline mode. Firestore sync will resume when connection is restored.</span>
+   </div>
+  )}
+  <nav className={cn(
+   "fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 transition-all",
+   !isOnline ? "top-8" : "top-0"
+  )}>
  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
  <div className="flex justify-between h-20">
  <div className="flex items-center">
@@ -220,5 +244,6 @@ export default function Navbar() {
  )}
  </AnimatePresence>
  </nav>
+ </>
  );
 }
