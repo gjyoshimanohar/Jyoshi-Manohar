@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 import BlogCard from '../components/BlogCard';
 import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
@@ -33,6 +34,12 @@ export default function BlogList() {
 
  return (
  <main className="pt-32 pb-24 bg-white min-h-screen">
+ <Helmet>
+   <title>Financial Insights & Ledger</title>
+   <meta name="description" content="Read expert articles and insights on Indian taxation, corporate compliance, financial auditing, wealth stewardship, and business planning." />
+   <meta property="og:title" content="Financial Insights & Ledger | CA Jyoshi Manohar" />
+   <meta property="og:description" content="Read expert articles and insights on Indian taxation, corporate compliance, financial auditing, wealth stewardship, and business planning." />
+ </Helmet>
  <div className="max-w-7xl mx-auto px-6">
  <header className="mb-16">
  <motion.div
@@ -42,7 +49,7 @@ export default function BlogList() {
  <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm flex w-max">
  <span>Financial Intelligence</span>
  </div>
- <h1 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">Insights.</h1>
+ <h1 className="text-5xl md:text-[100px] leading-[0.95] text-primary uppercase font-bold tracking-tighter mb-8">THE LEDGER</h1>
  <p className="space-y-6 text-base lg:text-base text-black font-medium leading-relaxed text-left max-w-2xl">
  In-depth analysis on the evolving world of finance, tax, and corporate policy.
  </p>

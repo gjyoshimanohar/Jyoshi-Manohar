@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
+import { Helmet } from 'react-helmet-async';
 import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
 import { BlogPost as IBlogPost } from '../types';
@@ -76,8 +77,24 @@ export default function BlogPost() {
  );
  }
 
+  const seoExcerpt = post.excerpt || (post.content ? post.content.replace(/<[^>]*>?/gm, '').substring(0, 160) : 'Insights and professional financial guidance from CA Jyoshi Manohar.');
+
  return (
  <main className="pt-32 pb-24 bg-white">
+ <Helmet>
+   <title>{post.title}</title>
+   <meta name="description" content={seoExcerpt} />
+   
+   {/* Open Graph */}
+   <meta property="og:type" content="article" />
+   <meta property="og:title" content={`${post.title} | CA Jyoshi Manohar`} />
+   <meta property="og:description" content={seoExcerpt} />
+   {post.category && <meta property="article:section" content={post.category} />}
+   
+   {/* Twitter */}
+   <meta name="twitter:title" content={`${post.title} | CA Jyoshi Manohar`} />
+   <meta name="twitter:description" content={seoExcerpt} />
+ </Helmet>
  <article className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 border-x border-border">
  <motion.div
  initial={{ opacity: 0 }}

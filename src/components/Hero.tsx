@@ -72,7 +72,7 @@ export default function Hero() {
  >
  {/* Using an Unsplash placeholder photo as image generation quota is exceeded, but keeping the professional suit aesthetic */}
  <img 
- src={`/profile.png?t=${Date.now()}`} 
+ src="/logo.svg" 
  alt="CA Jyoshi Manohar" 
  className="w-full h-auto object-cover rounded-3xl shadow-2xl aspect-[4/5] bg-slate-100 transition-all duration-300 group-hover:-translate-y-2 group-hover:scale-[1.01]"
  />
