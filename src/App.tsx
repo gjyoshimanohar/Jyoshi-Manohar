@@ -1,13 +1,16 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
+import { Loader2 } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import Home from './pages/Home';
-import BlogList from './pages/BlogList';
-import BlogPost from './pages/BlogPost';
-import Admin from './pages/Admin';
-import Tasks from './pages/Tasks';
-import UnderConstruction from './pages/UnderConstruction';
+
+// Lazy load route pages to segment bundle chunks and prevent any secondary module-execution issues on the landing page
+const Home = lazy(() => import('./pages/Home'));
+const BlogList = lazy(() => import('./pages/BlogList'));
+const BlogPost = lazy(() => import('./pages/BlogPost'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Tasks = lazy(() => import('./pages/Tasks'));
+const UnderConstruction = lazy(() => import('./pages/UnderConstruction'));
 
 function ScrollToTop() {
  const { pathname, hash } = useLocation();
@@ -27,6 +30,14 @@ function ScrollToTop() {
  return null;
 }
 
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <Loader2 className="h-8 w-8 text-primary animate-spin" />
+    </div>
+  );
+}
+
 export default function App() {
  return (
  <Router>
@@ -34,6 +45,7 @@ export default function App() {
  <div className="flex flex-col min-h-screen">
  <Navbar />
  <div className="flex-grow">
+ <Suspense fallback={<PageLoader />}>
  <Routes>
  <Route path="/" element={<Home />} />
  <Route path="/blog" element={<BlogList />} />
@@ -42,6 +54,7 @@ export default function App() {
  <Route path="/admin" element={<Admin />} />
  <Route path="/tasks" element={<Tasks />} />
  </Routes>
+ </Suspense>
  </div>
  <Footer />
  </div>

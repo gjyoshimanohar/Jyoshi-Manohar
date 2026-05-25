@@ -9,26 +9,7 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss()],
     build: {
       outDir: 'dist',
-      chunkSizeWarningLimit: 1000,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('firebase')) return 'firebase';
-              if (id.includes('recharts') || id.includes('d3')) return 'charts';
-              if (id.includes('suneditor')) return 'editor';
-              if (id.includes('lucide-react')) return 'icons';
-              if (id.includes('@dnd-kit')) return 'dnd';
-              if (id.includes('@google/genai')) return 'genai';
-              if (id.includes('axios')) return 'axios';
-              if (id.includes('motion')) return 'motion';
-              if (id.includes('react-dom') || id.includes('react-router') || id.includes('react/')) return 'react-vendor';
-              if (id.includes('react-day-picker') || id.includes('date-fns')) return 'date-vendor';
-              return 'vendor';
-            }
-          }
-        }
-      }
+      chunkSizeWarningLimit: 1500,
     },
     resolve: {
       alias: {
