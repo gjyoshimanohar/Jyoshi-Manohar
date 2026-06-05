@@ -68,7 +68,7 @@ export default function Hero() {
  initial={{ opacity: 0, scale: 0.95 }}
  animate={{ opacity: 1, scale: 1 }}
  transition={{ duration: 0.8, delay: 0.2 }}
- className="hidden lg:block relative group cursor-pointer"
+ className="mt-12 lg:mt-0 w-full max-w-sm sm:max-w-md lg:max-w-none mx-auto lg:mx-0 relative group cursor-pointer"
  >
  {/* Using an Unsplash placeholder photo as image generation quota is exceeded, but keeping the professional suit aesthetic */}
  <img 
