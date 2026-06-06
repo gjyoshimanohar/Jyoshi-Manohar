@@ -22,7 +22,8 @@ import {
   serverTimestamp,
   orderBy
 } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../lib/firebase';
 import { 
   Download, 
   CheckCircle, 
@@ -137,6 +138,9 @@ export default function ClientDashboard() {
   const [newDocCategory, setNewDocCategory] = useState('Certificates');
   const [newDocSize, setNewDocSize] = useState('240 KB');
   const [newDocContent, setNewDocContent] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [customUrl, setCustomUrl] = useState('');
 
   const [newFilingTitle, setNewFilingTitle] = useState('');
   const [newFilingService, setNewFilingService] = useState('GST');
@@ -490,6 +494,26 @@ export default function ClientDashboard() {
 
   // Dynamic on-the-fly PDF and Tax summary report generator
   const triggerDocumentDownload = (file: ClientDocument) => {
+    // If there is a real uploaded file URL or custom external URL, open/download it directly securely
+    if (file.url && file.url !== '#' && file.url.trim() !== '') {
+      const link = document.createElement('a');
+      link.href = file.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      // fallback download attribute (might get ignored for cross-origin URLs but helps for same-origin)
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setFeedback({
+        message: `Opening secure download stream for "${file.name}"...`,
+        type: 'success'
+      });
+      setTimeout(() => setFeedback(null), 4000);
+      return;
+    }
+
     // Elegant client-side simulated PDF generator making actual browser files down-ready
     const docHeader = `
 ========================================================================
@@ -596,28 +620,98 @@ Stewardship, Accuracy, Legacy.
       alert("Please select a target client first.");
       return;
     }
+    
     try {
+      setDataLoading(true);
       const parentUserEmail = clients.find(c => c.uid === selectedClientId)?.email || selectedClientEmail || "client@manohar.com";
+      let finalUrl = customUrl || "#";
+      let finalSize = newDocSize || "240 KB";
+      let finalName = newDocName;
+
+      // Check if a local file was picked for upload
+      if (uploadFile) {
+        if (!finalName) {
+          finalName = uploadFile.name;
+        } else {
+          // If name doesn't contain extension, keep original file extension
+          const origExt = uploadFile.name.split('.').pop();
+          if (origExt && !finalName.toLowerCase().endsWith('.' + origExt.toLowerCase())) {
+            finalName = `${finalName}.${origExt}`;
+          }
+        }
+
+        const uploadTaskPromise = new Promise<string>((resolve, reject) => {
+          const storagePath = `documents/${selectedClientId}/${Date.now()}_${uploadFile.name}`;
+          const storageRef = ref(storage, storagePath);
+          const uploadTask = uploadBytesResumable(storageRef, uploadFile);
+
+          uploadTask.on('state_changed', 
+            (snapshot) => {
+              const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+              setUploadProgress(progress);
+            }, 
+            (error) => {
+              console.error("Storage upload failed: ", error);
+              reject(error);
+            }, 
+            async () => {
+              try {
+                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(downloadUrl);
+              } catch (urlErr) {
+                reject(urlErr);
+              }
+            }
+          );
+        });
+
+        finalUrl = await uploadTaskPromise;
+        
+        // Auto convert file size to pretty string
+        if (uploadFile.size > 1024 * 1024) {
+          finalSize = (uploadFile.size / (1024 * 1024)).toFixed(2) + " MB";
+        } else {
+          finalSize = (uploadFile.size / 1024).toFixed(1) + " KB";
+        }
+      }
+
+      if (!finalName) {
+        finalName = "Document.pdf";
+      }
+
+      // Extract uppercase file type
+      const hasExt = finalName.includes('.');
+      const fileExt = hasExt ? finalName.split('.').pop()?.toUpperCase() || 'PDF' : 'PDF';
+      
       const newDocument: Omit<ClientDocument, 'id'> = {
         userId: selectedClientId,
         userEmail: parentUserEmail,
-        name: newDocName.endsWith('.pdf') || newDocName.endsWith('.xlsx') ? newDocName : `${newDocName}.pdf`,
+        name: finalName,
         description: newDocDesc || "CA-certified official client report file.",
-        url: "#",
-        fileType: newDocName.endsWith('.xlsx') ? "Excel" : "PDF",
-        size: newDocSize || "240 KB",
+        url: finalUrl,
+        fileType: fileExt,
+        size: finalSize,
         uploadedAt: Date.now(),
         category: newDocCategory
       };
 
       await addDoc(collection(db, 'documents'), newDocument);
+      
+      // Reset form fields
       setNewDocName('');
       setNewDocDesc('');
-      setFeedback({ message: "Successfully delivered official document file to client portal!", type: 'success' });
+      setUploadFile(null);
+      setUploadProgress(null);
+      setCustomUrl('');
+      
+      setFeedback({ message: "Successfully delivered official secure document file package to client portal!", type: 'success' });
       setTimeout(() => setFeedback(null), 4000);
     } catch (err: any) {
       console.error(err);
-      setFeedback({ message: "Cloud save error: " + err.message, type: 'error' });
+      setFeedback({ message: "Upload or save error: " + err.message, type: 'error' });
+    } finally {
+      setDataLoading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -1567,6 +1661,73 @@ Stewardship, Accuracy, Legacy.
                       <span>Deliver Legal Certified Document</span>
                     </h3>
                     <form onSubmit={handleCreateDoc} className="space-y-4">
+                      {/* Upload certified file natively */}
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Native File Upload (Highly Recommended)
+                        </label>
+                        <div className="border border-dashed border-slate-200 hover:border-primary rounded-xl p-4 bg-slate-50 transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer">
+                          <input
+                            type="file"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              setUploadFile(file);
+                              if (file) {
+                                // Auto-fill standard file parameters inside the form
+                                setNewDocName(file.name);
+                                
+                                // Auto-generate estimated readable size
+                                if (file.size > 1024 * 1024) {
+                                  setNewDocSize((file.size / (1024 * 1024)).toFixed(2) + " MB");
+                                } else {
+                                  setNewDocSize((file.size / 1024).toFixed(1) + " KB");
+                                }
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <Upload className="h-5 w-5 text-slate-400 mb-2" />
+                          <p className="text-[11px] font-semibold text-slate-700 max-w-[280px] truncate">
+                            {uploadFile ? uploadFile.name : "Choose a local file, or drag & drop"}
+                          </p>
+                          <p className="text-[9px] text-slate-400 mt-1">
+                            {uploadFile ? `${(uploadFile.size / 1024).toFixed(1)} KB` : "Supports PDF, Excel, images, zip up to 10MB"}
+                          </p>
+                          {uploadFile && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                setUploadFile(null);
+                              }}
+                              className="text-[10px] text-red-500 hover:underline mt-2 z-20 font-bold relative"
+                            >
+                              Clear selected file
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Custom external URL input if they prefer link sharing */}
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
+                          OR EXTERNAL WEB LINK (E.G. GOOGLE DRIVE, DROPBOX)
+                        </label>
+                        <input
+                          type="url"
+                          value={customUrl}
+                          onChange={(e) => setCustomUrl(e.target.value)}
+                          placeholder="https://drive.google.com/file/... or other cloud storage link"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
+                        />
+                        <p className="text-[9px] text-slate-400 mt-1 leading-normal">
+                          Provide shared link coordinates if the file is already uploaded to your business Cloud/Drive systems.
+                        </p>
+                      </div>
+
+                      <div className="border-t border-slate-100 py-2"></div>
+
                       <div>
                         <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Document display name</label>
                         <input
@@ -1617,9 +1778,21 @@ Stewardship, Accuracy, Legacy.
 
                       <button
                         type="submit"
-                        className="w-full bg-primary hover:bg-slate-900 border border-transparent text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider transition-all shadow-md focus:outline-none cursor-pointer"
+                        disabled={uploadProgress !== null}
+                        className={`w-full text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider transition-all shadow-md focus:outline-none cursor-pointer flex items-center justify-center gap-2 ${
+                          uploadProgress !== null 
+                            ? 'bg-slate-400 cursor-not-allowed' 
+                            : 'bg-primary hover:bg-slate-900 border border-transparent'
+                        }`}
                       >
-                        Publish File into Vault
+                        {uploadProgress !== null ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Uploading File ({uploadProgress}%)</span>
+                          </>
+                        ) : (
+                          "Publish File into Vault"
+                        )}
                       </button>
                     </form>
                   </div>
