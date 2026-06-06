@@ -56,7 +56,10 @@ import {
   Send,
   Paperclip,
   AlertCircle,
-  FileQuestion
+  FileQuestion,
+  Edit2,
+  X,
+  Save
 } from 'lucide-react';
 
 // Pre-defined interfaces
@@ -117,6 +120,23 @@ interface ChatMessage {
   fileType?: string;
 }
 
+interface ClientRequest {
+  id: string;
+  userId: string;
+  userEmail: string;
+  clientName: string;
+  title: string;
+  type: 'task' | 'document' | 'engagement';
+  category: string;
+  description: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  fileType?: string;
+  createdAt: number;
+  status: 'pending' | 'accepted' | 'declined';
+}
+
 export default function ClientDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,6 +154,7 @@ export default function ClientDashboard() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
   const [complianceFilings, setComplianceFilings] = useState<ComplianceFiling[]>([]);
+  const [clientRequests, setClientRequests] = useState<ClientRequest[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   // Admin and Client Selector (for Admin to view specific client data)
@@ -185,8 +206,36 @@ export default function ClientDashboard() {
   const [newFilingStatus, setNewFilingStatus] = useState<ComplianceFiling['status']>('Upcoming');
   const [newFilingARN, setNewFilingARN] = useState('');
 
+  // Milestone inline editing and addition states
+  const [addingStepForAppId, setAddingStepForAppId] = useState<string | null>(null);
+  const [newStepTitle, setNewStepTitle] = useState('');
+  const [newStepDesc, setNewStepDesc] = useState('');
+  const [newStepDate, setNewStepDate] = useState('');
+
+  const [editingStepAppId, setEditingStepAppId] = useState<string | null>(null);
+  const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null);
+  const [editStepTitle, setEditStepTitle] = useState('');
+  const [editStepDesc, setEditStepDesc] = useState('');
+  const [editStepDate, setEditStepDate] = useState('');
+
   // Local feedback message
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Client New Request states
+  const [showNewRequestModal, setShowNewRequestModal] = useState(false);
+  const [requestType, setRequestType] = useState<'task' | 'document' | 'engagement'>('engagement');
+  const [requestTitle, setRequestTitle] = useState('');
+  const [requestCategory, setRequestCategory] = useState('GST Registration');
+  const [requestDescription, setRequestDescription] = useState('');
+  const [requestFile, setRequestFile] = useState<File | null>(null);
+  const [requestUploadProgress, setRequestUploadProgress] = useState<number | null>(null);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  // Admin acceptance workflow states
+  const [acceptingReqId, setAcceptingReqId] = useState<string | null>(null);
+  const [acceptEstCompletion, setAcceptEstCompletion] = useState('June 30, 2026');
+  const [acceptStepsText, setAcceptStepsText] = useState<string>("1. Intake checklist & document verify\n2. CA audit & compliance draft analysis\n3. Execution filings and certification");
+  const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
   // Set real-time listener for Auth State
   useEffect(() => {
@@ -250,6 +299,22 @@ export default function ClientDashboard() {
       console.error("Error reading compliance filings: ", error);
     });
 
+    // Fetch incoming client requests
+    const requestsQuery = isAdmin
+      ? query(collection(db, 'client_requests'))
+      : query(collection(db, 'client_requests'), where('userId', '==', user.uid));
+
+    const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
+      const list: ClientRequest[] = [];
+      snapshot.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as ClientRequest);
+      });
+      list.sort((a, b) => b.createdAt - a.createdAt);
+      setClientRequests(list);
+    }, (error) => {
+      console.error("Error reading client requests: ", error);
+    });
+
     // If admin is logged in, fetch list of active clients securely in real-time
     let unsubscribeUsers = () => {};
     if (isAdmin) {
@@ -274,6 +339,7 @@ export default function ClientDashboard() {
       unsubscribeDocs();
       unsubscribeFilings();
       unsubscribeUsers();
+      unsubscribeRequests();
     };
   }, [user, isAdmin, selectedClientId]);
 
@@ -1150,6 +1216,399 @@ Stewardship, Accuracy, Legacy.
     }
   };
 
+  const handleSubmitNewRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!requestTitle.trim()) {
+      alert("Please specify a title or subject for your request.");
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+    setRequestUploadProgress(10);
+
+    try {
+      let finalFileUrl = "";
+      let finalFileSize = "N/A";
+      let finalFileType = "N/A";
+
+      if (requestFile) {
+        setRequestUploadProgress(30);
+        // Under 800 KB -> Base64 fallback to prevent issues
+        if (requestFile.size <= 800 * 1024) {
+          const base64Url = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(requestFile);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+          });
+          finalFileUrl = base64Url;
+        } else {
+          // Standard storage upload
+          try {
+            const storagePath = `requests/${user.uid}/${Date.now()}_${requestFile.name}`;
+            const storageRef = ref(storage, storagePath);
+            const uploadTask = uploadBytesResumable(storageRef, requestFile);
+
+            finalFileUrl = await new Promise<string>((resolve, reject) => {
+              uploadTask.on('state_changed',
+                (snapshot) => {
+                  const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                  setRequestUploadProgress(30 + Math.round(progress * 0.6));
+                },
+                (err) => reject(err),
+                async () => {
+                  const dlUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                  resolve(dlUrl);
+                }
+              );
+            });
+          } catch (storageErr: any) {
+            console.warn("Storage upload failed, using base64 fallback:", storageErr);
+            const base64Url = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(requestFile);
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = error => reject(error);
+            });
+            finalFileUrl = base64Url;
+          }
+        }
+        setRequestUploadProgress(90);
+
+        const sizeKB = Math.round(requestFile.size / 1024);
+        finalFileSize = sizeKB > 1024 ? `${(sizeKB / 1024).toFixed(2)} MB` : `${sizeKB} KB`;
+        finalFileType = requestFile.name.split('.').pop()?.toUpperCase() || "PDF";
+      }
+
+      // Save the draft proposal inside 'client_requests' collection
+      const clientRequestObj: Omit<ClientRequest, 'id'> = {
+        userId: user.uid,
+        userEmail: user.email || '',
+        clientName: user.displayName || user.email?.split('@')[0] || "Client",
+        title: requestTitle,
+        type: requestType, // 'engagement', 'task', 'document'
+        category: requestCategory,
+        description: requestDescription || "Requested online by client.",
+        fileUrl: finalFileUrl || undefined,
+        fileName: requestFile ? requestFile.name : undefined,
+        fileSize: requestFile ? finalFileSize : undefined,
+        fileType: requestFile ? finalFileType : undefined,
+        createdAt: Date.now(),
+        status: 'pending'
+      };
+
+      await addDoc(collection(db, 'client_requests'), clientRequestObj);
+
+      const capitalizedType = requestType.charAt(0).toUpperCase() + requestType.slice(1);
+      const chatMsgText = `📢 CLIENT PROPOSAL SUBMITTED: [${requestTitle}]\nType: ${capitalizedType}\nCategory: ${requestCategory}\nDetails: ${requestDescription || "None specified"}${requestFile ? `\n📎 Attachment: ${requestFile.name}` : ''}\n(Awaiting review and approval state on CA desk)`;
+
+      const chatMsgObj: Omit<ChatMessage, 'id'> = {
+        clientScopeId: user.uid,
+        senderId: user.uid,
+        senderEmail: user.email || '',
+        senderName: user.displayName || user.email?.split('@')[0] || "Client",
+        text: chatMsgText,
+        timestamp: Date.now()
+      };
+      await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      setFeedback({
+        message: "Your proposal has been registered on the CA Desk awaiting review!",
+        type: 'success'
+      });
+      setTimeout(() => setFeedback(null), 4500);
+
+      // Reset fields
+      setShowNewRequestModal(false);
+      setRequestTitle("");
+      setRequestCategory("GST Registration");
+      setRequestDescription("");
+      setRequestFile(null);
+      setRequestUploadProgress(null);
+      setRequestType("engagement");
+
+    } catch (err: any) {
+      console.error(err);
+      alert("Error submitting request: " + err.message);
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+  
+  const handleDeclineRequest = async (req: ClientRequest) => {
+    try {
+      if (!req || !req.id) return;
+      const confirmDecline = window.confirm(`Are you sure you want to decline the request "${req.title}" from ${req.clientName}?`);
+      if (!confirmDecline) return;
+
+      // 1. Delete request document from collection
+      await deleteDoc(doc(db, 'client_requests', req.id));
+
+      // 2. Post notification chat inside consultation room chat notifying client
+      const chatMsgText = `❌ REQUEST DECLINED: The proposal entitled "${req.title}" (${req.category}) has been declined by CA Jyoshi Manohar's admin team. Reason specified: Standard statutory criteria check mismatch. Please check your parameters and file attachment, or propose an alternative service draft.`;
+
+      const chatMsgObj: Omit<ChatMessage, 'id'> = {
+        clientScopeId: req.userId,
+        senderId: user ? user.uid : 'admin_manohar',
+        senderEmail: user ? user.email || '' : 'gjyoshimanohar@gmail.com',
+        senderName: "Manohar Business Consulting Panel (Admin)",
+        text: chatMsgText,
+        timestamp: Date.now()
+      };
+      await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      setFeedback({
+        message: `Successfully declined request "${req.title}". Portal and support channels notified!`,
+        type: 'success'
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      alert("Decline request failed: " + err.message);
+    }
+  };
+
+  const handleAcceptRequestFinal = async (req: ClientRequest) => {
+    try {
+      if (!req || !req.id) return;
+      setIsProcessingApproval(true);
+
+      // Parse customized steps from state text
+      const parsedSteps = acceptStepsText.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map((line, idx) => {
+          // Clean leading numbers or prefixes gracefully like "1." "Step 1:" "-" etc
+          const cleanText = line.replace(/^\d+[\.\s\-:]+/, '').trim();
+          return {
+            title: cleanText,
+            description: idx === 0 
+              ? "Statutory onboarding & checklists verified successfully" 
+              : `Milestone execution phase ${idx + 1}`,
+            date: idx === 0 ? new Date().toLocaleDateString() : "Pending CA Desk",
+            completed: idx === 0
+          };
+        });
+
+      // 1. Create target instance based on request type
+      if (req.type === 'engagement' || req.type === 'task') {
+        const appTitle = req.type === 'engagement' ? `Engagement: ${req.title}` : `Task: ${req.title}`;
+        const newApp: Omit<Application, 'id'> = {
+          userId: req.userId,
+          userEmail: req.userEmail,
+          title: appTitle,
+          type: req.category || "Consulting Service",
+          status: "Under Review",
+          currentStep: parsedSteps[0]?.title || "Awaiting document verification",
+          description: req.description || "Requested and approved online.",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          estimatedCompletion: acceptEstCompletion || "June 30, 2026",
+          steps: parsedSteps
+        };
+
+        await addDoc(collection(db, 'applications'), newApp);
+
+        // If supporting file attachment exists in the request, register it inside documents
+        if (req.fileUrl) {
+          await addDoc(collection(db, 'documents'), {
+            userId: req.userId,
+            userEmail: req.userEmail,
+            name: req.fileName || `Attachment_${req.title}.pdf`,
+            description: `Supporting draft for approved engagement: "${req.title}"`,
+            url: req.fileUrl,
+            fileType: req.fileType || "PDF",
+            size: req.fileSize || "Unknown size",
+            uploadedAt: Date.now(),
+            category: "Client Attachments"
+          });
+        }
+
+        // Post chat message to consultation room
+        const chatMsgObj: Omit<ChatMessage, 'id'> = {
+          clientScopeId: req.userId,
+          senderId: user ? user.uid : 'admin_manohar',
+          senderEmail: user ? user.email || '' : 'gjyoshimanohar@gmail.com',
+          senderName: "Manohar Business Consulting Panel (Admin)",
+          text: `✅ REQUEST APPROVED: CA Jyoshi Manohar has approved and launched the tracking flow for your proposal: [${req.title}]!\nService: ${newApp.type}\nEst. Completion: ${newApp.estimatedCompletion}\nMilestone tracker initialized inside Client Dashboard. Close review tracking active.`,
+          timestamp: Date.now()
+        };
+        await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      } else if (req.type === 'document') {
+        const docName = req.fileName || `Approved Doc: ${req.title}`;
+        const newDocument = {
+          userId: req.userId,
+          userEmail: req.userEmail,
+          name: docName,
+          description: req.description || `Approved verification paperwork: ${req.title}`,
+          url: req.fileUrl || "#",
+          fileType: req.fileType || "PDF",
+          size: req.fileSize || "0 KB",
+          uploadedAt: Date.now(),
+          category: req.category || "Certificates",
+          status: "Under Review"
+        };
+
+        await addDoc(collection(db, 'documents'), newDocument);
+
+        // Post chat message to consultation room
+        const chatMsgObj: Omit<ChatMessage, 'id'> = {
+          clientScopeId: req.userId,
+          senderId: user ? user.uid : 'admin_manohar',
+          senderEmail: user ? user.email || '' : 'gjyoshimanohar@gmail.com',
+          senderName: "Manohar Business Consulting Panel (Admin)",
+          text: `✅ DOCUMENT INGESTION COMPLETE: Manohar Consulting has verified and approved document package: [${docName}] into standard vaults. Review is set to live.`,
+          timestamp: Date.now()
+        };
+        await addDoc(collection(db, 'chats'), chatMsgObj);
+      }
+
+      // 2. Remove from pending client_requests
+      await deleteDoc(doc(db, 'client_requests', req.id));
+
+      setFeedback({
+        message: `Proposal "${req.title}" successfully approved and active.`,
+        type: 'success'
+      });
+      setTimeout(() => setFeedback(null), 4000);
+
+      // 3. Reset states
+      setAcceptingReqId(null);
+      setAcceptEstCompletion('June 30, 2026');
+      setAcceptStepsText("1. Intake checklist & document verify\n2. CA audit & compliance draft analysis\n3. Execution filings and certification");
+
+    } catch (err: any) {
+      console.error(err);
+      alert("Error approving client request: " + err.message);
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const handleToggleStepCompleted = async (appId: string, stepIndex: number) => {
+    try {
+      const appToUpdate = applications.find(a => a.id === appId);
+      if (!appToUpdate || !appToUpdate.steps) return;
+
+      const updatedSteps = appToUpdate.steps.map((s, idx) => {
+        if (idx === stepIndex) {
+          return { ...s, completed: !s.completed };
+        }
+        return s;
+      });
+
+      await updateDoc(doc(db, 'applications', appId), {
+        steps: updatedSteps,
+        updatedAt: Date.now()
+      });
+      setFeedback({ message: "Milestone status updated in real-time!", type: 'success' });
+      setTimeout(() => setFeedback(null), 2500);
+    } catch (err: any) {
+      alert("Failed to update step: " + err.message);
+    }
+  };
+
+  const handleAddMilestoneStep = async (appId: string) => {
+    if (!newStepTitle.trim()) {
+      alert("Please enter a title for the new milestone.");
+      return;
+    }
+    try {
+      const appToUpdate = applications.find(a => a.id === appId);
+      if (!appToUpdate) return;
+
+      const currentSteps = appToUpdate.steps || [];
+      const updatedSteps = [
+        ...currentSteps,
+        {
+          title: newStepTitle,
+          description: newStepDesc || "Status verification log",
+          date: newStepDate || "In Progress",
+          completed: false
+        }
+      ];
+
+      await updateDoc(doc(db, 'applications', appId), {
+        steps: updatedSteps,
+        updatedAt: Date.now()
+      });
+
+      setNewStepTitle('');
+      setNewStepDesc('');
+      setNewStepDate('');
+      setAddingStepForAppId(null);
+      setFeedback({ message: "New verification step added successfully!", type: 'success' });
+      setTimeout(() => setFeedback(null), 2500);
+    } catch (err: any) {
+      alert("Failed to add milestone: " + err.message);
+    }
+  };
+
+  const handleStartEditingStep = (appId: string, stepIndex: number, step: { title: string; description: string; date: string; completed: boolean }) => {
+    setEditingStepAppId(appId);
+    setEditingStepIndex(stepIndex);
+    setEditStepTitle(step.title);
+    setEditStepDesc(step.description);
+    setEditStepDate(step.date);
+  };
+
+  const handleSaveStepEdit = async (appId: string, stepIndex: number) => {
+    if (!editStepTitle.trim()) {
+      alert("Milestone title cannot be empty.");
+      return;
+    }
+    try {
+      const appToUpdate = applications.find(a => a.id === appId);
+      if (!appToUpdate || !appToUpdate.steps) return;
+
+      const updatedSteps = appToUpdate.steps.map((s, idx) => {
+        if (idx === stepIndex) {
+          return {
+            ...s,
+            title: editStepTitle,
+            description: editStepDesc,
+            date: editStepDate,
+          };
+        }
+        return s;
+      });
+
+      await updateDoc(doc(db, 'applications', appId), {
+        steps: updatedSteps,
+        updatedAt: Date.now()
+      });
+
+      setEditingStepAppId(null);
+      setEditingStepIndex(null);
+      setFeedback({ message: "Milestone details saved!", type: 'success' });
+      setTimeout(() => setFeedback(null), 2500);
+    } catch (err: any) {
+      alert("Failed to save milestone: " + err.message);
+    }
+  };
+
+  const handleDeleteStep = async (appId: string, stepIndex: number) => {
+    if (!confirm("Are you sure you want to delete this step?")) return;
+    try {
+      const appToUpdate = applications.find(a => a.id === appId);
+      if (!appToUpdate || !appToUpdate.steps) return;
+
+      const updatedSteps = appToUpdate.steps.filter((_, idx) => idx !== stepIndex);
+
+      await updateDoc(doc(db, 'applications', appId), {
+        steps: updatedSteps,
+        updatedAt: Date.now()
+      });
+
+      setFeedback({ message: "Verification step removed!", type: 'success' });
+      setTimeout(() => setFeedback(null), 2500);
+    } catch (err: any) {
+      alert("Failed to delete step: " + err.message);
+    }
+  };
+
   const handleUpdateFilingStatus = async (filingId: string, status: ComplianceFiling['status'], arn?: string) => {
     try {
       const updates: Partial<ComplianceFiling> = { status };
@@ -1367,7 +1826,7 @@ Stewardship, Accuracy, Legacy.
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <span>{isSignUp ? "Generate Secure Account" : "Access Command Cabin"}</span>
+                    <span>{isSignUp ? "Generate Secure Account" : "Login"}</span>
                     <ArrowRight className="h-3.5 w-3.5" />
                   </>
                 )}
@@ -1458,6 +1917,15 @@ Stewardship, Accuracy, Legacy.
                 <Sparkles className="h-3.5 w-3.5 text-amber-300" />
                 ADMIN PORTAL ACCESS
               </span>
+            )}
+            {!isAdmin && (
+              <button
+                onClick={() => setShowNewRequestModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-slate-900/90 border border-transparent text-white font-semibold rounded-xl text-xs transition-all whitespace-nowrap cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>New Request</span>
+              </button>
             )}
             <button
               onClick={handleLogout}
@@ -1678,6 +2146,49 @@ Stewardship, Accuracy, Legacy.
                   </div>
                 </div>
 
+                {/* Client's Pending Proposals awaiting review on admin side */}
+                {clientRequests.length > 0 && !isAdmin && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-amber-50/50 p-4 px-6 rounded-2xl border border-amber-100/70 shadow-sm">
+                      <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                        <Clock className="w-4.5 h-4.5 text-amber-500 animate-pulse" />
+                        <span>Pending Proposals awaiting CA Review ({clientRequests.length})</span>
+                      </h3>
+                      <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        Awaiting CA Review
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {clientRequests.map(req => (
+                        <div key={req.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm text-left relative overflow-hidden group hover:border-slate-300 transition-all">
+                          <div className="absolute right-0 top-0 h-1 text-amber-400 bg-amber-400 w-full animate-pulse" />
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <div>
+                              <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                                {req.type}
+                              </span>
+                              <h4 className="text-xs font-bold text-slate-800 mt-1.5">{req.title}</h4>
+                            </div>
+                            <span className="text-[8px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-widest font-mono">
+                              pending ca
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">{req.description}</p>
+                          <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-50 text-[9px] text-slate-400">
+                            <span>Posted: {new Date(req.createdAt).toLocaleDateString()}</span>
+                            {req.fileName && (
+                              <span className="font-semibold text-primary flex items-center gap-1 truncate max-w-[150px]">
+                                📎 {req.fileName}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {applications.length === 0 ? (
                   <div className="bg-white rounded-3xl p-16 text-center border border-slate-100 shadow-sm max-w-xl mx-auto">
                     <FileCheck2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
@@ -1716,25 +2227,195 @@ Stewardship, Accuracy, Legacy.
                         </div>
                         
                         <div className="relative border-l-2 border-slate-100 pl-6 ml-3 space-y-6">
-                          {app.steps?.map((step, idx) => (
-                            <div key={idx} className="relative">
-                              <span className={`absolute -left-[31px] top-0.5 w-4 h-4 rounded-full border-2 bg-white flex items-center justify-center ${
-                                step.completed ? 'border-primary ring-4 ring-primary/10' : 'border-slate-200'
-                              }`}>
-                                {step.completed && <div className="w-1.5 h-1.5 bg-primary rounded-full" />}
-                              </span>
-                              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
-                                <span className={`text-[12px] font-bold ${step.completed ? 'text-slate-900' : 'text-slate-500'}`}>
-                                  {step.title}
-                                </span>
-                                <span className="text-[10px] font-mono tracking-wider font-semibold text-slate-400">
-                                  {step.date}
-                                </span>
+                          {app.steps?.map((step, idx) => {
+                            const isEditingThisStep = editingStepAppId === app.id && editingStepIndex === idx;
+                            return (
+                              <div key={idx} className="relative group">
+                                {isAdmin ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleStepCompleted(app.id, idx)}
+                                    title="Click to toggle completed state"
+                                    className={`absolute -left-[31px] top-0.5 w-4 h-4 rounded-full border-2 bg-white flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-all ${
+                                      step.completed ? 'border-primary ring-4 ring-primary/10' : 'border-slate-300 hover:border-primary'
+                                    }`}
+                                  >
+                                    {step.completed ? (
+                                      <div className="w-1.5 h-1.5 bg-primary rounded-full" />
+                                    ) : (
+                                      <div className="w-1 h-1 bg-transparent group-hover:bg-slate-300 rounded-full" />
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className={`absolute -left-[31px] top-0.5 w-4 h-4 rounded-full border-2 bg-white flex items-center justify-center ${
+                                    step.completed ? 'border-primary ring-4 ring-primary/10' : 'border-slate-200'
+                                  }`}>
+                                    {step.completed && <div className="w-1.5 h-1.5 bg-primary rounded-full" />}
+                                  </span>
+                                )}
+
+                                {isEditingThisStep ? (
+                                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 mt-1">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-sans">
+                                      <input
+                                        type="text"
+                                        value={editStepTitle}
+                                        onChange={(e) => setEditStepTitle(e.target.value)}
+                                        placeholder="Step Title"
+                                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-950 font-medium"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={editStepDate}
+                                        onChange={(e) => setEditStepDate(e.target.value)}
+                                        placeholder="e.g. May 25, 2026 or In Progress"
+                                        className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-950 font-mono"
+                                      />
+                                    </div>
+                                    <textarea
+                                      value={editStepDesc}
+                                      onChange={(e) => setEditStepDesc(e.target.value)}
+                                      placeholder="Brief milestone milestone description..."
+                                      rows={2}
+                                      className="w-full bg-white border border-slate-200 rounded-lg p-1.5 text-xs text-slate-950 font-sans"
+                                    />
+                                    <div className="flex justify-end gap-1.5 pt-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingStepAppId(null);
+                                          setEditingStepIndex(null);
+                                        }}
+                                        className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <X className="h-3 w-3" />
+                                        <span>Cancel</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveStepEdit(app.id, idx)}
+                                        className="bg-primary hover:bg-slate-950 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-sm"
+                                      >
+                                        <Save className="h-3 w-3" />
+                                        <span>Save</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-[12px] font-bold ${step.completed ? 'text-slate-900 font-semibold' : 'text-slate-400'}`}>
+                                          {step.title}
+                                        </span>
+                                        {isAdmin && (
+                                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleStartEditingStep(app.id, idx, step)}
+                                              className="p-1 text-slate-400 hover:text-primary transition cursor-pointer"
+                                              title="Edit step details"
+                                            >
+                                              <Edit2 className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteStep(app.id, idx)}
+                                              className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                                              title="Delete step"
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] font-mono tracking-wider font-semibold text-slate-400">
+                                        {step.date}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-0.5">{step.description}</p>
+                                  </div>
+                                )}
                               </div>
-                              <p className="text-xs text-slate-500 mt-0.5">{step.description}</p>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
+
+                        {/* New Milestone Step Form */}
+                        {isAdmin && (
+                          <div className="pt-2">
+                            {addingStepForAppId === app.id ? (
+                              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3 font-sans">
+                                <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                                  <Plus className="h-3.5 w-3.5 text-primary" />
+                                  <span>Add Customized Milestone Step</span>
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Milestone Name*</label>
+                                    <input
+                                      type="text"
+                                      value={newStepTitle}
+                                      onChange={(e) => setNewStepTitle(e.target.value)}
+                                      placeholder="e.g. Scrutiny of MOA Draft"
+                                      className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs text-slate-950 font-medium font-sans outline-none focus:border-primary"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Target Date / Day</label>
+                                    <input
+                                      type="text"
+                                      value={newStepDate}
+                                      onChange={(e) => setNewStepDate(e.target.value)}
+                                      placeholder="e.g. June 15, 2026 or Pending client"
+                                      className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs text-slate-950 font-medium font-sans outline-none focus:border-primary"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Actionable Description</label>
+                                  <input
+                                    type="text"
+                                    value={newStepDesc}
+                                    onChange={(e) => setNewStepDesc(e.target.value)}
+                                    placeholder="Brief notes detailing statutory checkpoints"
+                                    className="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs text-slate-950 font-medium font-sans outline-none focus:border-primary"
+                                  />
+                                </div>
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddingStepForAppId(null)}
+                                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl py-1.5 px-3 text-xs font-bold transition-all cursor-pointer"
+                                  >
+                                    Discard
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddMilestoneStep(app.id)}
+                                    className="bg-slate-900 hover:bg-black text-white rounded-xl py-1.5 px-4 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                                  >
+                                    Add Step
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddingStepForAppId(app.id);
+                                  setNewStepTitle('');
+                                  setNewStepDesc('');
+                                  setNewStepDate('');
+                                }}
+                                className="border border-dashed border-slate-200 hover:border-primary hover:bg-slate-50 text-slate-500 hover:text-primary rounded-xl py-1.5 w-full text-[11px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" />
+                                <span>Add New Verification Step</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Footer tracking values */}
@@ -2494,6 +3175,202 @@ Stewardship, Accuracy, Legacy.
                   </div>
                 </div>
 
+                {/* Section: Pending Client Requests (Admin Review Panel) */}
+                <div className="bg-slate-50 border border-slate-200/60 rounded-3xl p-6 sm:p-8 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/50 mb-6">
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <h3 className="text-base font-serif font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-amber-500" />
+                          <span>Pending Client Requests Review Desk</span>
+                        </h3>
+                        {clientRequests.length > 0 && (
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            {clientRequests.length} pending
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        Incoming requests proposed by customers in real-time. Review terms, customize milestones, and approve or decline proposals.
+                      </p>
+                    </div>
+                  </div>
+
+                  {clientRequests.length === 0 ? (
+                    <div className="bg-white border border-slate-100 rounded-2xl py-8 px-6 text-center shadow-sm">
+                      <div className="mx-auto w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 mb-3">
+                        <CheckCircle className="h-5 w-5 text-emerald-500" />
+                      </div>
+                      <p className="text-xs font-semibold text-slate-800">No Pending Requests</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">The consulting client intake cue is currently empty. All clear for now!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {clientRequests.map((req) => {
+                        const isAccepting = acceptingReqId === req.id;
+                        return (
+                          <div 
+                            key={req.id} 
+                            className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col gap-4 text-left"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-dashed border-slate-100">
+                              <div>
+                                <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-rose-800 px-2.5 py-1 rounded-full mb-2">
+                                  {req.type === 'engagement' && <Briefcase className="h-3 w-3" />}
+                                  {req.type === 'task' && <Activity className="h-3 w-3" />}
+                                  {req.type === 'document' && <FileText className="h-3 w-3" />}
+                                  <span>{req.type?.toUpperCase()} • {req.category}</span>
+                                </span>
+                                <h4 className="text-sm font-serif font-bold text-slate-900 tracking-tight">
+                                  {req.title}
+                                </h4>
+                                <p className="text-[10px] text-slate-500 mt-1">
+                                  Proposed by: <span className="font-bold text-slate-700 underline">{req.clientName}</span> ({req.userEmail}) • {new Date(req.createdAt).toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAcceptingReqId(req.id);
+                                    const nextMonth = new Date();
+                                    nextMonth.setMonth(nextMonth.getMonth() + 1);
+                                    setAcceptEstCompletion(nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+                                    if (req.type === 'document') {
+                                      setAcceptStepsText("1. Client attachment intake verification\n2. Certified document review checklist\n3. Approval and secure storage vaulting");
+                                    } else {
+                                      setAcceptStepsText("1. Intake checklist & document verify\n2. CA audit & compliance draft analysis\n3. Execution filings and certification");
+                                    }
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeclineRequest(req)}
+                                  className="bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-[10px] uppercase tracking-wider px-3.5 py-2 rounded-xl border border-rose-100 transition-colors cursor-pointer"
+                                >
+                                  Decline
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Brief summary info */}
+                            <div className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100/80">
+                              <span className="font-bold text-[9px] uppercase tracking-wider font-mono text-slate-400 block mb-1">Details & Scope:</span>
+                              {req.description}
+                              
+                              {req.fileUrl && (
+                                <div className="mt-3 flex items-center justify-between bg-white border border-slate-100 p-2.5 rounded-xl">
+                                  <div className="flex items-center gap-2 truncate">
+                                    <FileText className="h-4 w-4 text-primary shrink-0" />
+                                    <div className="truncate text-left">
+                                      <p className="text-[10px] font-bold text-slate-800 truncate max-w-[200px]">
+                                        {req.fileName}
+                                      </p>
+                                      <p className="text-[9px] text-slate-400">
+                                        {req.fileType} • {req.fileSize}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <a 
+                                    href={req.fileUrl} 
+                                    target="_blank" 
+                                    referrerPolicy="no-referrer"
+                                    rel="noreferrer"
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-[9px] font-bold uppercase tracking-wider px-2 header-link py-1 rounded-lg flex items-center gap-1 transition-colors"
+                                  >
+                                    <Download className="h-3 w-3" />
+                                    <span>Download</span>
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Interactive acceptance customization subform */}
+                            {isAccepting && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: -5 }} 
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-emerald-50/70 border border-emerald-200 p-5 rounded-2xl space-y-4 text-left"
+                              >
+                                <div className="pb-2 border-b border-emerald-200/40 flex justify-between items-center">
+                                  <h5 className="text-[11px] font-bold text-emerald-800 uppercase tracking-widest font-mono">
+                                    ⚙️ CUSTOMIZE COMPLIANCE TRACK PARAMETERS
+                                  </h5>
+                                  <button 
+                                    type="button" 
+                                    onClick={() => setAcceptingReqId(null)}
+                                    className="text-[10px] font-semibold text-emerald-700 hover:underline cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                      Expected Completion Date
+                                    </label>
+                                    <input 
+                                      type="text" 
+                                      required
+                                      value={acceptEstCompletion}
+                                      onChange={(e) => setAcceptEstCompletion(e.target.value)}
+                                      placeholder="e.g. July 31, 2026"
+                                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                      Track Milestones Checklist (One step per line)
+                                    </label>
+                                    <textarea 
+                                      rows={3}
+                                      required
+                                      value={acceptStepsText}
+                                      onChange={(e) => setAcceptStepsText(e.target.value)}
+                                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"
+                                    />
+                                    <span className="text-[9px] text-slate-400 mt-1 block">Milestones will be set dynamically inside the client application tracker.</span>
+                                  </div>
+                                </div>
+                                <div className="pt-2 flex justify-end gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => setAcceptingReqId(null)}
+                                    className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold text-[10px] uppercase tracking-wider px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
+                                  >
+                                    Go Back
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAcceptRequestFinal(req)}
+                                    disabled={isProcessingApproval}
+                                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    {isProcessingApproval ? (
+                                      <>
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        <span>Deploying...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle className="h-3.5 w-3.5" />
+                                        <span>Final Submit & Deploy</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* Grid for forms */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   
@@ -2850,6 +3727,248 @@ Stewardship, Accuracy, Legacy.
         </div>
 
       </div>
+
+      {/* Client New Request Modal Dialog */}
+      <AnimatePresence>
+        {showNewRequestModal && (
+          <div id="new-request-modal-overlay" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              id="new-request-modal-card"
+              className="bg-white rounded-[2rem] shadow-2xl border border-slate-100/80 w-full max-w-2xl overflow-hidden font-sans"
+            >
+              {/* Header Section */}
+              <div className="bg-slate-900 px-6 py-5 text-white flex justify-between items-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent pointer-events-none" />
+                <div className="relative z-10 flex items-center gap-3">
+                  <div className="bg-primary/20 p-2 rounded-xl text-primary-light border border-primary/25">
+                    <Sparkles className="h-5 w-5 text-amber-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-serif font-semibold tracking-tight">Create New Request / Engagement</h3>
+                    <p className="text-[10px] text-slate-400 font-medium">Dispatched in real-time to Manohar Business Consulting Portal</p>
+                  </div>
+                </div>
+                <button
+                  id="close-new-request-modal-btn"
+                  type="button"
+                  onClick={() => setShowNewRequestModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Body Form */}
+              <form id="new-request-submission-form" onSubmit={handleSubmitNewRequest} className="p-6 md:p-8 space-y-5">
+                
+                {/* Select Request Type */}
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                    What can Manohar Business Consulting help you with?
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      id="req-type-btn-engagement"
+                      type="button"
+                      onClick={() => setRequestType('engagement')}
+                      className={`flex flex-col items-start p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                        requestType === 'engagement' 
+                          ? 'border-primary bg-primary/[0.02] ring-1 ring-primary' 
+                          : 'border-slate-100 hover:border-slate-300 bg-slate-50/50 hover:bg-white'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-xl mb-3 ${requestType === 'engagement' ? 'bg-primary/10 text-primary' : 'bg-slate-200/55 text-slate-500'}`}>
+                        <Briefcase className="h-4 w-4" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800">New Engagement</span>
+                      <span className="text-[10px] text-slate-500 mt-1 font-normal leading-relaxed text-wrap">Book a new corporate consulting service or client audit.</span>
+                    </button>
+
+                    <button
+                      id="req-type-btn-task"
+                      type="button"
+                      onClick={() => setRequestType('task')}
+                      className={`flex flex-col items-start p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                        requestType === 'task' 
+                          ? 'border-primary bg-primary/[0.02] ring-1 ring-primary' 
+                          : 'border-slate-100 hover:border-slate-300 bg-slate-50/50 hover:bg-white'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-xl mb-3 ${requestType === 'task' ? 'bg-primary/10 text-primary' : 'bg-slate-200/55 text-slate-500'}`}>
+                        <Activity className="h-4 w-4" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800">New Tracker Task</span>
+                      <span className="text-[10px] text-slate-500 mt-1 font-normal leading-relaxed text-wrap">Request regular business operations or statutory filings.</span>
+                    </button>
+
+                    <button
+                      id="req-type-btn-document"
+                      type="button"
+                      onClick={() => setRequestType('document')}
+                      className={`flex flex-col items-start p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                        requestType === 'document' 
+                          ? 'border-primary bg-primary/[0.02] ring-1 ring-primary' 
+                          : 'border-slate-100 hover:border-slate-300 bg-slate-50/50 hover:bg-white'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-xl mb-3 ${requestType === 'document' ? 'bg-primary/10 text-primary' : 'bg-slate-200/55 text-slate-500'}`}>
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800">Upload Verification Paperwork</span>
+                      <span className="text-[10px] text-slate-500 mt-1 font-normal leading-relaxed text-wrap">Submit certificates, ledgers, or business KYC paperwork.</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Title & Category Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">
+                      Subject / Request Title*
+                    </label>
+                    <input
+                      id="input-request-title"
+                      type="text"
+                      required
+                      value={requestTitle}
+                      onChange={(e) => setRequestTitle(e.target.value)}
+                      placeholder={requestType === 'document' ? "e.g. FY 25-26 Board Resolution Draft" : "e.g. Corporate GST Filing May"}
+                      className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-950 font-medium outline-none focus:border-primary transition-colors font-sans"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">
+                      Service Category
+                    </label>
+                    <select
+                      id="select-request-category"
+                      value={requestCategory}
+                      onChange={(e) => setRequestCategory(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium outline-none focus:border-primary transition-colors cursor-pointer"
+                    >
+                      <option value="GST Registration">GST Registration</option>
+                      <option value="GST Monthly Return">GST Monthly Return</option>
+                      <option value="Income Tax Return">Income Tax Return</option>
+                      <option value="ROC Compliance">ROC Compliance / MCA</option>
+                      <option value="Company Incorporation">Company Incorporation</option>
+                      <option value="FEMA & RBI Compliance">FEMA & RBI Compliance</option>
+                      <option value="Audit & Assurance">Audit & Assurance / Ledger Check</option>
+                      <option value="Other Consulting">Other Corporate Advisory</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Request Description */}
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">
+                    Scope of Work & Specific Instructions
+                  </label>
+                  <textarea
+                    id="input-request-description"
+                    value={requestDescription}
+                    onChange={(e) => setRequestDescription(e.target.value)}
+                    placeholder="Specify your deadline, billing conditions, legal facts or statutory criteria for CA Manohar..."
+                    rows={4}
+                    className="w-full bg-slate-50 focus:bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-950 outline-none focus:border-primary transition-all font-sans leading-relaxed"
+                  />
+                </div>
+
+                {/* Attachment Section */}
+                <div className="border border-dashed border-slate-200 rounded-2xl p-4 bg-slate-50/30">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <Paperclip className="h-4 w-4 text-primary" />
+                        <span>Attach Supporting File (Optional)</span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-1 font-normal leading-relaxed">
+                        Max size 15 MB. Files under 800 KB are instantly serialized for robust offline access.
+                      </p>
+                    </div>
+                    <div className="w-full sm:w-auto relative">
+                      <input
+                        id="file-request-attachment"
+                        type="file"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setRequestFile(e.target.files[0]);
+                          }
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <button
+                        id="select-attachment-btn"
+                        type="button"
+                        className="bg-white border border-slate-200 hover:border-primary text-slate-700 hover:text-primary transition-all rounded-xl py-2 px-4 text-xs font-bold w-full uppercase tracking-wider cursor-pointer shadow-sm"
+                      >
+                        {requestFile ? "Change File" : "Choose Draft"}
+                      </button>
+                    </div>
+                  </div>
+                  {requestFile && (
+                    <div className="mt-3 flex items-center justify-between bg-white border border-slate-100 p-2 rounded-xl text-xs text-slate-800">
+                      <span className="font-medium truncate max-w-xs sm:max-w-md">{requestFile.name} ({(requestFile.size / 1024).toFixed(1)} KB)</span>
+                      <button
+                        id="remove-attachment-btn"
+                        type="button"
+                        onClick={() => setRequestFile(null)}
+                        className="text-red-500 hover:text-red-700 font-bold px-1.5 py-0.5 rounded-lg text-[10px] cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submission Progress bar */}
+                {isSubmittingRequest && requestUploadProgress !== null && (
+                  <div id="request-submit-progress" className="w-[100%] bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
+                    <div 
+                      className="bg-primary h-1.5 rounded-full transition-all duration-300" 
+                      style={{ width: `${requestUploadProgress}%` }}
+                    />
+                  </div>
+                )}
+
+                {/* Actions row */}
+                <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                  <button
+                    id="discard-new-request-btn"
+                    type="button"
+                    onClick={() => setShowNewRequestModal(false)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    id="submit-new-request-btn"
+                    type="submit"
+                    disabled={isSubmittingRequest}
+                    className="bg-primary hover:bg-slate-950 text-white font-bold px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmittingRequest ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Dispatching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Submit Request</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </main>
   );
 }
