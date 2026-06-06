@@ -29,6 +29,59 @@
         "isAdmin": { "type": "boolean" }
       },
       "required": ["uid", "email"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "CA service application engagement",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string" },
+        "currentStep": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "title", "status", "createdAt"]
+    },
+    "ClientDocument": {
+      "title": "Client Document",
+      "description": "Metadata for client-facing generated documents and reports",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "url": { "type": "string" },
+        "fileType": { "type": "string" },
+        "size": { "type": "string" },
+        "uploadedAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "name", "url", "uploadedAt"]
+    },
+    "ComplianceFiling": {
+      "title": "Compliance Filing",
+      "description": "Real-time compliance tracker status for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "title": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "dueDate": { "type": "number" },
+        "status": { "type": "string" },
+        "financialYear": { "type": "string" },
+        "period": { "type": "string" },
+        "arn": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "dueDate", "status"]
     }
   },
   "firestore": {
@@ -39,6 +92,18 @@
     "users/{userId}": {
       "schema": "User",
       "description": "User profiles"
+    },
+    "applications/{applicationId}": {
+      "schema": "Application",
+      "description": "Tax and corporate applications status"
+    },
+    "documents/{documentId}": {
+      "schema": "ClientDocument",
+      "description": "Client report files and certificates"
+    },
+    "compliance_filings/{filingId}": {
+      "schema": "ComplianceFiling",
+      "description": "Real-time compliance filing items"
     }
   }
 }
