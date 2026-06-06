@@ -1150,6 +1150,24 @@ Stewardship, Accuracy, Legacy.
     }
   };
 
+  const handleUpdateFilingStatus = async (filingId: string, status: ComplianceFiling['status'], arn?: string) => {
+    try {
+      const updates: Partial<ComplianceFiling> = { status };
+      if (status === 'Filed') {
+        updates.arn = arn || `ARN-${Math.floor(100000 + Math.random() * 900000)}`;
+        updates.filedDate = new Date().toISOString().split('T')[0];
+      } else {
+        updates.arn = "";
+        updates.filedDate = null;
+      }
+      await updateDoc(doc(db, 'compliance_filings', filingId), updates);
+      setFeedback({ message: "Compliance Filing status updated successfully in real-time!", type: 'success' });
+      setTimeout(() => setFeedback(null), 3500);
+    } catch (err: any) {
+      alert("Filing update failed: " + err.message);
+    }
+  };
+
   // Delete operational items
   const handleDeleteItem = async (col: 'applications' | 'documents' | 'compliance_filings', itemId: string) => {
     if (!confirm("Are you absolutely sure you want to remove this client record permanently? This cannot be undone.")) return;
@@ -2006,29 +2024,93 @@ Stewardship, Accuracy, Legacy.
                               <td className="py-4 text-xs font-mono font-medium text-slate-600">
                                 {new Date(filing.dueDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
                               </td>
-                              <td className="py-4">
-                                <span className={`px-2.5 py-1 text-[9px] uppercase font-bold tracking-widest rounded-full border ${getFilingStatusBadge(filing.status)}`}>
-                                  {filing.status}
-                                </span>
+                              <td className="py-4 font-medium text-slate-950">
+                                {isAdmin ? (
+                                  <select
+                                    value={filing.status}
+                                    onChange={(e) => handleUpdateFilingStatus(filing.id, e.target.value as any, filing.arn)}
+                                    className="bg-white border border-slate-200 rounded-lg py-1 px-2 text-[10px] font-bold text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer transition-colors"
+                                  >
+                                    <option value="Upcoming">Upcoming</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Pending Client Action">Action Required</option>
+                                    <option value="Filed">Filed</option>
+                                  </select>
+                                ) : (
+                                  <span className={`px-2.5 py-1 text-[9px] uppercase font-bold tracking-widest rounded-full border ${getFilingStatusBadge(filing.status)}`}>
+                                    {filing.status}
+                                  </span>
+                                )}
                               </td>
                               <td className="py-4 text-right">
                                 {filing.status === 'Filed' ? (
-                                  <div className="flex flex-col items-end">
-                                    <span className="text-emerald-700 text-xs font-bold font-mono tracking-tight flex items-center gap-1">
-                                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                                      <span>Success</span>
-                                    </span>
-                                    <span className="text-[9px] font-mono font-semibold text-slate-400 mt-0.5">{filing.arn || "ARN-GENERATED"}</span>
+                                  <div className="flex flex-col items-end gap-1">
+                                    {isAdmin ? (
+                                      <div className="flex items-center gap-1.5 justify-end">
+                                        <div className="flex flex-col items-end">
+                                          <span className="text-[8px] font-bold text-emerald-700 uppercase tracking-wider">Success (Filed)</span>
+                                          <input
+                                            type="text"
+                                            defaultValue={filing.arn || ""}
+                                            placeholder="Enter ARN"
+                                            onBlur={(e) => {
+                                              if (e.target.value !== filing.arn) {
+                                                handleUpdateFilingStatus(filing.id, 'Filed', e.target.value);
+                                              }
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                handleUpdateFilingStatus(filing.id, 'Filed', (e.target as HTMLInputElement).value);
+                                              }
+                                            }}
+                                            className="w-24 bg-white border border-slate-200 rounded-lg py-0.5 px-1.5 text-[9px] text-right font-mono outline-none focus:border-primary"
+                                          />
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteItem('compliance_filings', filing.id)}
+                                          className="text-slate-400 hover:text-red-650 p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                                          title="Remove return checkout from calendar"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5 animate-pulse" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <span className="text-emerald-700 text-xs font-bold font-mono tracking-tight flex items-center gap-1">
+                                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                          <span>Success</span>
+                                        </span>
+                                        <span className="text-[9px] font-mono font-semibold text-slate-400 mt-0.5">{filing.arn || "ARN-GENERATED"}</span>
+                                      </>
+                                    )}
                                   </div>
                                 ) : (
-                                  <button
-                                    onClick={() => {
-                                      alert("Disclaimer: If supporting tax logs or general ledger registers are pending, compile records and upload the spreadsheet files to Document vaults first so CA can sign off and dispatch.");
-                                    }}
-                                    className="text-[10px] font-bold text-primary hover:text-slate-900 uppercase tracking-widest border border-slate-100 hover:bg-white bg-slate-50/50 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-                                  >
-                                    Prepare
-                                  </button>
+                                  <div className="flex items-center justify-end gap-2">
+                                    {isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteItem('compliance_filings', filing.id)}
+                                        className="text-slate-400 hover:text-red-650 p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                                        title="Remove return checkout from calendar"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        if (isAdmin) {
+                                          const val = prompt("Mark status as Filed? Enter Government ARN reference ID (optional):") || `ARN-${Math.floor(100000 + Math.random() * 900000)}`;
+                                          handleUpdateFilingStatus(filing.id, 'Filed', val);
+                                        } else {
+                                          alert("Disclaimer: If supporting tax logs or general ledger registers are pending, compile records and upload the spreadsheet files to Document vaults first so CA can sign off and dispatch.");
+                                        }
+                                      }}
+                                      className="text-[10px] font-bold text-primary hover:text-slate-900 uppercase tracking-widest border border-slate-100 hover:bg-white bg-slate-50/50 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                                    >
+                                      {isAdmin ? "Mark Filed" : "Prepare"}
+                                    </button>
+                                  </div>
                                 )}
                               </td>
                             </tr>
