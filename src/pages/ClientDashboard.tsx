@@ -211,32 +211,30 @@ export default function ClientDashboard() {
       console.error("Error reading compliance filings: ", error);
     });
 
-    // If admin is logged in, fetch list of active clients securely
+    // If admin is logged in, fetch list of active clients securely in real-time
+    let unsubscribeUsers = () => {};
     if (isAdmin) {
-      const loadClients = async () => {
-        try {
-          const uSnap = await getDocs(collection(db, 'users'));
-          const clientList: { uid: string; email: string; displayName?: string }[] = [];
-          uSnap.forEach((docRef) => {
-            const data = docRef.data();
-            clientList.push({
-              uid: data.uid || docRef.id,
-              email: data.email,
-              displayName: data.displayName
-            });
+      unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const clientList: { uid: string; email: string; displayName?: string }[] = [];
+        snapshot.forEach((docRef) => {
+          const data = docRef.data();
+          clientList.push({
+            uid: data.uid || docRef.id,
+            email: data.email,
+            displayName: data.displayName
           });
-          setClients(clientList);
-        } catch (error) {
-          console.error("Error loading clients list:", error);
-        }
-      };
-      loadClients();
+        });
+        setClients(clientList);
+      }, (error) => {
+        console.error("Error loading clients list securely in real-time: ", error);
+      });
     }
 
     return () => {
       unsubscribeApps();
       unsubscribeDocs();
       unsubscribeFilings();
+      unsubscribeUsers();
     };
   }, [user, isAdmin, selectedClientId]);
 
@@ -685,6 +683,58 @@ Stewardship, Accuracy, Legacy.
     }
   };
 
+  const handleDeleteClient = async () => {
+    if (!selectedClientId) {
+      alert("Please select a client to delete first.");
+      return;
+    }
+    
+    // Safety check: Cannot delete self
+    if (selectedClientId === user?.uid) {
+      alert("Security alert: You cannot delete your own admin/active user profile.");
+      return;
+    }
+
+    const clientEmail = selectedClientEmail || "this client";
+    if (!confirm(`Are you absolutely sure you want to PERMANENTLY delete client profile for "${clientEmail}"?\n\nThis will purge all their tracker records, documents and filings. This action is irreversible.`)) {
+      return;
+    }
+
+    try {
+      setDataLoading(true);
+      
+      // 1. Delete associated applications
+      const appsSnap = await getDocs(query(collection(db, 'applications'), where('userId', '==', selectedClientId)));
+      const appDeletes = appsSnap.docs.map(d => deleteDoc(doc(db, 'applications', d.id)));
+      
+      // 2. Delete associated documents
+      const docsSnap = await getDocs(query(collection(db, 'documents'), where('userId', '==', selectedClientId)));
+      const docDeletes = docsSnap.docs.map(d => deleteDoc(doc(db, 'documents', d.id)));
+      
+      // 3. Delete associated compliance filings
+      const filingsSnap = await getDocs(query(collection(db, 'compliance_filings'), where('userId', '==', selectedClientId)));
+      const filingDeletes = filingsSnap.docs.map(d => deleteDoc(doc(db, 'compliance_filings', d.id)));
+      
+      // Execute all subcollection deletes
+      await Promise.all([...appDeletes, ...docDeletes, ...filingDeletes]);
+
+      // 4. Delete the user document itself
+      await deleteDoc(doc(db, 'users', selectedClientId));
+
+      // Reset selection and emails
+      setSelectedClientId('');
+      setSelectedClientEmail('');
+      
+      setFeedback({ message: "Successfully deleted client profile and purged all associated records from Firestore registers!", type: 'success' });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (e: any) {
+      console.error("Failed to delete client: ", e);
+      alert("Failed to delete client: " + e.message);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
   // Helper sorting and visual mappings
   const getStatusBadge = (status: Application['status']) => {
     const maps = {
@@ -962,7 +1012,7 @@ Stewardship, Accuracy, Legacy.
                 />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
                 <button
                   onClick={async () => {
                     if (!selectedClientEmail) {
@@ -983,10 +1033,19 @@ Stewardship, Accuracy, Legacy.
                       alert("Failed to create stub: " + e.message);
                     }
                   }}
-                  className="w-full bg-primary hover:bg-slate-950 text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wide border border-transparent hover:border-slate-800 transition-all text-center"
+                  className="flex-1 bg-primary hover:bg-slate-900 text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wide border border-transparent hover:border-slate-800 transition-all text-center cursor-pointer"
                 >
                   Create client stub
                 </button>
+                {selectedClientId && selectedClientId !== user?.uid && (
+                  <button
+                    onClick={handleDeleteClient}
+                    className="bg-red-600 hover:bg-red-700 text-white rounded-xl py-3.5 px-4 text-xs font-bold uppercase tracking-wide transition-colors text-center cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Delete client</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
