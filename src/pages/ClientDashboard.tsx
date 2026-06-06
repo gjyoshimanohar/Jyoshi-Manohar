@@ -51,7 +51,12 @@ import {
   LogOut,
   Sparkles,
   Search,
-  ExternalLink
+  ExternalLink,
+  MessageSquare,
+  Send,
+  Paperclip,
+  AlertCircle,
+  FileQuestion
 } from 'lucide-react';
 
 // Pre-defined interfaces
@@ -81,6 +86,7 @@ interface ClientDocument {
   size: string;
   uploadedAt: number;
   category?: string;
+  status?: string;
 }
 
 interface ComplianceFiling {
@@ -95,6 +101,20 @@ interface ComplianceFiling {
   period: string;
   arn?: string;
   filedDate?: string | null;
+}
+
+interface ChatMessage {
+  id: string;
+  clientScopeId: string;
+  senderId: string;
+  senderEmail: string;
+  senderName: string;
+  text: string;
+  timestamp: number;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
+  fileType?: string;
 }
 
 export default function ClientDashboard() {
@@ -122,8 +142,23 @@ export default function ClientDashboard() {
   const [selectedClientEmail, setSelectedClientEmail] = useState<string>('');
 
   // Active Tab/Filter State
-  const [activeTab, setActiveTab] = useState<'applications' | 'documents' | 'compliance' | 'admin'>('applications');
+  const [activeTab, setActiveTab] = useState<'applications' | 'documents' | 'compliance' | 'admin' | 'chat'>('applications');
   const [serviceFilter, setServiceFilter] = useState<string>('All');
+
+  // Real-time Chat States
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
+  const [newChatMessage, setNewChatMessage] = useState('');
+  const [chatFile, setChatFile] = useState<File | null>(null);
+  const [chatFileUploadProgress, setChatFileUploadProgress] = useState<number | null>(null);
+
+  // Document Request states
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [reqDocName, setReqDocName] = useState('');
+  const [reqDocDesc, setReqDocDesc] = useState('');
+  const [reqDocCategory, setReqDocCategory] = useState('Financials');
+  const [uploadingReqDocId, setUploadingReqDocId] = useState<string | null>(null);
+  const [activeReqDocUploadProgress, setActiveReqDocUploadProgress] = useState<number | null>(null);
 
   // Form states for Admin actions
   const [newAppTitle, setNewAppTitle] = useState('');
@@ -241,6 +276,329 @@ export default function ClientDashboard() {
       unsubscribeUsers();
     };
   }, [user, isAdmin, selectedClientId]);
+
+  // Real-time listener for Chat messages
+  useEffect(() => {
+    if (!user) return;
+
+    // Determine the active chat scope ID
+    // If logged in as admin: if a client is selected, listen to that client's chat; otherwise empty.
+    // If regular client: listen to their own user.uid scope.
+    const chatScopeUid = isAdmin ? (selectedClientId || '') : user.uid;
+
+    if (isAdmin && !chatScopeUid) {
+      setChatMessages([]);
+      return;
+    }
+
+    setChatMessagesLoading(true);
+    const chatsQuery = query(
+      collection(db, 'chats'),
+      where('clientScopeId', '==', chatScopeUid),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubscribeChats = onSnapshot(chatsQuery, (snapshot) => {
+      const msgs: ChatMessage[] = [];
+      snapshot.forEach((docRef) => {
+        msgs.push({ id: docRef.id, ...docRef.data() } as ChatMessage);
+      });
+      // Sort client-side to ensure ordering is correct
+      msgs.sort((a, b) => a.timestamp - b.timestamp);
+      setChatMessages(msgs);
+      setChatMessagesLoading(false);
+    }, (error) => {
+      console.warn("Real-time Chat ordered query failed (usually first launch before indices finish). Trying un-ordered fallback:", error);
+      
+      const unorderedChatsQuery = query(
+        collection(db, 'chats'),
+        where('clientScopeId', '==', chatScopeUid)
+      );
+      
+      onSnapshot(unorderedChatsQuery, (snapshot) => {
+        const msgs: ChatMessage[] = [];
+        snapshot.forEach((docRef) => {
+          msgs.push({ id: docRef.id, ...docRef.data() } as ChatMessage);
+        });
+        msgs.sort((a, b) => a.timestamp - b.timestamp);
+        setChatMessages(msgs);
+        setChatMessagesLoading(false);
+      }, (err) => {
+        console.error("Fallback chat loading also failed: ", err);
+        setChatMessagesLoading(false);
+      });
+    });
+
+    return () => {
+      unsubscribeChats();
+    };
+  }, [user, isAdmin, selectedClientId, activeTab]);
+
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const chatScopeUid = isAdmin ? selectedClientId : user.uid;
+    if (!chatScopeUid) {
+      alert("Please select a target client first to deploy messages.");
+      return;
+    }
+
+    if (!newChatMessage.trim() && !chatFile) {
+      return;
+    }
+
+    try {
+      setChatFileUploadProgress(10);
+      let fileUrl = '';
+      let fileName = '';
+      let fileSize = '';
+      let fileTypeStr = '';
+
+      if (chatFile) {
+        fileName = chatFile.name;
+        if (chatFile.size > 1024 * 1024) {
+          fileSize = (chatFile.size / (1024 * 1024)).toFixed(2) + " MB";
+        } else {
+          fileSize = (chatFile.size / 1024).toFixed(1) + " KB";
+        }
+        fileTypeStr = chatFile.name.split('.').pop()?.toUpperCase() || 'FILE';
+
+        // Hybrid upload strategy for Chat files
+        if (chatFile.size <= 800 * 1024) {
+          setChatFileUploadProgress(40);
+          const base64Url = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(chatFile);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
+          });
+          fileUrl = base64Url;
+          setChatFileUploadProgress(100);
+        } else {
+          setChatFileUploadProgress(50);
+          const storagePath = `chats/${chatScopeUid}/${Date.now()}_${chatFile.name}`;
+          const storageRef = ref(storage, storagePath);
+          const uploadTask = uploadBytesResumable(storageRef, chatFile);
+
+          const uploadedUrl = await new Promise<string>((resolve, reject) => {
+            uploadTask.on('state_changed',
+              (snapshot) => {
+                const prog = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                setChatFileUploadProgress(prog);
+              },
+              (err) => reject(err),
+              async () => {
+                const dlUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(dlUrl);
+              }
+            );
+          });
+          fileUrl = uploadedUrl;
+        }
+
+        // Auto catalog uploaded document into Document Vault collection
+        try {
+          const parentUserEmail = clients.find(c => c.uid === chatScopeUid)?.email || selectedClientEmail || (isAdmin ? 'client@partner.com' : user.email) || '';
+          await addDoc(collection(db, 'documents'), {
+            userId: chatScopeUid,
+            userEmail: parentUserEmail,
+            name: fileName,
+            description: `File uploaded via direct consultation chat on ${new Date().toLocaleDateString()}`,
+            url: fileUrl,
+            fileType: fileTypeStr,
+            size: fileSize,
+            uploadedAt: Date.now(),
+            category: "Consultation"
+          });
+        } catch (catErr) {
+          console.error("Auto registration of chat file in Document Vault failed:", catErr);
+        }
+      }
+
+      setChatFileUploadProgress(90);
+
+      const senderName = isAdmin 
+        ? "Manohar Business Consulting Panel (Admin)" 
+        : (user.displayName || user.email?.split('@')[0] || "Client Desk");
+
+      const msgObj: Omit<ChatMessage, 'id'> = {
+        clientScopeId: chatScopeUid,
+        senderId: user.uid,
+        senderEmail: user.email || '',
+        senderName: senderName,
+        text: newChatMessage.trim(),
+        timestamp: Date.now()
+      };
+
+      if (fileUrl) {
+        msgObj.fileUrl = fileUrl;
+        msgObj.fileName = fileName;
+        msgObj.fileSize = fileSize;
+        msgObj.fileType = fileTypeStr;
+      }
+
+      await addDoc(collection(db, 'chats'), msgObj);
+
+      // Reset
+      setNewChatMessage('');
+      setChatFile(null);
+    } catch (err: any) {
+      console.error("Failed to send message: ", err);
+      alert("Error sending message: " + err.message);
+    } finally {
+      setChatFileUploadProgress(null);
+    }
+  };
+
+  const handleSendDocumentRequest = async () => {
+    if (!user) return;
+    const chatScopeUid = selectedClientId;
+    if (!chatScopeUid) {
+      alert("Please select a target client first to dispatch a document request.");
+      return;
+    }
+    if (!reqDocName.trim()) {
+      alert("Please enter a Document Name to identify what is requested.");
+      return;
+    }
+
+    try {
+      setDataLoading(true);
+      const parentUserEmail = clients.find(c => c.uid === chatScopeUid)?.email || selectedClientEmail || "client@manohar.com";
+      
+      const docObj: Omit<ClientDocument, 'id'> = {
+        userId: chatScopeUid,
+        userEmail: parentUserEmail,
+        name: reqDocName,
+        description: reqDocDesc || "Official statutory file upload required by Manohar Consultants.",
+        url: "",
+        fileType: "PENDING",
+        size: "0 KB",
+        uploadedAt: Date.now(),
+        category: reqDocCategory,
+        status: "requested"
+      };
+
+      await addDoc(collection(db, 'documents'), docObj);
+
+      const senderName = "Manohar Business Consulting Panel (Admin)";
+      const reqMessageText = `📢 DOCUMENT REQUESTED: [${reqDocName}] (${reqDocCategory})\nInstructions: ${reqDocDesc || "Please upload the requested paperwork."}`;
+
+      const chatMsgObj: Omit<ChatMessage, 'id'> = {
+        clientScopeId: chatScopeUid,
+        senderId: user.uid,
+        senderEmail: user.email || '',
+        senderName: senderName,
+        text: reqMessageText,
+        timestamp: Date.now()
+      };
+
+      await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      setFeedback({
+        message: `Secure Document Request published for "${reqDocName}". Portal notified.`,
+        type: 'success'
+      });
+      setTimeout(() => setFeedback(null), 4000);
+
+      setReqDocName('');
+      setReqDocDesc('');
+      setShowRequestForm(false);
+    } catch (err: any) {
+      console.error("Failed to request document: ", err);
+      alert("Request failed: " + err.message);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  const handleUploadRequestedDocument = async (reqDoc: ClientDocument, file: File) => {
+    if (!user) return;
+    try {
+      setUploadingReqDocId(reqDoc.id);
+      setActiveReqDocUploadProgress(10);
+
+      let finalUrl = '';
+      let finalSize = '';
+      if (file.size > 1024 * 1024) {
+        finalSize = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+      } else {
+        finalSize = (file.size / 1024).toFixed(1) + " KB";
+      }
+      const fileTypeStr = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+
+      // Hybrid Upload strategy: (same as handleCreateDoc)
+      if (file.size <= 800 * 1024) {
+        setActiveReqDocUploadProgress(40);
+        const base64Url = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = error => reject(error);
+        });
+        finalUrl = base64Url;
+        setActiveReqDocUploadProgress(100);
+      } else {
+        setActiveReqDocUploadProgress(50);
+        const storagePath = `documents/${reqDoc.userId}/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        const uploadedUrl = await new Promise<string>((resolve, reject) => {
+          uploadTask.on('state_changed',
+            (snapshot) => {
+              const prog = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+              setActiveReqDocUploadProgress(prog);
+            },
+            (err) => reject(err),
+            async () => {
+              const dlUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(dlUrl);
+            }
+          );
+        });
+        finalUrl = uploadedUrl;
+      }
+
+      const updatedDocPayload = {
+        url: finalUrl,
+        fileType: fileTypeStr,
+        size: finalSize,
+        uploadedAt: Date.now(),
+        status: 'uploaded' as any
+      };
+
+      await updateDoc(doc(db, 'documents', reqDoc.id), updatedDocPayload);
+
+      const senderName = user.displayName || user.email?.split('@')[0] || "Client Desk";
+      const fulfilledMessageText = `✅ FULFILLED DOCUMENT REQ: Loaded file for [${reqDoc.name}].\nFile Name: ${file.name} (${finalSize})`;
+
+      const chatMsgObj: Omit<ChatMessage, 'id'> = {
+        clientScopeId: reqDoc.userId,
+        senderId: user.uid,
+        senderEmail: user.email || '',
+        senderName: senderName,
+        text: fulfilledMessageText,
+        timestamp: Date.now()
+      };
+
+      await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      setFeedback({
+        message: `"${reqDoc.name}" has been successfully uploaded and delivered!`,
+        type: 'success'
+      });
+      setTimeout(() => setFeedback(null), 4000);
+
+    } catch (err: any) {
+      console.error("Fulfill upload failed: ", err);
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploadingReqDocId(null);
+      setActiveReqDocUploadProgress(null);
+    }
+  };
 
   // Seeding engine: Auto seed realistic CA dashboard data on first login so users see immediate real-time results
   const ensureDataIsSeeded = async (activeUser: User) => {
@@ -1228,6 +1586,23 @@ Stewardship, Accuracy, Legacy.
               </span>
             </button>
 
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                activeTab === 'chat'
+                  ? 'bg-primary text-white border-primary shadow-md'
+                  : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <MessageSquare className="h-4 w-4 shrink-0" />
+                <span className="text-xs font-bold uppercase tracking-wider">Consultation Chat</span>
+              </div>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'chat' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                {chatMessages.length}
+              </span>
+            </button>
+
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('admin')}
@@ -1389,74 +1764,175 @@ Stewardship, Accuracy, Legacy.
             )}
 
             {/* DOCUMENT VAULT BOARD (DOWNLOAD CENTER) */}
-            {activeTab === 'documents' && (
-              <div className="space-y-6">
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-serif font-medium text-slate-900">Document Command Central</h2>
-                    <p className="text-xs text-slate-500 mt-1">Official MCA filings, Income tax acknowledgements, and certification letters.</p>
-                  </div>
-                  <div className="flex bg-slate-100 rounded-xl p-1 w-max border self-start">
-                    <button onClick={() => setServiceFilter('All')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${serviceFilter === 'All' ? 'bg-white text-primary shadow-sm' : 'text-slate-600'}`}>All</button>
-                    <button onClick={() => setServiceFilter('Certificates')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${serviceFilter === 'Certificates' ? 'bg-white text-primary shadow-sm' : 'text-slate-600'}`}>Certificates</button>
-                    <button onClick={() => setServiceFilter('Financials')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${serviceFilter === 'Financials' ? 'bg-white text-primary shadow-sm' : 'text-slate-600'}`}>Financials</button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {documents.length === 0 ? (
-                    <div className="col-span-full bg-white rounded-3xl p-16 text-center border border-slate-100 shadow-sm">
-                      <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                      <h3 className="text-sm font-bold text-slate-700">Vault Empty</h3>
-                      <p className="text-xs text-slate-500 mt-1">Certified audit copies will appear here once drafted by CA Manohar.</p>
-                    </div>
-                  ) : (
-                    documents
-                      .filter(d => serviceFilter === 'All' || (d.category && d.category.toLowerCase().includes(serviceFilter.toLowerCase().substring(0, 5))))
-                      .map((docItem) => (
-                        <motion.div
-                          key={docItem.id}
-                          initial={{ opacity: 0, scale: 0.98 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
-                        >
+            {activeTab === 'documents' && (() => {
+              const requestedDocs = documents.filter(d => d.status === 'requested' || d.fileType === 'PENDING');
+              const regularDocs = documents.filter(d => d.status !== 'requested' && d.fileType !== 'PENDING');
+              
+              return (
+                <div className="space-y-6">
+                  {/* PENDING DOCUMENT REQUESTS IF ANY */}
+                  {requestedDocs.length > 0 && (
+                    <div className="bg-amber-50/40 border border-amber-200/50 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/30 pb-4 mb-2">
+                        <div className="flex items-start gap-2.5">
+                          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                           <div>
-                            <div className="flex justify-between items-start mb-3">
-                              <span className="text-[9px] font-bold bg-primary/5 border border-primary/10 text-primary px-2.5 py-1 rounded-full uppercase tracking-widest">{docItem.fileType || "PDF"}</span>
-                              <span className="text-[10px] font-mono text-slate-500 font-semibold">{docItem.size}</span>
-                            </div>
-                            <h3 className="text-sm font-bold text-slate-900 tracking-tight leading-snug line-clamp-1">{docItem.name}</h3>
-                            <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed min-h-[40px] line-clamp-2">{docItem.description}</p>
-                            <div className="text-[10px] text-slate-400 mt-3 font-semibold pb-4">
-                              Delivery: {new Date(docItem.uploadedAt).toLocaleDateString()}
-                            </div>
+                            <h3 className="text-sm font-bold text-amber-900 tracking-tight">Outstanding Official Paperwork Requests</h3>
+                            <p className="text-[11px] text-amber-700 font-medium">Please upload the requested digital files to verify and complete statutory filings.</p>
                           </div>
+                        </div>
+                        <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full border border-amber-250 shrink-0">
+                          {requestedDocs.length} PENDING ACTION{requestedDocs.length > 1 ? 'S' : ''}
+                        </span>
+                      </div>
 
-                          <div className="border-t border-slate-50 pt-4 flex gap-2 justify-between items-center mt-3">
-                            <button
-                              onClick={() => triggerDocumentDownload(docItem)}
-                              className="bg-primary hover:bg-slate-950 text-white w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm focus:ring-2 focus:ring-primary inline-flex transition-colors cursor-pointer"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              <span>Download Document</span>
-                            </button>
-                            
-                            {isAdmin && (
-                              <button
-                                onClick={() => handleDeleteItem('documents', docItem.id)}
-                                className="bg-red-50 border border-red-200 text-red-600 p-2.5 rounded-xl hover:bg-red-100 transition-colors cursor-pointer"
-                                title="Delete document"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {requestedDocs.map((reqDoc) => {
+                          const isUploadingThisItem = uploadingReqDocId === reqDoc.id;
+                          return (
+                            <div key={reqDoc.id} className="bg-white border border-amber-200/60 rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between hover:border-amber-400/85 transition-all">
+                              <div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[9px] font-bold bg-amber-155 border border-amber-200 text-amber-900 px-2.5 py-1 rounded-full uppercase tracking-widest font-mono">
+                                    {reqDoc.category || "REQUIRED"}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-semibold">{new Date(reqDoc.uploadedAt).toLocaleDateString()}</span>
+                                </div>
+                                <h3 className="text-sm font-bold text-slate-900 mt-3 flex items-center gap-1.5 leading-snug">
+                                  <FileQuestion className="h-4.5 w-4.5 text-amber-600 shrink-0" />
+                                  <span>{reqDoc.name}</span>
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">{reqDoc.description}</p>
+                              </div>
+
+                              <div className="pt-2">
+                                {isAdmin ? (
+                                  <div className="bg-amber-50/50 rounded-xl p-3 border border-amber-100 text-center">
+                                    <p className="text-[10px] text-amber-800 font-bold flex items-center justify-center gap-1">
+                                      <Clock className="h-3 w-3.5 animate-pulse text-amber-600 animate-duration-1000" />
+                                      <span>Awaiting Client Upload</span>
+                                    </p>
+                                    <p className="text-[9px] text-amber-600 mt-0.5">Admin remains on stand-by until client delivers paperwork</p>
+                                  </div>
+                                ) : (
+                                  <div className="bg-slate-50 hover:bg-slate-100/70 border border-dashed border-slate-200 rounded-xl p-3.5 text-center relative flex flex-col items-center justify-center cursor-pointer transition-all">
+                                    <input
+                                      type="file"
+                                      disabled={isUploadingThisItem || activeReqDocUploadProgress !== null}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0] || null;
+                                        if (file) {
+                                          handleUploadRequestedDocument(reqDoc, file);
+                                        }
+                                      }}
+                                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-15"
+                                    />
+                                    <Upload className="h-4.5 w-4.5 text-primary mb-1 mt-0.5" />
+                                    <p className="text-[10px] font-bold text-slate-700">Attach and Deliver File</p>
+                                    <p className="text-[8px] text-slate-400 font-mono">PDF, EXCEL, IMAGES, CSV UP TO 10MB</p>
+                                  </div>
+                                )}
+
+                                {isUploadingThisItem && activeReqDocUploadProgress !== null && (
+                                  <div className="mt-2 text-left space-y-1">
+                                    <div className="flex justify-between text-[9px] font-bold text-primary font-mono">
+                                      <span>Delivering document securely...</span>
+                                      <span>{activeReqDocUploadProgress}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 rounded-full h-1">
+                                      <div className="bg-primary h-1 rounded-full transition-all" style={{ width: `${activeReqDocUploadProgress}%` }}></div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {isAdmin && (
+                                  <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteItem('documents', reqDoc.id)}
+                                      className="p-1 px-2 border border-rose-100 rounded-lg hover:bg-rose-50 text-[10px] text-rose-600 font-bold flex items-center gap-1 cursor-pointer transition-all"
+                                      title="Cancel Document Request"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                      <span>Cancel Request</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
+
+                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
+                    <div>
+                      <h2 className="text-lg font-serif font-medium text-slate-900">Document Command Central</h2>
+                      <p className="text-xs text-slate-500 mt-1">Official MCA filings, Income tax acknowledgements, and certification letters.</p>
+                    </div>
+                    <div className="flex bg-slate-100 rounded-xl p-1 w-max border self-start">
+                      <button onClick={() => setServiceFilter('All')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${serviceFilter === 'All' ? 'bg-white text-primary shadow-sm' : 'text-slate-600'}`}>All</button>
+                      <button onClick={() => setServiceFilter('Certificates')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${serviceFilter === 'Certificates' ? 'bg-white text-primary shadow-sm' : 'text-slate-600'}`}>Certificates</button>
+                      <button onClick={() => setServiceFilter('Financials')} className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${serviceFilter === 'Financials' ? 'bg-white text-primary shadow-sm' : 'text-slate-600'}`}>Financials</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {regularDocs.length === 0 ? (
+                      <div className="col-span-full bg-white rounded-3xl p-16 text-center border border-slate-100 shadow-sm">
+                        <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                        <h3 className="text-sm font-bold text-slate-700">Vault Empty</h3>
+                        <p className="text-xs text-slate-500 mt-1">Certified audit copies will appear here once drafted by CA Manohar.</p>
+                      </div>
+                    ) : (
+                      regularDocs
+                        .filter(d => serviceFilter === 'All' || (d.category && d.category.toLowerCase().includes(serviceFilter.toLowerCase().substring(0, 5))))
+                        .map((docItem) => (
+                          <motion.div
+                            key={docItem.id}
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
+                          >
+                            <div>
+                              <div className="flex justify-between items-start mb-3">
+                                <span className="text-[9px] font-bold bg-primary/5 border border-primary/10 text-primary px-2.5 py-1 rounded-full uppercase tracking-widest">{docItem.fileType || "PDF"}</span>
+                                <span className="text-[10px] font-mono text-slate-500 font-semibold">{docItem.size}</span>
+                              </div>
+                              <h3 className="text-sm font-bold text-slate-900 tracking-tight leading-snug line-clamp-1">{docItem.name}</h3>
+                              <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed min-h-[40px] line-clamp-2">{docItem.description}</p>
+                              <div className="text-[10px] text-slate-400 mt-3 font-semibold pb-4">
+                                Delivery: {new Date(docItem.uploadedAt).toLocaleDateString()}
+                              </div>
+                            </div>
+
+                            <div className="border-t border-slate-50 pt-4 flex gap-2 justify-between items-center mt-3">
+                              <button
+                                onClick={() => triggerDocumentDownload(docItem)}
+                                className="bg-primary hover:bg-slate-950 text-white w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm focus:ring-2 focus:ring-primary inline-flex transition-colors cursor-pointer"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                <span>Download Document</span>
+                              </button>
+                              
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleDeleteItem('documents', docItem.id)}
+                                  className="bg-red-50 border border-red-200 text-red-600 p-2.5 rounded-xl hover:bg-red-100 transition-colors cursor-pointer"
+                                  title="Delete document"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </motion.div>
+                        ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* COMPLIANCE CHRONOLOGY TRACKER */}
             {activeTab === 'compliance' && (
@@ -1560,6 +2036,355 @@ Stewardship, Accuracy, Legacy.
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CONSULTATION & QUERY DESK CHAT FLOOD */}
+            {activeTab === 'chat' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6 mb-6">
+                    <div>
+                      <h2 className="text-xl font-serif font-bold text-slate-950 flex items-center gap-2">
+                        <MessageSquare className="h-5 w-5 text-primary" />
+                        <span>Consultation & Direct Query Desk</span>
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                        Real-time chat line for regulatory inquiries, structural advice, and direct document uploads.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                        {isAdmin ? "Admin Desk Active" : "Manohar CA Support Live"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    {/* If Admin, show Client Selection Sidebar on left */}
+                    {isAdmin && (
+                      <div className="lg:col-span-1 border-r border-slate-100 pr-0 lg:pr-6 space-y-4">
+                        <h3 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
+                          <UserIcon className="h-3 w-3" />
+                          <span>Active Threads ({clients.length})</span>
+                        </h3>
+                        <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-2">
+                          {clients.map((c) => {
+                            const isActive = selectedClientId === c.uid;
+                            return (
+                              <button
+                                key={c.uid}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClientId(c.uid);
+                                  setSelectedClientEmail(c.email);
+                                }}
+                                className={`w-full text-left p-3 rounded-xl transition-all border ${
+                                  isActive
+                                    ? 'bg-primary text-white border-primary shadow-sm'
+                                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-100'
+                                }`}
+                              >
+                                <p className="text-xs font-bold truncate">
+                                  {c.displayName || c.email?.split('@')[0] || "Client"}
+                                </p>
+                                <p className={`text-[10px] truncate ${isActive ? 'text-slate-200' : 'text-slate-400'} mt-0.5`}>
+                                  {c.email}
+                                </p>
+                              </button>
+                            );
+                          })}
+                          {clients.length === 0 && (
+                            <p className="text-[11px] text-slate-400 italic">No registered clients found.</p>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-normal">
+                          To create a new client thread, use the *Create client stub* tool in the top Admin Control Room.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Message board container */}
+                    <div className={`${isAdmin ? 'lg:col-span-3' : 'lg:col-span-4'} flex flex-col min-h-[450px]`}>
+                      
+                      {/* Active Consultation Header */}
+                      <div className="bg-slate-50 rounded-2xl p-4 mb-4 border border-slate-100/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            Active Conversation Scope
+                          </p>
+                          <h4 className="text-xs font-bold text-slate-900 mt-1">
+                            {isAdmin ? (
+                              selectedClientId ? (
+                                <span className="flex items-center gap-1.5 text-primary">
+                                  <span>{selectedClientEmail}</span>
+                                  <span className="text-[10px] font-mono text-slate-400">({selectedClientId})</span>
+                                </span>
+                              ) : (
+                                <span className="text-amber-600">No client selected. Please select a client thread.</span>
+                              )
+                            ) : (
+                              <span className="text-slate-900">Manohar Wealth Private Advisory Panel (Admin Line)</span>
+                            )}
+                          </h4>
+                        </div>
+                        {isAdmin && selectedClientId ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowRequestForm(!showRequestForm)}
+                            className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl py-2 px-3.5 text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shrink-0"
+                          >
+                            <FileQuestion className="h-3.5 w-3.5" />
+                            <span>{showRequestForm ? "Close Form" : "Request Document"}</span>
+                          </button>
+                        ) : !isAdmin ? (
+                          <div className="bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                            <span className="text-[10px] text-slate-500 font-medium">Recipient Desk: Administrator</span>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {/* Messages Listing */}
+                      <div className="flex-1 border border-slate-100 rounded-2xl p-4 bg-slate-50/35 overflow-y-auto max-h-[350px] min-h-[250px] space-y-4 flex flex-col">
+                        {chatMessagesLoading ? (
+                          <div className="flex flex-col items-center justify-center py-10 space-y-2 m-auto">
+                            <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                            <p className="text-xs text-slate-500">Retrieving secure chat vault transcript...</p>
+                          </div>
+                        ) : chatMessages.length === 0 ? (
+                          <div className="text-center py-12 m-auto max-w-sm">
+                            <MessageSquare className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                            <p className="text-xs font-bold text-slate-700">No messages in this consulting thread yet</p>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              {isAdmin
+                                ? "Start the dialogue by dropping structural advice, pending document requests, or query letters to this client scope."
+                                : "Welcome to Manohar consultation portal! Submit your structural queries, audit explanations, or drag and drop certified papers here directly."}
+                            </p>
+                          </div>
+                        ) : (
+                          chatMessages.map((msg) => {
+                            const isMyMessage = msg.senderId === user.uid;
+                            return (
+                              <div
+                                key={msg.id}
+                                className={`flex flex-col max-w-[85%] ${
+                                  isMyMessage ? 'self-end items-end' : 'self-start items-start'
+                                }`}
+                              >
+                                {/* Participant tag */}
+                                <span className="text-[9px] text-slate-400 font-semibold mb-1 opacity-80 px-1">
+                                  {msg.senderName} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+
+                                {/* Speech bubble */}
+                                <div
+                                  className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed ${
+                                    isMyMessage
+                                      ? 'bg-primary text-white rounded-tr-none shadow-sm'
+                                      : 'bg-white border border-slate-200/80 text-slate-900 rounded-tl-none shadow-sm'
+                                  }`}
+                                >
+                                  {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
+
+                                  {/* File attachment */}
+                                  {msg.fileUrl && (
+                                    <div className={`mt-3 p-3 rounded-xl flex items-center justify-between gap-4 border overflow-hidden ${
+                                      isMyMessage 
+                                        ? 'bg-slate-950/15 border-white/10 text-white' 
+                                        : 'bg-slate-50 border-slate-200 text-slate-800'
+                                    }`}>
+                                      <div className="flex items-center gap-2.5 truncate">
+                                        <FileText className={`h-4.5 w-4.5 shrink-0 ${isMyMessage ? 'text-slate-100' : 'text-primary'}`} />
+                                        <div className="truncate text-left">
+                                          <p className="text-[11px] font-bold truncate max-w-[150px] sm:max-w-[220px]">
+                                            {msg.fileName}
+                                          </p>
+                                          <p className={`text-[9px] mt-0.5 font-semibold ${isMyMessage ? 'text-slate-300' : 'text-slate-400'}`}>
+                                            {msg.fileType || 'FILE'} • {msg.fileSize || 'Unknown Size'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <a
+                                        href={msg.fileUrl}
+                                        download={msg.fileName}
+                                        target="_blank"
+                                        referrerPolicy="no-referrer"
+                                        rel="noopener noreferrer"
+                                        className={`p-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors shrink-0 flex items-center gap-1 ${
+                                          isMyMessage
+                                            ? 'bg-white text-slate-950 hover:bg-slate-100'
+                                            : 'bg-primary text-white hover:bg-slate-900'
+                                        }`}
+                                      >
+                                        <Download className="h-3 w-3" />
+                                        <span>Download</span>
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Action inputs controller */}
+                      <form onSubmit={handleSendChatMessage} className="mt-4 space-y-2">
+                        
+                        {showRequestForm && isAdmin && selectedClientId && (
+                          <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 space-y-3 mb-2 text-left shadow-sm">
+                            <div className="flex justify-between items-center pb-2 border-b border-amber-200/30">
+                              <h5 className="text-[10px] font-bold text-amber-800 uppercase tracking-widest flex items-center gap-1.5 font-mono">
+                                <FileQuestion className="h-4 w-4" />
+                                <span>Dispatch Official Document Request</span>
+                              </h5>
+                              <button
+                                type="button"
+                                onClick={() => setShowRequestForm(false)}
+                                className="text-[10px] text-amber-700 hover:underline font-bold cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Document Name*</label>
+                                <input
+                                  type="text"
+                                  value={reqDocName}
+                                  onChange={(e) => setReqDocName(e.target.value)}
+                                  placeholder="e.g. Audit Ledger FY26"
+                                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-950 font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Vault Category</label>
+                                <select
+                                  value={reqDocCategory}
+                                  onChange={(e) => setReqDocCategory(e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-950 font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                                >
+                                  <option value="Certificates">Certificates</option>
+                                  <option value="Financials">Financials</option>
+                                  <option value="Audit Reports">Audit Reports</option>
+                                  <option value="Tax Filing">Tax Filing</option>
+                                  <option value="KYC Verification">KYC Verification</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Instructions for Client</label>
+                                <input
+                                  type="text"
+                                  value={reqDocDesc}
+                                  onChange={(e) => setReqDocDesc(e.target.value)}
+                                  placeholder="Upload signed PDF copies"
+                                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-950 font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="pt-1 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={handleSendDocumentRequest}
+                                className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl py-2 px-4 text-xs font-bold uppercase tracking-widest transition-transform active:scale-95 cursor-pointer shadow-sm"
+                              >
+                                Publish Request & Log in Chat
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* File attachment preview indicator */}
+                        {chatFile && (
+                          <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <FileText className="h-4 w-4 text-amber-500 shrink-0" />
+                              <div className="truncate text-left">
+                                <p className="text-[11px] font-bold text-slate-900 truncate max-w-[250px] sm:max-w-[400px]">
+                                  {chatFile.name}
+                                </p>
+                                <p className="text-[9px] text-slate-400 mt-0.5 font-semibold">
+                                  Ready to send in chat ({(chatFile.size/1024).toFixed(1)} KB)
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setChatFile(null)}
+                              className="text-[10px] font-bold text-red-500 hover:underline px-2 cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Input field and action buttons */}
+                        <div className="flex items-center gap-2">
+                          
+                          {/* File input trigger button */}
+                          <div className="relative shrink-0">
+                            <input
+                              type="file"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setChatFile(file);
+                              }}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-15"
+                            />
+                            <button
+                              type="button"
+                              className="p-3 border border-slate-200 hover:border-primary rounded-xl text-slate-400 hover:text-primary transition-colors cursor-pointer bg-white"
+                              title="Attach filing document, receipt or sheet"
+                            >
+                              <Paperclip className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {/* Text input */}
+                          <input
+                            type="text"
+                            value={newChatMessage}
+                            onChange={(e) => setNewChatMessage(e.target.value)}
+                            placeholder={
+                              isAdmin && !selectedClientId 
+                                ? "Choose a client thread from left first..." 
+                                : "Submit legal query details, respond to raise, or type messages..."
+                            }
+                            disabled={isAdmin && !selectedClientId}
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-950 font-medium outline-none focus:border-primary focus:bg-white transition-all disabled:opacity-50"
+                          />
+
+                          {/* Submit button */}
+                          <button
+                            type="submit"
+                            disabled={chatFileUploadProgress !== null || (isAdmin && !selectedClientId) || (!newChatMessage.trim() && !chatFile)}
+                            className={`p-3 rounded-xl text-white font-bold transition-all flex items-center justify-center shrink-0 shadow-md cursor-pointer ${
+                              chatFileUploadProgress !== null || (isAdmin && !selectedClientId) || (!newChatMessage.trim() && !chatFile)
+                                ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                                : 'bg-primary hover:bg-slate-950 hover:-translate-y-0.5'
+                            }`}
+                          >
+                            {chatFileUploadProgress !== null ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Send className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Upload progress text */}
+                        {chatFileUploadProgress !== null && (
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold px-1">
+                            <span>Optimizing media upload stream...</span>
+                            <span>{chatFileUploadProgress}%</span>
+                          </div>
+                        )}
+                      </form>
+
+                    </div>
                   </div>
                 </div>
               </div>

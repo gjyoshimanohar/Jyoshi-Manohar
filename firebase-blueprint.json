@@ -82,6 +82,25 @@
         "arn": { "type": "string" }
       },
       "required": ["id", "userId", "title", "dueDate", "status"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "Message exchanged between admin and client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientScopeId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderEmail": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "fileType": { "type": "string" }
+      },
+      "required": ["clientScopeId", "senderId", "senderEmail", "text", "timestamp"]
     }
   },
   "firestore": {
@@ -104,6 +123,10 @@
     "compliance_filings/{filingId}": {
       "schema": "ComplianceFiling",
       "description": "Real-time compliance filing items"
+    },
+    "chats/{chatId}": {
+      "schema": "ChatMessage",
+      "description": "Exchanged message entries between consulting agents"
     }
   }
 }
