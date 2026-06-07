@@ -60,7 +60,9 @@ import {
   Edit2,
   X,
   XCircle,
-  Save
+  Save,
+  Bell,
+  Check
 } from 'lucide-react';
 
 // Pre-defined interfaces
@@ -136,6 +138,18 @@ interface ClientRequest {
   fileType?: string;
   createdAt: number;
   status: 'pending' | 'accepted' | 'declined';
+  declineReason?: string;
+}
+
+interface PortalNotification {
+  id: string;
+  userId: string;
+  userEmail: string;
+  title: string;
+  message: string;
+  createdAt: number;
+  read: boolean;
+  type: 'request' | 'document' | 'general' | 'chat';
 }
 
 export default function ClientDashboard() {
@@ -156,6 +170,8 @@ export default function ClientDashboard() {
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
   const [complianceFilings, setComplianceFilings] = useState<ComplianceFiling[]>([]);
   const [clientRequests, setClientRequests] = useState<ClientRequest[]>([]);
+  const [notifications, setNotifications] = useState<PortalNotification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
 
   // Admin and Client Selector (for Admin to view specific client data)
@@ -320,6 +336,25 @@ export default function ClientDashboard() {
       console.error("Error reading client requests: ", error);
     });
 
+    // Real-time notifications listener
+    const notifsQuery = isAdmin
+      ? query(collection(db, 'notifications'), where('userId', '==', 'admin'))
+      : query(collection(db, 'notifications'), where('userId', '==', user.uid));
+
+    const unsubscribeNotifs = onSnapshot(notifsQuery, (snapshot) => {
+      const list: PortalNotification[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        if (data && !data.read) {
+          list.push({ id: d.id, ...data } as PortalNotification);
+        }
+      });
+      list.sort((a, b) => b.createdAt - a.createdAt);
+      setNotifications(list);
+    }, (error) => {
+      console.error("Error reading notifications: ", error);
+    });
+
     // If admin is logged in, fetch list of active clients securely in real-time
     let unsubscribeUsers = () => {};
     if (isAdmin) {
@@ -345,6 +380,7 @@ export default function ClientDashboard() {
       unsubscribeFilings();
       unsubscribeUsers();
       unsubscribeRequests();
+      unsubscribeNotifs();
     };
   }, [user, isAdmin, selectedClientId]);
 
@@ -511,6 +547,28 @@ export default function ClientDashboard() {
 
       await addDoc(collection(db, 'chats'), msgObj);
 
+      // Trigger real-time notification
+      try {
+        const notifTitle = isAdmin ? "New Message from CA Admin" : `New Chat Message from ${senderName}`;
+        const notifDestId = isAdmin ? chatScopeUid : 'admin';
+        const notifDestEmail = isAdmin ? (selectedClientEmail || '') : 'gjyoshimanohar@gmail.com';
+        const truncatedMessage = newChatMessage.trim() 
+          ? (newChatMessage.trim().substring(0, 80) + (newChatMessage.trim().length > 80 ? "..." : "")) 
+          : `Sent an attachment: ${fileName || 'file'}`;
+
+        await addDoc(collection(db, 'notifications'), {
+          userId: notifDestId,
+          userEmail: notifDestEmail,
+          title: notifTitle,
+          message: truncatedMessage,
+          createdAt: Date.now(),
+          read: false,
+          type: 'chat'
+        });
+      } catch (notifErr) {
+        console.error("Failed to route notification alert for direct chat message:", notifErr);
+      }
+
       // Reset
       setNewChatMessage('');
       setChatFile(null);
@@ -566,6 +624,21 @@ export default function ClientDashboard() {
       };
 
       await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      // Trigger client notification
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: chatScopeUid,
+          userEmail: parentUserEmail,
+          title: "New Document Requested",
+          message: `CA Admin has requested: [${reqDocName}] (${reqDocCategory})`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'request'
+        });
+      } catch (notifErr) {
+        console.error("Failed to route notification alert for document request:", notifErr);
+      }
 
       setFeedback({
         message: `Secure Document Request published for "${reqDocName}". Portal notified.`,
@@ -655,6 +728,21 @@ export default function ClientDashboard() {
       };
 
       await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      // Trigger admin notification on document upload fulfillment
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: 'admin',
+          userEmail: 'gjyoshimanohar@gmail.com',
+          title: "Document Request Fulfilled",
+          message: `${senderName} completed upload of requested document: [${reqDoc.name}]`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'document'
+        });
+      } catch (notifErr) {
+        console.error("Failed to route notification alert for document fulfillment:", notifErr);
+      }
 
       setFeedback({
         message: `"${reqDoc.name}" has been successfully uploaded and delivered!`,
@@ -849,6 +937,41 @@ export default function ClientDashboard() {
 
         for (const filing of sampleFilings) {
           await addDoc(collection(db, 'compliance_filings'), filing);
+        }
+
+        // 5. Prepare seed Notifications
+        const sampleNotifications = [
+          {
+            userId: activeUser.uid,
+            userEmail: activeUser.email || '',
+            title: "Welcome to Manohar Consulting",
+            message: "Welcome to CA Jyoshi Manohar's secure portal! Your customized tracker environments have been configured successfully.",
+            createdAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
+            read: true,
+            type: "general" as const
+          },
+          {
+            userId: activeUser.uid,
+            userEmail: activeUser.email || '',
+            title: "Client Action Required",
+            message: "Please upload your Q1 demat capital gains statement & housing loan interest certificate for ITR-3 evaluation.",
+            createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
+            read: false,
+            type: "request" as const
+          },
+          {
+            userId: activeUser.uid,
+            userEmail: activeUser.email || '',
+            title: "April GSTR-3B Filed Successfully",
+            message: "Your GSTR-3B Monthly Tax Computation has been filed by CA Admin. ARN receipt prepared inside the track panel.",
+            createdAt: Date.now() - 12 * 60 * 60 * 1000,
+            read: false,
+            type: "document" as const
+          }
+        ];
+
+        for (const notif of sampleNotifications) {
+          await addDoc(collection(db, 'notifications'), notif);
         }
       }
     } catch (err) {
@@ -1353,6 +1476,36 @@ Stewardship, Accuracy, Legacy.
       setIsSubmittingRequest(false);
     }
   };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const unreads = notifications.filter(n => !n.read);
+      const promises = unreads.map(n => 
+        updateDoc(doc(db, 'notifications', n.id), { read: true })
+      );
+      await Promise.all(promises);
+    } catch (err: any) {
+      console.error("Failed to mark all notifications as read: ", err);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await updateDoc(doc(db, 'notifications', id), { read: true });
+    } catch (err: any) {
+      console.error("Failed to mark notification as read: ", err);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await deleteDoc(doc(db, 'notifications', id));
+    } catch (err: any) {
+      console.error("Failed to delete notification: ", err);
+    }
+  };
   
   const handleDeclineRequest = async (req: ClientRequest, customReason?: string) => {
     try {
@@ -1380,6 +1533,21 @@ Stewardship, Accuracy, Legacy.
         timestamp: Date.now()
       };
       await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      // Trigger client notification
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: req.userId,
+          userEmail: req.userEmail || '',
+          title: "Proposal Declined",
+          message: `Your service proposal "${req.title}" was declined. Reason: ${reason}`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'request'
+        });
+      } catch (notifErr) {
+        console.error("Failed to route notification alert for declined proposal:", notifErr);
+      }
 
       setFeedback({
         message: `Successfully declined request "${req.title}". Portal and support channels notified!`,
@@ -1487,6 +1655,21 @@ Stewardship, Accuracy, Legacy.
           timestamp: Date.now()
         };
         await addDoc(collection(db, 'chats'), chatMsgObj);
+      }
+
+      // Trigger client notification on approval
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: req.userId,
+          userEmail: req.userEmail || '',
+          title: "Proposal Approved",
+          message: `Your service proposal "${req.title}" has been approved! Tracking dashboard is now active.`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'request'
+        });
+      } catch (notifErr) {
+        console.error("Failed to route notification alert for approved proposal:", notifErr);
       }
 
       // 2. Remove from pending client_requests
@@ -1936,6 +2119,117 @@ Stewardship, Accuracy, Legacy.
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
+            {/* Real-time Notifications Bell dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="flex items-center justify-center p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-950 shadow-sm relative cursor-pointer h-9 w-9"
+                title="Notifications Desk"
+              >
+                <Bell className="h-4 w-4" />
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-red-600 text-[9px] font-extrabold text-white animate-pulse">
+                    {notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40 bg-transparent" 
+                    onClick={() => setNotificationsOpen(false)} 
+                  />
+                  <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in slide-in-from-top-3 duration-200">
+                    <div className="p-4 flex items-center justify-between bg-slate-50">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Notifications Desk</span>
+                        <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                          {notifications.length} total
+                        </span>
+                      </div>
+                      {notifications.filter(n => !n.read).length > 0 && (
+                        <button
+                          onClick={handleMarkAllAsRead}
+                          className="text-[11px] font-bold text-primary hover:text-slate-950 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Check className="h-3 w-3" />
+                          <span>Mark all read</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center flex flex-col items-center justify-center gap-2 bg-white">
+                          <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                            <Bell className="h-5 w-5" />
+                          </div>
+                          <p className="text-xs font-serif text-slate-600 font-medium font-serif">Awaiting notifications...</p>
+                          <p className="text-[10px] text-slate-400 max-w-[240px] leading-relaxed mx-auto">Any active administrative service alerts will appear securely in real-time here.</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => {
+                          // Determine type specifics
+                          let iconEl = <Bell className="h-4 w-4 text-purple-600" />;
+                          let badgeBg = "bg-purple-50 border-purple-100";
+                          if (notif.type === 'chat') {
+                            iconEl = <MessageSquare className="h-4 w-4 text-blue-600" />;
+                            badgeBg = "bg-blue-50 border-blue-100";
+                          } else if (notif.type === 'document') {
+                            iconEl = <FileCheck2 className="h-4 w-4 text-emerald-600" />;
+                            badgeBg = "bg-emerald-50 border-emerald-100";
+                          } else if (notif.type === 'request') {
+                            iconEl = <AlertCircle className="h-4 w-4 text-amber-600" />;
+                            badgeBg = "bg-amber-50 border-amber-100";
+                          }
+
+                          return (
+                            <div 
+                              key={notif.id} 
+                              className={`p-4 transition-colors flex gap-3 group relative ${notif.read ? 'bg-slate-50/40 text-slate-500/80' : 'bg-white'}`}
+                            >
+                              <div className={`h-8 w-8 rounded-xl flex items-center justify-center border shrink-0 ${badgeBg}`}>
+                                {iconEl}
+                              </div>
+                              <div className="space-y-1 pr-6 flex-1 text-left">
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <h4 className={`text-xs leading-none ${notif.read ? 'font-medium text-slate-500' : 'font-extrabold text-slate-900'}`}>{notif.title}</h4>
+                                  <span className="text-[9px] font-mono text-slate-400 mt-0.5">
+                                    {new Date(notif.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </span>
+                                </div>
+                                <p className={`text-[11px] leading-relaxed ${notif.read ? 'text-slate-400/85' : 'text-slate-600'}`}>{notif.message}</p>
+                              </div>
+
+                              <div className="absolute right-2 top-2 flex flex-col gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                {!notif.read && (
+                                  <button
+                                    onClick={(e) => handleMarkAsRead(notif.id, e)}
+                                    className="p-1 border border-slate-200 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Mark read"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => handleDeleteNotification(notif.id, e)}
+                                  className="p-1 border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Delete alert"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             {isAdmin && (
               <span className="bg-primary hover:bg-slate-900 text-white border border-transparent font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm">
                 <Sparkles className="h-3.5 w-3.5 text-amber-300" />

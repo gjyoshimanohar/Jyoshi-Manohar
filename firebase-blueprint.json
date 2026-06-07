@@ -123,6 +123,22 @@
         "status": { "type": "string", "enum": ["pending", "accepted", "declined"] }
       },
       "required": ["userId", "clientName", "title", "type", "category", "createdAt", "status"]
+    },
+    "PortalNotification": {
+      "title": "Portal Notification",
+      "description": "Real-time communication and operational alerts triggered per client user account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "read": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["request", "document", "general", "chat"] }
+      },
+      "required": ["userId", "title", "message", "createdAt", "read", "type"]
     }
   },
   "firestore": {
@@ -153,6 +169,10 @@
     "client_requests/{requestId}": {
       "schema": "ClientRequest",
       "description": "Submissions or proposal inquiries from clients to be review by the administration"
+    },
+    "notifications/{notificationId}": {
+      "schema": "PortalNotification",
+      "description": "System operational context notifications displayed inside notifications bell UI"
     }
   }
 }
