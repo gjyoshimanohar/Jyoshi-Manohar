@@ -101,6 +101,28 @@
         "fileType": { "type": "string" }
       },
       "required": ["clientScopeId", "senderId", "senderEmail", "text", "timestamp"]
+    },
+    "ClientRequest": {
+      "title": "Client Request",
+      "description": "A customized proposal or compliance service request submitted by a client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "clientName": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["task", "document", "engagement"] },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileSize": { "type": "string" },
+        "fileType": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] }
+      },
+      "required": ["userId", "clientName", "title", "type", "category", "createdAt", "status"]
     }
   },
   "firestore": {
@@ -127,6 +149,10 @@
     "chats/{chatId}": {
       "schema": "ChatMessage",
       "description": "Exchanged message entries between consulting agents"
+    },
+    "client_requests/{requestId}": {
+      "schema": "ClientRequest",
+      "description": "Submissions or proposal inquiries from clients to be review by the administration"
     }
   }
 }

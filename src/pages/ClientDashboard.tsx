@@ -59,6 +59,7 @@ import {
   FileQuestion,
   Edit2,
   X,
+  XCircle,
   Save
 } from 'lucide-react';
 
@@ -236,6 +237,10 @@ export default function ClientDashboard() {
   const [acceptEstCompletion, setAcceptEstCompletion] = useState('June 30, 2026');
   const [acceptStepsText, setAcceptStepsText] = useState<string>("1. Intake checklist & document verify\n2. CA audit & compliance draft analysis\n3. Execution filings and certification");
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+
+  // Admin decline workflow states
+  const [decliningReqId, setDecliningReqId] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState<string>("Standard statutory criteria check mismatch. Please check your parameters and file attachment, or propose an alternative service draft.");
 
   // Set real-time listener for Auth State
   useEffect(() => {
@@ -1341,17 +1346,22 @@ Stewardship, Accuracy, Legacy.
     }
   };
   
-  const handleDeclineRequest = async (req: ClientRequest) => {
+  const handleDeclineRequest = async (req: ClientRequest, customReason?: string) => {
     try {
       if (!req || !req.id) return;
-      const confirmDecline = window.confirm(`Are you sure you want to decline the request "${req.title}" from ${req.clientName}?`);
-      if (!confirmDecline) return;
 
-      // 1. Delete request document from collection
+      const reason = customReason || "Standard statutory criteria check mismatch. Please check your parameters and file attachment, or propose an alternative service draft.";
+
+      // 1. Update status to 'declined' in Firestore to update document state
+      await updateDoc(doc(db, 'client_requests', req.id), { 
+        status: 'declined' 
+      });
+
+      // 2. Delete request document from the collection
       await deleteDoc(doc(db, 'client_requests', req.id));
 
-      // 2. Post notification chat inside consultation room chat notifying client
-      const chatMsgText = `❌ REQUEST DECLINED: The proposal entitled "${req.title}" (${req.category}) has been declined by CA Jyoshi Manohar's admin team. Reason specified: Standard statutory criteria check mismatch. Please check your parameters and file attachment, or propose an alternative service draft.`;
+      // 3. Post notification chat inside consultation room chat notifying client about the decline
+      const chatMsgText = `❌ REQUEST DECLINED: The proposal entitled "${req.title}" (${req.category}) has been declined by CA Jyoshi Manohar's admin team. Reason specified: ${reason}`;
 
       const chatMsgObj: Omit<ChatMessage, 'id'> = {
         clientScopeId: req.userId,
@@ -1368,6 +1378,7 @@ Stewardship, Accuracy, Legacy.
         type: 'success'
       });
       setTimeout(() => setFeedback(null), 4000);
+      setDecliningReqId(null);
     } catch (err: any) {
       console.error(err);
       alert("Decline request failed: " + err.message);
@@ -3253,7 +3264,10 @@ Stewardship, Accuracy, Legacy.
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleDeclineRequest(req)}
+                                  onClick={() => {
+                                    setDecliningReqId(req.id);
+                                    setDeclineReason("Standard statutory criteria check mismatch. Please check your parameters and file attachment, or propose an alternative service draft.");
+                                  }}
                                   className="bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-[10px] uppercase tracking-wider px-3.5 py-2 rounded-xl border border-rose-100 transition-colors cursor-pointer"
                                 >
                                   Decline
@@ -3365,6 +3379,89 @@ Stewardship, Accuracy, Legacy.
                                         <span>Final Submit & Deploy</span>
                                       </>
                                     )}
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+
+                            {/* Interactive decline customization subform */}
+                            {decliningReqId === req.id && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: -5 }} 
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-rose-50/70 border border-rose-200 p-5 rounded-2xl space-y-4 text-left mt-3"
+                              >
+                                <div className="pb-2 border-b border-rose-200/40 flex justify-between items-center">
+                                  <h5 className="text-[11px] font-bold text-rose-800 uppercase tracking-widest font-mono flex items-center gap-1.5 font-serif">
+                                    <XCircle className="h-4 w-4 text-rose-600 animate-pulse" />
+                                    <span>Decline Proposal & Inform Client</span>
+                                  </h5>
+                                  <button 
+                                    type="button" 
+                                    onClick={() => setDecliningReqId(null)}
+                                    className="text-[10px] font-semibold text-rose-700 hover:underline cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-2 font-mono">
+                                      📋 Quick Select Preset Reasons:
+                                    </label>
+                                    <div className="flex flex-wrap gap-1.5 mb-3">
+                                      {[
+                                        "Standard statutory criteria check mismatch. Please check your parameters and retry.",
+                                        "Missing essential document attachments or verification file. Please re-upload.",
+                                        "Incorrect application details or matching errors in the compliance forms.",
+                                        "The proposed timeline is shorter than the statutory period allowed for completion.",
+                                        "Out of scope of our current accounting and taxation practice segments.",
+                                        "Regulatory digital KYC compliance authentication is pending. Onboarding required first."
+                                      ].map((preset) => (
+                                        <button
+                                          key={preset}
+                                          type="button"
+                                          onClick={() => setDeclineReason(preset)}
+                                          className={`text-[9.5px] px-2.5 py-1.5 rounded-lg border text-left transition-all font-sans font-medium cursor-pointer ${
+                                            declineReason === preset 
+                                              ? 'bg-rose-100 border-rose-300 text-rose-900 font-semibold shadow-xs' 
+                                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                                          }`}
+                                        >
+                                          {preset}
+                                        </button>
+                                      ))}
+                                    </div>
+
+                                    <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                      Decline Reason (Fully customisable text, dispatched to client in real-time)
+                                    </label>
+                                    <textarea 
+                                      rows={3}
+                                      required
+                                      value={declineReason}
+                                      onChange={(e) => setDeclineReason(e.target.value)}
+                                      placeholder="Specify why the statutory or compliance criteria check failed..."
+                                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 resize-none font-sans"
+                                    />
+                                    <span className="text-[9px] text-slate-400 mt-1 block"> This reason will automatically notify the client's consultation log and dashboard feed.</span>
+                                  </div>
+                                </div>
+                                <div className="pt-2 flex justify-end gap-3 font-sans">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDecliningReqId(null)}
+                                    className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold text-[10px] uppercase tracking-wider px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
+                                  >
+                                    Go Back
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeclineRequest(req, declineReason)}
+                                    className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    <XCircle className="h-3.5 w-3.5" />
+                                    <span>Confirm Decline & Notify</span>
                                   </button>
                                 </div>
                               </motion.div>
