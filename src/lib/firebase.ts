@@ -1,23 +1,25 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-
-const firebaseConfig = {
- apiKey: "AIzaSyDU6bogpUM069m-o8I-bDwYKs1moeyaicY",
- authDomain: "jyoshimanohar-com.firebaseapp.com",
- projectId: "jyoshimanohar-com",
- storageBucket: "jyoshimanohar-com.firebasestorage.app",
- messagingSenderId: "255732479780",
- appId: "1:255732479780:web:56f47693a88099b112e5b1"
-};
+import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
-  }),
-  experimentalForceLongPolling: true,
-});
-export const auth = getAuth();
+
+let firestoreInstance;
+try {
+  // Try initializing with long-polling since sandbox environments often block WebSockets/gRPC
+  firestoreInstance = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  console.warn("initializeFirestore failed, falling back to getFirestore:", e);
+  // Fall back to standard initialization which might already have been initialized
+  firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+
+export const db = firestoreInstance;
+export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+
