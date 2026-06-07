@@ -674,6 +674,13 @@ export default function ClientDashboard() {
   // Seeding engine: Auto seed realistic CA dashboard data on first login so users see immediate real-time results
   const ensureDataIsSeeded = async (activeUser: User) => {
     try {
+      const userRef = doc(db, 'users', activeUser.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists() && userSnap.data()?.isSeeded) {
+        console.log("User is already seeded, skipping duplicate run.");
+        return;
+      }
+
       const checkQuery = query(collection(db, 'applications'), where('userId', '==', activeUser.uid));
       const checkSnap = await getDocs(checkQuery);
       
@@ -686,7 +693,8 @@ export default function ClientDashboard() {
           uid: activeUser.uid,
           email: activeUser.email,
           displayName: activeUser.displayName || activeUser.email?.split('@')[0] || 'Premium Client',
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          isSeeded: true
         }, { merge: true });
 
         // 2. Prepare seed Applications

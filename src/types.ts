@@ -23,20 +23,27 @@ export interface Subtask {
 }
 
 export interface Todo {
- id: string;
- userId: string;
- title: string;
- description?: string;
- completed: boolean;
- createdAt: number;
- dueDate?: number | null;
- deadline?: number | null;
- priority?: number; // 1, 2, 3, 4
- projectId?: string; // 'inbox' or custom ID
- tags?: string[];
- subtasks?: Subtask[];
- deletedAt?: number;
- sectionName?: string | null;
+	id: string;
+	userId: string;
+	title: string;
+	description?: string;
+	completed: boolean;
+	createdAt: number;
+	dueDate?: number | null;
+	deadline?: number | null;
+	priority?: number; // 1, 2, 3, 4
+	projectId?: string; // 'inbox' or custom ID
+	tags?: string[];
+	subtasks?: Subtask[];
+	deletedAt?: number;
+	sectionName?: string | null;
+	deleteReason?: string;
+	declineReason?: string;
+	metadata?: {
+		deleteReason?: string;
+		declineReason?: string;
+		[key: string]: any;
+	};
 }
 
 export interface Folder {

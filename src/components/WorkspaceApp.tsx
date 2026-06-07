@@ -89,6 +89,10 @@ export default function WorkspaceApp() {
 
  const [confirmDialog, setConfirmDialog] = useState<{isOpen: boolean, message: string, onConfirm: () => void} | null>(null);
 
+ // Task Deletion / Decline reason state
+ const [deletingTodoState, setDeletingTodoState] = useState<{ id: string; viewModeAtTime: ViewMode } | null>(null);
+ const [taskDeclineOrDeleteReason, setTaskDeclineOrDeleteReason] = useState<string>("");
+
  // Sync animation helper
  const [isSyncing, setIsSyncing] = useState(false);
  const [syncNotice, setSyncNotice] = useState(false);
@@ -630,12 +634,39 @@ export default function WorkspaceApp() {
  await todoService.updateTodo(todoId, { sectionName: targetSection });
  };
 
- const handleDeleteTodo = async (todoId: string, e: React.MouseEvent) => {
+ const handleDeleteTodo = (todoId: string, e: React.MouseEvent) => {
  e.stopPropagation();
- if (viewMode === 'trash') {
+ setDeletingTodoState({ id: todoId, viewModeAtTime: viewMode });
+ setTaskDeclineOrDeleteReason("No longer applicable or required");
+ };
+
+ const handleConfirmDeleteTodo = async () => {
+ if (!deletingTodoState) return;
+ const { id: todoId, viewModeAtTime } = deletingTodoState;
+ try {
+ const reasonToSave = taskDeclineOrDeleteReason.trim() || "No longer applicable or required";
+ 
+ // Save reason to task's metadata
+ await todoService.updateTodo(todoId, {
+ deleteReason: reasonToSave,
+ declineReason: reasonToSave,
+ metadata: {
+ deleteReason: reasonToSave,
+ declineReason: reasonToSave,
+ deletedAt: Date.now()
+ }
+ });
+ 
+ if (viewModeAtTime === 'trash') {
  await todoService.deleteTodo(todoId);
  } else {
  await todoService.softDeleteTodo(todoId);
+ }
+ 
+ setDeletingTodoState(null);
+ setTaskDeclineOrDeleteReason("");
+ } catch (error) {
+ console.error("Error deleting task:", error);
  }
  };
 
@@ -3460,6 +3491,105 @@ export default function WorkspaceApp() {
  </button>
  <button onClick={confirmDialog.onConfirm} className="px-3 py-1.5 text-xs bg-red-600 text-white rounded font-medium hover:bg-red-700">
  Confirm
+ </button>
+ </div>
+ </motion.div>
+ </div>
+ )}
+ </AnimatePresence>
+
+ {/* Decline/Delete Task Reason Dialog */}
+ <AnimatePresence>
+ {deletingTodoState && (
+ <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+ <motion.div
+ initial={{ opacity: 0, scale: 0.95 }}
+ animate={{ opacity: 1, scale: 1 }}
+ exit={{ opacity: 0, scale: 0.95 }}
+ className="bg-white rounded-3xl shadow-2xl border border-gray-150 max-w-md w-full overflow-hidden text-left p-6 md:p-8"
+ >
+ <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+ <h3 className="text-base font-bold text-gray-800 uppercase tracking-widest font-mono flex items-center gap-2">
+ 📋 Specify Task Reason
+ </h3>
+ <button
+ type="button"
+ onClick={() => {
+ setDeletingTodoState(null);
+ setTaskDeclineOrDeleteReason("");
+ }}
+ className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+ >
+ <X className="w-5 h-5" />
+ </button>
+ </div>
+ 
+ <div className="space-y-4">
+ <p className="text-xs text-gray-500 font-medium leading-relaxed">
+ Please enter or select a reason for declining or deleting this task. This reason will be persistently saved in the task's audit metadata.
+ </p>
+
+ <div>
+ <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2 font-mono">
+ Choose Preset Reasons:
+ </label>
+ <div className="flex flex-wrap gap-1.5 mb-3">
+ {[
+ "No longer applicable or required",
+ "Completed outside the workspace",
+ "Duplicate task entry",
+ "Scope or timeline priority changed",
+ "Out of scope segment",
+ "Statutory compliance deficiency"
+ ].map((preset) => (
+ <button
+ key={preset}
+ type="button"
+ onClick={() => setTaskDeclineOrDeleteReason(preset)}
+ className={`text-[10px] px-2.5 py-1.5 rounded-xl border text-left transition-all font-sans font-medium cursor-pointer ${
+ taskDeclineOrDeleteReason === preset 
+ ? 'bg-primary/10 border-primary text-primary font-semibold' 
+ : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+ }`}
+ >
+ {preset}
+ </button>
+ ))}
+ </div>
+ </div>
+
+ <div>
+ <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+ Comment / Custom Reason:
+ </label>
+ <textarea
+ rows={3}
+ required
+ value={taskDeclineOrDeleteReason}
+ onChange={(e) => setTaskDeclineOrDeleteReason(e.target.value)}
+ placeholder="Specify the custom reason for decline/delete..."
+ className="w-full bg-white border border-gray-200 rounded-xl p-3 text-xs text-gray-900 font-medium outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none font-sans"
+ />
+ </div>
+ </div>
+
+ <div className="mt-6 pt-3 border-t border-gray-100 flex justify-end gap-3 font-sans">
+ <button
+ type="button"
+ onClick={() => {
+ setDeletingTodoState(null);
+ setTaskDeclineOrDeleteReason("");
+ }}
+ className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-semibold text-[10px] uppercase tracking-wider px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+ >
+ Cancel
+ </button>
+ <button
+ type="button"
+ onClick={handleConfirmDeleteTodo}
+ className="bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase tracking-wider px-4.5 py-2.5 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
+ >
+ Confirm & Save
  </button>
  </div>
  </motion.div>
