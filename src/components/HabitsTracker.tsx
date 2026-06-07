@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Plus, Flame, Sparkles, Trash2, Trophy, ChevronDown } from 'lucide-react';
 import { format, subDays, isSameDay } from 'date-fns';
+import CustomSelect from './CustomSelect';
 
 interface Habit {
  id: string;
@@ -287,25 +288,23 @@ export default function HabitsTracker({ userId }: HabitsTrackerProps) {
  <div>
  <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5">Launch Icon/Emoji</label>
  <div className="relative flex-1 group">
- <select
+ <CustomSelect
  value={newHabitIcon}
- onChange={(e) => setNewHabitIcon(e.target.value)}
- className="w-full text-xs sm:text-sm bg-white border border-gray-200 hover:border-blue-400 focus:border-primary focus:ring-4 focus:ring-primary/10 hover:shadow-md rounded-xl px-3 pr-8 py-2.5 outline-none font-medium text-gray-700 shadow-sm transition-all cursor-pointer appearance-none relative z-0"
- >
- <option value="🎯">🎯 Target/Milestone</option>
- <option value="📚">📚 Study/Reading</option>
- <option value="💧">💧 Hydration/Drinking</option>
- <option value="🏋️">🏋️ Gym Workout</option>
- <option value="🧘">🧘 Zen Meditation</option>
- <option value="🛌">🛌 Sleep Cycle</option>
- <option value="🚶">🚶 Walking Steps</option>
- <option value="💻">💻 Code/Work</option>
- <option value="🍎">🍎 Diet/Nutrition</option>
- <option value="🎨">🎨 Creativity/Craft</option>
- </select>
- <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-primary transition-colors z-10">
-  <ChevronDown className="w-4 h-4" />
- </div>
+ onChange={(val) => setNewHabitIcon(val)}
+ className="w-full text-xs sm:text-sm bg-white border border-gray-200 hover:border-blue-400 hover:shadow-md rounded-xl px-3 py-2.5 font-medium text-gray-700 shadow-sm transition-all cursor-pointer relative z-0"
+ options={[
+ { value: '🎯', label: '🎯 Target/Milestone' },
+ { value: '📚', label: '📚 Study/Reading' },
+ { value: '💧', label: '💧 Hydration/Drinking' },
+ { value: '🏋️', label: '🏋️ Gym Workout' },
+ { value: '🧘', label: '🧘 Zen Meditation' },
+ { value: '🛌', label: '🛌 Sleep Cycle' },
+ { value: '🚶', label: '🚶 Walking Steps' },
+ { value: '💻', label: '💻 Code/Work' },
+ { value: '🍎', label: '🍎 Diet/Nutrition' },
+ { value: '🎨', label: '🎨 Creativity/Craft' }
+ ]}
+ />
 </div>
  </div>
 

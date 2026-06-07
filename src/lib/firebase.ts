@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
+export { firebaseConfig };
 
 const app = initializeApp(firebaseConfig);
 

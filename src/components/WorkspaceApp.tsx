@@ -7,7 +7,8 @@ import {
  Camera, Book, Heart, Star, Zap, Circle, BarChart2, Clock, Timer,
  Flame, HelpCircle, RefreshCw, Bell, Award, Sparkles, FolderOpen,
  Milestone, BookOpen, Smile, Play, Volume2, ShieldCheck, Target,
- GraduationCap, ArrowUpDown, Hourglass, Lightbulb, Minimize2, Maximize2
+ GraduationCap, ArrowUpDown, Hourglass, Lightbulb, Minimize2, Maximize2,
+ Settings, FileSpreadsheet, Download
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
 import { Todo, Project, Folder as FolderType } from '../types';
@@ -15,6 +16,7 @@ import { auth } from '../lib/firebase';
 import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears } from 'date-fns';
 import EmojiPicker from 'emoji-picker-react';
 import { DayPicker } from 'react-day-picker';
+import CustomSelect from './CustomSelect';
 import { signOut } from 'firebase/auth';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -33,7 +35,7 @@ const AVAILABLE_ICONS = Object.keys(PROJECT_ICONS);
 const FOLDER_COLORS = [
  '#9ca3af', // gray (default)
  '#ef4444', // red
- '#f97316', // orange
+ 'var(--color-secondary)', // orange -> gold
  '#eab308', // yellow
  '#22c55e', // green
  '#06b6d4', // cyan
@@ -55,6 +57,31 @@ const renderIcon = (name: string | undefined | null, defaultColor: string = '#6b
 
 type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project' | 'trends' | 'completed' | 'trash';
 
+// Helper for safety escaping CSV values
+const escapeCSV = (val: any): string => {
+	if (val === undefined || val === null) return '';
+	let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+	str = str.replace(/"/g, '""');
+	if (str.includes(',') || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+		return `"${str}"`;
+	}
+	return str;
+};
+
+// Helper to trigger the download in sandboxed iframe environment
+const triggerCSVDownload = (csvContent: string, filename: string) => {
+	const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	link.href = url;
+	link.setAttribute('download', filename);
+	link.style.visibility = 'hidden';
+	document.body.appendChild(link);
+	link.click();
+	document.body.removeChild(link);
+	URL.revokeObjectURL(url);
+};
+
 export default function WorkspaceApp() {
  const [todos, setTodos] = useState<Todo[]>([]);
  const [projects, setProjects] = useState<Project[]>([]);
@@ -62,9 +89,144 @@ export default function WorkspaceApp() {
  const [loading, setLoading] = useState(true);
  const [bootstrapping, setBootstrapping] = useState(false);
 
+  const handleExportTasksCSV = () => {
+    const headers = ['Task ID', 'Title', 'Description', 'Status', 'Priority', 'Project ID', 'Project Name', 'Tags', 'Created At', 'Due Date', 'Deleted At'];
+    
+    const rows = todos.map(todo => {
+      const projName = todo.projectId === 'inbox' 
+        ? 'Inbox' 
+        : (projects.find(p => p.id === todo.projectId)?.name || 'Inbox');
+        
+      return [
+        todo.id,
+        todo.title,
+        todo.description || '',
+        todo.completed ? 'Completed' : 'Active',
+        todo.priority ? `P${todo.priority}` : 'None',
+        todo.projectId || 'inbox',
+        projName,
+        todo.tags ? todo.tags.join(', ') : '',
+        todo.createdAt ? new Date(todo.createdAt).toISOString() : '',
+        todo.dueDate ? new Date(todo.dueDate).toISOString() : '',
+        todo.deletedAt ? new Date(todo.deletedAt).toISOString() : ''
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    triggerCSVDownload(csvContent, `tasks_backup_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleExportProjectsCSV = () => {
+    const headers = ['Project ID', 'Name', 'Color', 'Icon', 'Folder ID', 'Folder Name', 'View Type', 'Created At'];
+    
+    const rows = projects.map(proj => {
+      const fName = proj.folderId 
+        ? (folders.find(f => f.id === proj.folderId)?.name || '') 
+        : '';
+        
+      return [
+        proj.id,
+        proj.name,
+        proj.color,
+        proj.icon || '',
+        proj.folderId || '',
+        fName,
+        proj.viewType || 'list',
+        proj.createdAt ? new Date(proj.createdAt).toISOString() : ''
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    triggerCSVDownload(csvContent, `projects_backup_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleExportFoldersCSV = () => {
+    const headers = ['Folder ID', 'Name', 'Color', 'Created At'];
+    
+    const rows = folders.map(fold => [
+      fold.id,
+      fold.name,
+      fold.color || '',
+      fold.createdAt ? new Date(fold.createdAt).toISOString() : ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    triggerCSVDownload(csvContent, `folders_backup_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleExportUniversalCSV = () => {
+    const lines: string[] = [];
+    
+    lines.push('--- FOLDERS BACKUP ---');
+    lines.push(['Folder ID', 'Name', 'Color', 'Created At'].join(','));
+    folders.forEach(fold => {
+      lines.push([
+        fold.id,
+        fold.name,
+        fold.color || '',
+        fold.createdAt ? new Date(fold.createdAt).toISOString() : ''
+      ].map(escapeCSV).join(','));
+    });
+    
+    lines.push('');
+    
+    lines.push('--- PROJECTS BACKUP ---');
+    lines.push(['Project ID', 'Name', 'Color', 'Icon', 'Folder ID', 'Folder Name', 'View Type', 'Created At'].join(','));
+    projects.forEach(proj => {
+      const fName = proj.folderId ? (folders.find(f => f.id === proj.folderId)?.name || '') : '';
+      lines.push([
+        proj.id,
+        proj.name,
+        proj.color,
+        proj.icon || '',
+        proj.folderId || '',
+        fName,
+        proj.viewType || 'list',
+        proj.createdAt ? new Date(proj.createdAt).toISOString() : ''
+      ].map(escapeCSV).join(','));
+    });
+    
+    lines.push('');
+    
+    lines.push('--- TASKS BACKUP ---');
+    lines.push(['Task ID', 'Title', 'Description', 'Status', 'Priority', 'Project ID', 'Project Name', 'Tags', 'Created At', 'Due Date', 'Deleted At'].join(','));
+    todos.forEach(todo => {
+      const projName = todo.projectId === 'inbox' 
+        ? 'Inbox' 
+        : (projects.find(p => p.id === todo.projectId)?.name || 'Inbox');
+      lines.push([
+        todo.id,
+        todo.title,
+        todo.description || '',
+        todo.completed ? 'Completed' : 'Active',
+        todo.priority ? `P${todo.priority}` : 'None',
+        todo.projectId || 'inbox',
+        projName,
+        todo.tags ? todo.tags.join(', ') : '',
+        todo.createdAt ? new Date(todo.createdAt).toISOString() : '',
+        todo.dueDate ? new Date(todo.dueDate).toISOString() : '',
+        todo.deletedAt ? new Date(todo.deletedAt).toISOString() : ''
+      ].map(escapeCSV).join(','));
+    });
+
+    triggerCSVDownload(lines.join('\n'), `universal_workspace_backup_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
  // Far-Left Nav Dock Tab Selection
  // 'tasks' (default checklist), 'matrix' (Kanban quadrants), 'habits' (streaks), 'focus' (sound timers), 'starred' (P1 values), 'search' (extended filters)
- const [activeAppTab, setActiveAppTab] = useState<'tasks' | 'matrix' | 'habits' | 'focus' | 'starred' | 'search'>('tasks');
+ const [activeAppTab, setActiveAppTab] = useState<'tasks' | 'matrix' | 'habits' | 'focus' | 'starred' | 'search' | 'settings'>('tasks');
 
  // Sidebar controls
  const [viewMode, setViewMode] = useState<ViewMode>('today');
@@ -1138,6 +1300,16 @@ export default function WorkspaceApp() {
 
  {/* Sync, alerts & Guidance at the bottom of left docker */}
  <div className="flex flex-col items-center space-y-4 w-full">
+		<button 
+			onClick={() => setActiveAppTab('settings')}
+			className={`p-2.5 rounded-xl transition-all relative group ${activeAppTab === 'settings' ? 'bg-[#1a2b58]/10 text-[#1a2b58]' : 'text-gray-500 hover:bg-gray-200'}`}
+			title="Settings & Export"
+		>
+			<Settings className="w-4 h-4" />
+			<span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+				Settings & Export
+			</span>
+		</button>
  <button 
  onClick={handleTriggerSync}
  className={`p-2.5 text-gray-500 hover:bg-gray-200 rounded-xl relative group ${isSyncing ? 'animate-spin text-[#1a2b58]' : ''}`}
@@ -1172,7 +1344,14 @@ export default function WorkspaceApp() {
  </div>
 
  {/* MOBILE APP TABS BOTTOM NAVIGATION (Aesthetic excellence) */}
- <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-2 grid grid-cols-6 gap-0.5 z-[100] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+ <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-2 grid grid-cols-7 gap-0.5 z-[100] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+	<button 
+	onClick={() => setActiveAppTab('settings')}
+	className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'settings' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
+	>
+	<Settings className="w-5 h-5" />
+	<span className="text-xs font-medium mt-1">Settings</span>
+	</button>
  <button 
  onClick={() => { setActiveAppTab('tasks'); setViewMode('today'); }}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'tasks' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
@@ -1220,11 +1399,19 @@ export default function WorkspaceApp() {
  {/* MIDDLE SIDEBAR - LIST SELECTORS & MAIN CONTROLS (Only holds active tasks hierarchy) */}
  <AnimatePresence>
  {isSidebarOpen && activeAppTab === 'tasks' && (
+ <>
+ <motion.div
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ onClick={() => setIsSidebarOpen(false)}
+ className="md:hidden absolute inset-0 z-20 bg-black/20 backdrop-blur-sm"
+ />
  <motion.aside
  initial={{ width: 0, opacity: 0 }}
  animate={{ width: 240, opacity: 1 }}
  exit={{ width: 0, opacity: 0 }}
- className="bg-[#FAFAFA] border-r border-[#ECECEC] shrink-0 h-full overflow-y-auto z-30 select-none pb-20 md:pb-6"
+ className="absolute md:relative bg-[#FAFAFA] border-r border-[#ECECEC] shrink-0 h-full overflow-y-auto z-30 select-none pb-20 md:pb-6"
  >
  <div className="p-4 w-[240px]">
  {/* Inbox today metrics filters */}
@@ -1361,6 +1548,7 @@ export default function WorkspaceApp() {
  </div>
  </div>
  </motion.aside>
+ </>
  )}
  </AnimatePresence>
 
@@ -1960,7 +2148,7 @@ export default function WorkspaceApp() {
  if (todo.priority === 1) {
  borderPrio = "border-red-500 hover:bg-red-50 text-red-500";
  } else if (todo.priority === 2) {
- borderPrio = "border-orange-500 hover:bg-orange-50 text-[#f97316]";
+ borderPrio = "border-orange-500 hover:bg-orange-50 text-orange-500";
  } else if (todo.priority === 3) {
  borderPrio = "border-primary hover:bg-blue-50 text-primary";
  }
@@ -2728,7 +2916,142 @@ export default function WorkspaceApp() {
  )}
 
  {/* 8. SECTOR: SEARCH AND FILTER PARAMETERS TAB */}
- {activeAppTab === 'search' && (
+ {activeAppTab === 'settings' && (
+		<div className="text-left w-full h-full max-w-3xl mx-auto py-2 focus:outline-none">
+			<div className="mb-6 flex items-center justify-between">
+				<div>
+					<h2 className="text-2xl font-semibold text-white tracking-tight flex items-center gap-2">
+						<Settings className="w-6 h-6 text-yellow-500" />
+						Account Settings &amp; Portability
+					</h2>
+					<p className="font-normal text-sm text-gray-400 mt-1">
+						Manage your offline backup policies, view synchronization metrics, and request a database dump.
+					</p>
+				</div>
+			</div>
+
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+				<div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
+					<span className="text-xs text-gray-400 uppercase tracking-widest block font-medium">CHECKLIST DOSSIER</span>
+					<span className="text-3xl font-bold text-white mt-1 block">{todos.length}</span>
+					<span className="text-xs text-green-500 font-medium block mt-1">✓ Active &amp; Archive cached</span>
+				</div>
+				<div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
+					<span className="text-xs text-gray-400 uppercase tracking-widest block font-medium">WORKSPACE PROJECTS</span>
+					<span className="text-3xl font-bold text-white mt-1 block">{projects.length}</span>
+					<span className="text-xs text-indigo-400 font-medium block mt-1">★ Multi-view hubs loaded</span>
+				</div>
+				<div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
+					<span className="text-xs text-gray-400 uppercase tracking-widest block font-medium">FOLDERS TREES</span>
+					<span className="text-3xl font-bold text-white mt-1 block">{folders.length}</span>
+					<span className="text-xs text-purple-400 font-medium block mt-1">⚙ Structural directories</span>
+				</div>
+			</div>
+
+			<div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm mb-6">
+				<div className="p-5 border-b border-slate-800 bg-slate-950">
+					<h3 className="text-base font-semibold text-white flex items-center gap-2">
+						<FileSpreadsheet className="w-5 h-5 text-indigo-400" />
+						CSV Document Offline Portability Backups
+					</h3>
+					<p className="text-xs text-gray-400 mt-1">
+						Export your complete workspace as standard UTF-8 encoded comma-separated structures. Ideal for offline storage, backups, or raw integration.
+					</p>
+				</div>
+
+				<div className="divide-y divide-slate-800 text-sm font-sans">
+					{/* ITEM 1: UNIVERSAL ALL-IN-ONE */}
+					<div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-850/50 transition-colors">
+						<div>
+							<div className="font-semibold text-white flex items-center gap-1.5">
+								<span className="p-1 bg-red-950 text-red-400 rounded font-mono text-center leading-none">★</span>
+								Universal Multi-Dossier Consolidated Backup
+							</div>
+							<p className="text-xs text-gray-400 mt-0.5 max-w-xl">
+								A comprehensive relational dump merging folders trees, custom projects registries, and tasks databases in a single consolidated document.
+							</p>
+						</div>
+						<button 
+							onClick={handleExportUniversalCSV}
+							className="shrink-0 px-4 py-2 bg-indigo-605 hover:bg-indigo-700 bg-[#1a2b58] text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition shadow-sm hover:shadow"
+						>
+							<Download className="w-4 h-4" />
+							Export Master Hub
+						</button>
+					</div>
+
+					{/* ITEM 2: TASKS CHECKLISTS */}
+					<div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-850/50 transition-colors">
+						<div>
+							<div className="font-semibold text-white flex items-center gap-1.5">
+								<span className="p-1 bg-green-950 text-green-400 rounded font-mono text-center leading-none">✓</span>
+								Checklist Tasks Sheet
+							</div>
+							<p className="text-xs text-gray-400 mt-0.5 max-w-xl">
+								Downloads lists of tasks with fields: Description notes, Completed Status, Priorities, assigned Project Names, Tag collections, and timestamp records.
+							</p>
+						</div>
+						<button 
+							onClick={handleExportTasksCSV}
+							className="shrink-0 px-4 py-2 border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-750 text-gray-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition"
+						>
+							<Download className="w-4 h-4 text-gray-400" />
+							Export Tasks (.csv)
+						</button>
+					</div>
+
+					{/* ITEM 3: PROJECTS DOCK */}
+					<div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-850/50 transition-colors">
+						<div>
+							<div className="font-semibold text-white flex items-center gap-1.5">
+								<span className="p-1 bg-blue-950 text-blue-400 rounded font-mono text-center leading-none">⊞</span>
+								Workspace Projects Sheet
+							</div>
+							<p className="text-xs text-gray-400 mt-0.5 max-w-xl">
+								Downloads lists of all your customized projects, assigned colors, display icons, custom views (Kanban/List/Timeline), and corresponding folders.
+							</p>
+						</div>
+						<button 
+							onClick={handleExportProjectsCSV}
+							className="shrink-0 px-4 py-2 border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-750 text-gray-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition"
+						>
+							<Download className="w-4 h-4 text-gray-400" />
+							Export Projects (.csv)
+						</button>
+					</div>
+
+					{/* ITEM 4: FOLDERS TREES */}
+					<div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-850/50 transition-colors">
+						<div>
+							<div className="font-semibold text-white flex items-center gap-1.5">
+								<span className="p-1 bg-purple-950 text-purple-400 rounded font-mono text-center leading-none">⚙</span>
+								Structural Folders Registry
+							</div>
+							<p className="text-xs text-gray-400 mt-0.5 max-w-xl">
+								Downloads lists of high-level folder organization trees and associated directory colors. Perfect for duplicating layout schemes.
+							</p>
+						</div>
+						<button 
+							onClick={handleExportFoldersCSV}
+							className="shrink-0 px-4 py-2 border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-750 text-gray-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 transition"
+						>
+							<Download className="w-4 h-4 text-gray-400" />
+							Export Folders (.csv)
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<div className="p-4 bg-blue-950/40 border border-blue-900/50 rounded-2xl flex items-start gap-3 mt-4">
+				<span className="text-blue-400 font-bold block mt-0.5">ℹ</span>
+				<p className="text-xs text-blue-300 leading-relaxed">
+					<strong>Security Note:</strong> All export procedures are fully client-side and happen locally inside your browser context. No personal tasks, projects description, or folder hierarchies are shared with third-party networks during backup dumps.
+				</p>
+			</div>
+		</div>
+	)}
+
+	{activeAppTab === 'search' && (
  <div className="text-left w-full">
  <div className="mb-6">
  <h2 className="text-xl text-gray-900">Extensive Task Search</h2>
@@ -3129,7 +3452,7 @@ export default function WorkspaceApp() {
  {/* Standard Color Dots */}
  {[
  '#f87171', // Red
- '#fb923c', // Orange
+ 'var(--color-secondary)', // Orange -> Gold
  '#facc15', // Yellow
  '#a3e635', // Lime
  '#4ade80', // Green
@@ -3197,29 +3520,23 @@ export default function WorkspaceApp() {
  {!isCreatingFolderInModal ? (
  <div className="flex-1 max-w-[280px]">
  <div className="relative flex-1 max-w-[280px] group">
- <select
+ <CustomSelect
  value={listFolderId}
- onChange={(e) => {
- if (e.target.value === 'create_new') {
+ onChange={(val) => {
+ if (val === 'create_new') {
  setIsCreatingFolderInModal(true);
  setNewFolderNameInModal('');
  } else {
- setListFolderId(e.target.value);
+ setListFolderId(val);
  }
  }}
- className="flex-1 w-full text-xs bg-white border border-gray-200 hover:border-blue-400 focus:border-primary focus:ring-4 focus:ring-primary/10 hover:shadow-md rounded-xl px-3 py-2 outline-none font-medium text-gray-700 shadow-sm transition-colors cursor-pointer appearance-none pr-8 relative z-0"
- >
- <option value="none">None</option>
- {folders.map((f) => (
- <option key={f.id} value={f.id}>
- 📁 {f.name}
- </option>
- ))}
- <option value="create_new" className="text-blue-600 font-medium">+ Create New Folder...</option>
- </select>
- <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-primary transition-colors z-10 pointer-events-none">
-  <ChevronDown className="w-4 h-4" />
- </div>
+ className="flex-1 w-full text-xs bg-white border border-gray-200 hover:border-blue-400 hover:shadow-md rounded-xl py-2 px-3 font-medium text-gray-700 shadow-sm transition-colors cursor-pointer relative z-0"
+ options={[
+ { value: 'none', label: 'None' },
+ ...folders.map((f) => ({ value: f.id, label: `📁 ${f.name}` })),
+ { value: 'create_new', label: '+ Create New Folder...' }
+ ]}
+ />
 </div>
  </div>
  ) : (
@@ -3303,17 +3620,15 @@ export default function WorkspaceApp() {
  <div className="flex items-center space-x-4">
  <span className="text-xs font-medium text-gray-500 w-24 shrink-0">List Type</span>
  <div className="relative flex-1 max-w-[280px] group">
- <select
+ <CustomSelect
  value={listType}
- onChange={(e) => setListType(e.target.value as 'task' | 'note')}
- className="flex-1 w-full text-xs bg-white border border-gray-200 hover:border-blue-400 focus:border-primary focus:ring-4 focus:ring-primary/10 hover:shadow-md rounded-xl px-3 py-2 outline-none font-medium text-gray-700 shadow-sm transition-colors cursor-pointer appearance-none pr-8 relative z-0"
- >
- <option value="task">Task List</option>
- <option value="note">Note List</option>
- </select>
- <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-primary transition-colors z-10 pointer-events-none">
-  <ChevronDown className="w-4 h-4" />
- </div>
+ onChange={(val) => setListType(val as 'task' | 'note')}
+ className="flex-1 w-full text-xs bg-white border border-gray-200 hover:border-blue-400 hover:shadow-md rounded-xl py-2 px-3 font-medium text-gray-700 shadow-sm transition-colors cursor-pointer relative z-0"
+ options={[
+ { value: 'task', label: 'Task List' },
+ { value: 'note', label: 'Note List' }
+ ]}
+ />
 </div>
  </div>
 
@@ -3321,17 +3636,15 @@ export default function WorkspaceApp() {
  <div className="flex items-center space-x-4">
  <span className="text-xs font-medium text-gray-500 w-24 shrink-0">Show in Smart List</span>
  <div className="relative flex-1 max-w-[280px] group">
- <select
+ <CustomSelect
  value={listSmartOption}
- onChange={(e) => setListSmartOption(e.target.value as 'all' | 'none')}
- className="flex-1 w-full text-xs bg-white border border-gray-200 hover:border-blue-400 focus:border-primary focus:ring-4 focus:ring-primary/10 hover:shadow-md rounded-xl px-3 py-2 outline-none font-medium text-gray-700 shadow-sm transition-colors cursor-pointer appearance-none pr-8 relative z-0"
- >
- <option value="all">All tasks</option>
- <option value="none">None</option>
- </select>
- <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-primary transition-colors z-10 pointer-events-none">
-  <ChevronDown className="w-4 h-4" />
- </div>
+ onChange={(val) => setListSmartOption(val as 'all' | 'none')}
+ className="flex-1 w-full text-xs bg-white border border-gray-200 hover:border-blue-400 hover:shadow-md rounded-xl py-2 px-3 font-medium text-gray-700 shadow-sm transition-colors cursor-pointer relative z-0"
+ options={[
+ { value: 'all', label: 'All tasks' },
+ { value: 'none', label: 'None' }
+ ]}
+ />
 </div>
  </div>
  </div>

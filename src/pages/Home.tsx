@@ -74,8 +74,8 @@ export default function Home() {
  </div>
 
  <div className="flex items-start gap-5 mb-12">
- <div className="p-4 bg-[#FFF4E5] rounded-2xl shrink-0 border border-orange-100/50 shadow-sm mt-1">
- <Lightbulb className="h-6 w-6 text-[#D97706]" strokeWidth={2.5} />
+ <div className="p-4 bg-orange-50 rounded-2xl shrink-0 border border-orange-100/50 shadow-sm mt-1">
+ <Lightbulb className="h-6 w-6 text-orange-500" strokeWidth={2.5} />
  </div>
  <div>
  <h4 className="text-xl font-medium text-primary mb-2">Vision</h4>

@@ -1,18 +1,47 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@400;500&display=swap');
-@import url('https://fonts.cdnfonts.com/css/gilroy');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.cdnfonts.com/css/gilroy-bold');
+@import url('https://fonts.cdnfonts.com/css/gilroy-heavy');
+@import url('https://fonts.cdnfonts.com/css/gilroy-light');
+@import url('https://fonts.cdnfonts.com/css/gilroy-medium');
+@import url('https://fonts.cdnfonts.com/css/gilroy-regular');
 @import "tailwindcss";
 
 /* Web font for Gilroy */
 
 @theme {
  --font-sans: "Gilroy", ui-sans-serif, system-ui, sans-serif;
- --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+ --font-serif: "Gilroy", ui-sans-serif, system-ui, sans-serif;
+ --font-display: "Gilroy", ui-sans-serif, system-ui, sans-serif;
  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
  --color-primary: #1a2b58; /* ICAI Navy */
  --color-secondary: #AD8D3E; /* ICAI Gold */
  --color-accent: #f8fafc; /* Slate 50 */
  --color-border: #f1f5f9; /* Slate 100 */
+
+ /* Gold variants for previous amber usages */
+ --color-amber-50: #fbf9f4;
+ --color-amber-100: #f4ecdc;
+ --color-amber-200: #e7d5b5;
+ --color-amber-300: #d6b885;
+ --color-amber-400: #c59f5f;
+ --color-amber-500: #AD8D3E;
+ --color-amber-600: #93732d;
+ --color-amber-700: #7b5c27;
+ --color-amber-800: #684d26;
+ --color-amber-900: #553f22;
+
+ /* Gold variants for previous orange usages */
+ --color-orange-50: #fbf9f4;
+ --color-orange-100: #f4ecdc;
+ --color-orange-200: #e7d5b5;
+ --color-orange-300: #d6b885;
+ --color-orange-400: #c59f5f;
+ --color-orange-500: #AD8D3E;
+ --color-orange-600: #93732d;
+ --color-orange-700: #7b5c27;
+ --color-orange-800: #684d26;
+ --color-orange-900: #553f22;
 }
 
 @layer base {

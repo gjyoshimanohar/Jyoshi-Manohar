@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import CustomSelect from '../components/CustomSelect';
 import { 
-  signInWithEmailAndPassword, 
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   onAuthStateChanged, 
   signOut,
+  getAuth,
   User 
 } from 'firebase/auth';
 import { 
@@ -23,7 +26,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '../lib/firebase';
+import { auth, db, storage, firebaseConfig } from '../lib/firebase';
 import { 
   Download, 
   CheckCircle, 
@@ -62,7 +65,8 @@ import {
   XCircle,
   Save,
   Bell,
-  Check
+  Check,
+  Users
 } from 'lucide-react';
 
 // Pre-defined interfaces
@@ -175,12 +179,12 @@ export default function ClientDashboard() {
   const [dataLoading, setDataLoading] = useState(false);
 
   // Admin and Client Selector (for Admin to view specific client data)
-  const [clients, setClients] = useState<{ uid: string; email: string; displayName?: string }[]>([]);
+  const [clients, setClients] = useState<{ uid: string; email: string; displayName?: string; kycStatus?: string; services?: string[]; entityType?: string; mobile?: string; gstin?: string; pan?: string; tan?: string; address?: string }[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [selectedClientEmail, setSelectedClientEmail] = useState<string>('');
 
   // Active Tab/Filter State
-  const [activeTab, setActiveTab] = useState<'applications' | 'documents' | 'compliance' | 'admin' | 'chat'>('applications');
+  const [activeTab, setActiveTab] = useState<'applications' | 'documents' | 'compliance' | 'admin' | 'chat' | 'clients'>('applications');
   const [serviceFilter, setServiceFilter] = useState<string>('All');
 
   // Real-time Chat States
@@ -240,6 +244,23 @@ export default function ClientDashboard() {
 
   // Client New Request states
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
+  // Clients Master Modal States
+  const [showClientsMasterModal, setShowClientsMasterModal] = useState(false);
+  const [showAddNewClientModal, setShowAddNewClientModal] = useState(false);
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientPassword, setNewClientPassword] = useState('');
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientKyc, setNewClientKyc] = useState<string>('Pending');
+  const [newClientServices, setNewClientServices] = useState<string[]>([]);
+  const [editingClientUid, setEditingClientUid] = useState<string | null>(null);
+  const [newClientLoading, setNewClientLoading] = useState(false);
+  const [newClientEntityType, setNewClientEntityType] = useState('Individual');
+  const [newClientMobile, setNewClientMobile] = useState('');
+  const [newClientGstin, setNewClientGstin] = useState('');
+  const [newClientPan, setNewClientPan] = useState('');
+  const [newClientTan, setNewClientTan] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [requestType, setRequestType] = useState<'task' | 'document' | 'engagement'>('engagement');
   const [requestTitle, setRequestTitle] = useState('');
   const [requestCategory, setRequestCategory] = useState('GST Registration');
@@ -263,7 +284,11 @@ export default function ClientDashboard() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        setIsAdmin(currentUser.email === 'gjyoshimanohar@gmail.com');
+        const isAdminUser = currentUser.email === 'gjyoshimanohar@gmail.com';
+        setIsAdmin(isAdminUser);
+        if (isAdminUser && !selectedClientId) {
+          setActiveTab('clients');
+        }
         // If logged in, automatically trigger seeding if they have no records yet
         await ensureDataIsSeeded(currentUser);
       } else {
@@ -359,13 +384,21 @@ export default function ClientDashboard() {
     let unsubscribeUsers = () => {};
     if (isAdmin) {
       unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        const clientList: { uid: string; email: string; displayName?: string }[] = [];
+        const clientList: { uid: string; email: string; displayName?: string; kycStatus?: string; services?: string[] }[] = [];
         snapshot.forEach((docRef) => {
           const data = docRef.data();
           clientList.push({
             uid: data.uid || docRef.id,
             email: data.email,
-            displayName: data.displayName
+            displayName: data.displayName,
+            kycStatus: data.kycStatus || 'Pending',
+            services: data.services || [],
+            entityType: data.entityType || 'Individual',
+            mobile: data.mobile || '',
+            gstin: data.gstin || '',
+            pan: data.pan || '',
+            tan: data.tan || '',
+            address: data.address || ''
           });
         });
         setClients(clientList);
@@ -1161,6 +1194,22 @@ Stewardship, Accuracy, Legacy.
       };
 
       await addDoc(collection(db, 'applications'), newApp);
+
+      // Trigger notification for the client
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: selectedClientId,
+          userEmail: parentUserEmail,
+          title: "New Application Tracker Launched",
+          message: `CA Admin has launched a new tracker: [${newAppTitle}] (${newAppType})`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'request'
+        });
+      } catch (notifErr) {
+        console.error("Failed to add notifier for manual application push:", notifErr);
+      }
+
       setNewAppTitle('');
       setNewAppDesc('');
       setNewAppStep('');
@@ -1284,6 +1333,21 @@ Stewardship, Accuracy, Legacy.
 
       await addDoc(collection(db, 'documents'), newDocument);
       
+      // Trigger notification for the client
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: selectedClientId,
+          userEmail: parentUserEmail,
+          title: "New Document Received",
+          message: `CA Admin has uploaded an official document: [${finalName}] (Category: ${newDocCategory})`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'document'
+        });
+      } catch (notifErr) {
+        console.error("Failed to add notifier for manual doc push:", notifErr);
+      }
+      
       // Reset form fields
       setNewDocName('');
       setNewDocDesc('');
@@ -1327,6 +1391,22 @@ Stewardship, Accuracy, Legacy.
       };
 
       await addDoc(collection(db, 'compliance_filings'), newFiling);
+
+      // Trigger notification for the client
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: selectedClientId,
+          userEmail: parentUserEmail,
+          title: "New Compliance Tracker Item",
+          message: `CA Admin scheduled a new compliance tracker item: [${newFilingTitle}] (${newFilingService})`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'request'
+        });
+      } catch (notifErr) {
+        console.error("Failed to add notifier for manual compliance date push:", notifErr);
+      }
+
       setNewFilingTitle('');
       setNewFilingARN('');
       setFeedback({ message: "Successfully loaded real-time compliance tracker filing item!", type: 'success' });
@@ -1345,6 +1425,24 @@ Stewardship, Accuracy, Legacy.
         currentStep: nextStep,
         updatedAt: Date.now()
       });
+
+      const appToUpdate = applications.find(a => a.id === appId);
+      if (appToUpdate) {
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            userId: appToUpdate.userId,
+            userEmail: appToUpdate.userEmail || '',
+            title: "Application Tracker Updated",
+            message: `Your application [${appToUpdate.title}] step was updated: "${nextStep}"`,
+            createdAt: Date.now(),
+            read: false,
+            type: 'request'
+          });
+        } catch (nErr) {
+          console.error("Failed to push update notification:", nErr);
+        }
+      }
+
       setFeedback({ message: "Perfect! Client status advanced successfully.", type: 'success' });
       setTimeout(() => setFeedback(null), 3000);
     } catch (err: any) {
@@ -1827,6 +1925,24 @@ Stewardship, Accuracy, Legacy.
         updates.filedDate = null;
       }
       await updateDoc(doc(db, 'compliance_filings', filingId), updates);
+
+      const filingToUpdate = complianceFilings.find(f => f.id === filingId);
+      if (filingToUpdate) {
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            userId: filingToUpdate.userId,
+            userEmail: filingToUpdate.userEmail || '',
+            title: "Compliance Filing Status Updated",
+            message: `Your filing [${filingToUpdate.title}] GSTR/ITR status is now updated to: "${status}"`,
+            createdAt: Date.now(),
+            read: false,
+            type: 'request'
+          });
+        } catch (nErr) {
+          console.error("Failed to push filing update notification:", nErr);
+        }
+      }
+
       setFeedback({ message: "Compliance Filing status updated successfully in real-time!", type: 'success' });
       setTimeout(() => setFeedback(null), 3500);
     } catch (err: any) {
@@ -1846,20 +1962,20 @@ Stewardship, Accuracy, Legacy.
     }
   };
 
-  const handleDeleteClient = async () => {
-    if (!selectedClientId) {
+  const handleDeleteClientById = async (clientId: string, clientEmail: string) => {
+    if (!clientId) {
       alert("Please select a client to delete first.");
       return;
     }
     
     // Safety check: Cannot delete self
-    if (selectedClientId === user?.uid) {
+    if (clientId === user?.uid) {
       alert("Security alert: You cannot delete your own admin/active user profile.");
       return;
     }
 
-    const clientEmail = selectedClientEmail || "this client";
-    if (!confirm(`Are you absolutely sure you want to PERMANENTLY delete client profile for "${clientEmail}"?\n\nThis will purge all their tracker records, documents and filings. This action is irreversible.`)) {
+    const emailDisplay = clientEmail || "this client";
+    if (!confirm(`Are you absolutely sure you want to PERMANENTLY delete client profile for "${emailDisplay}"?\n\nThis will purge all their tracker records, documents and filings. This action is irreversible.`)) {
       return;
     }
 
@@ -1867,26 +1983,28 @@ Stewardship, Accuracy, Legacy.
       setDataLoading(true);
       
       // 1. Delete associated applications
-      const appsSnap = await getDocs(query(collection(db, 'applications'), where('userId', '==', selectedClientId)));
+      const appsSnap = await getDocs(query(collection(db, 'applications'), where('userId', '==', clientId)));
       const appDeletes = appsSnap.docs.map(d => deleteDoc(doc(db, 'applications', d.id)));
       
       // 2. Delete associated documents
-      const docsSnap = await getDocs(query(collection(db, 'documents'), where('userId', '==', selectedClientId)));
+      const docsSnap = await getDocs(query(collection(db, 'documents'), where('userId', '==', clientId)));
       const docDeletes = docsSnap.docs.map(d => deleteDoc(doc(db, 'documents', d.id)));
       
       // 3. Delete associated compliance filings
-      const filingsSnap = await getDocs(query(collection(db, 'compliance_filings'), where('userId', '==', selectedClientId)));
+      const filingsSnap = await getDocs(query(collection(db, 'compliance_filings'), where('userId', '==', clientId)));
       const filingDeletes = filingsSnap.docs.map(d => deleteDoc(doc(db, 'compliance_filings', d.id)));
       
       // Execute all subcollection deletes
       await Promise.all([...appDeletes, ...docDeletes, ...filingDeletes]);
 
       // 4. Delete the user document itself
-      await deleteDoc(doc(db, 'users', selectedClientId));
+      await deleteDoc(doc(db, 'users', clientId));
 
-      // Reset selection and emails
-      setSelectedClientId('');
-      setSelectedClientEmail('');
+      // Reset selection if the deleted client was active
+      if (selectedClientId === clientId) {
+        setSelectedClientId('');
+        setSelectedClientEmail('');
+      }
       
       setFeedback({ message: "Successfully deleted client profile and purged all associated records from Firestore registers!", type: 'success' });
       setTimeout(() => setFeedback(null), 4000);
@@ -1895,6 +2013,65 @@ Stewardship, Accuracy, Legacy.
       alert("Failed to delete client: " + e.message);
     } finally {
       setDataLoading(false);
+    }
+  };
+
+  const handleAddNewClientInModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClientEmail) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+    
+    try {
+      setNewClientLoading(true);
+      let finalUid = editingClientUid || newClientEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      
+      const shouldCreateAuthUser = !editingClientUid && newClientPassword && newClientPassword.length >= 6;
+      if (shouldCreateAuthUser) {
+        const secondaryApp = getApps().find(app => app.name === 'SecondaryApp') || initializeApp(firebaseConfig, 'SecondaryApp');
+        const secondaryAuth = getAuth(secondaryApp);
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, newClientEmail, newClientPassword);
+        finalUid = cred.user.uid;
+        await secondaryAuth.signOut();
+      }
+
+      await setDoc(doc(db, 'users', finalUid), {
+        uid: finalUid,
+        email: newClientEmail,
+        displayName: newClientName || newClientEmail.split('@')[0],
+        kycStatus: newClientKyc,
+        services: newClientServices,
+        entityType: newClientEntityType,
+        mobile: newClientMobile,
+        gstin: newClientGstin,
+        pan: newClientPan,
+        tan: newClientTan,
+        address: newClientAddress,
+        updatedAt: Date.now(),
+        ...(editingClientUid ? {} : { createdAt: Date.now() })
+      }, { merge: true });
+      setSelectedClientId(finalUid);
+      setSelectedClientEmail(newClientEmail);
+      setNewClientEmail('');
+      setNewClientPassword('');
+      setNewClientName('');
+      setNewClientKyc('Pending');
+      setNewClientServices([]);
+      setNewClientEntityType('Individual');
+      setNewClientMobile('');
+      setNewClientGstin('');
+      setNewClientPan('');
+      setNewClientTan('');
+      setNewClientAddress('');
+      setEditingClientUid(null);
+      setShowAddNewClientModal(false);
+      setFeedback({ message: editingClientUid ? "Successfully updated client profile!" : "Successfully created client profile" + (shouldCreateAuthUser ? " with login access!" : " stub!"), type: 'success' });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      alert(`Failed to ${editingClientUid ? 'update' : 'create'} stub: ` + err.message);
+    } finally {
+      setNewClientLoading(false);
     }
   };
 
@@ -2111,7 +2288,7 @@ Stewardship, Accuracy, Legacy.
               <span>Secure CA Terminal</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif text-slate-900 tracking-tight font-medium mt-2">
-              Welcome, {user.displayName || user.email?.split('@')[0]}
+              Welcome, {isAdmin ? "Jyoshi Manohar" : (user.displayName || user.email?.split('@')[0])}
             </h1>
             <p className="text-xs text-slate-500 mt-1">
               Active Session Token: <span className="font-mono text-[11px] font-bold bg-slate-100 px-1 rounded text-primary">{user.uid.substring(0, 8).toUpperCase()}</span> • Enterprise Class Encryption Enabled
@@ -2255,175 +2432,141 @@ Stewardship, Accuracy, Legacy.
           </div>
         </div>
 
-        {/* Admin client switching view */}
-        {isAdmin && (
-          <div className="bg-slate-950 text-white rounded-3xl p-6 sm:p-8 mb-8 border border-slate-800 shadow-xl relative overflow-hidden">
-            <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-            <h2 className="text-lg font-serif font-semibold text-white mb-4 flex items-center gap-2">
-              <Activity className="h-5 w-5 text-primary" />
-              <span>Admin Control Room (Change Active Client Scope)</span>
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-              <div>
-                <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Select client in registry</label>
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => {
-                    setSelectedClientId(e.target.value);
-                    const sel = clients.find(c => c.uid === e.target.value);
-                    setSelectedClientEmail(sel?.email || '');
-                  }}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-xs font-bold text-white outline-none focus:border-primary"
-                >
-                  <option value="">-- View My Self Account (Default Seeding) --</option>
-                  {clients.map(c => (
-                    <option key={c.uid} value={c.uid}>
-                      {c.displayName || c.email} ({c.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Manual email link (Not registered users)</label>
-                <input 
-                  type="email"
-                  placeholder="e.g. client@partner.com"
-                  value={selectedClientEmail}
-                  onChange={(e) => setSelectedClientEmail(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-xs font-bold text-white outline-none focus:border-primary"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 w-full">
-                <button
-                  onClick={async () => {
-                    if (!selectedClientEmail) {
-                      alert("Please type an email first.");
-                      return;
-                    }
-                    const cleanId = selectedClientEmail.replace(/[^a-zA-Z0-9]/g, '_');
-                    try {
-                      await setDoc(doc(db, 'users', cleanId), {
-                        uid: cleanId,
-                        email: selectedClientEmail,
-                        displayName: selectedClientEmail.split('@')[0],
-                        createdAt: Date.now()
-                      });
-                      setSelectedClientId(cleanId);
-                      alert("Successfully created client profile stub! Initial records seeded.");
-                    } catch (e: any) {
-                      alert("Failed to create stub: " + e.message);
-                    }
-                  }}
-                  className="flex-1 bg-primary hover:bg-slate-900 text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wide border border-transparent hover:border-slate-800 transition-all text-center cursor-pointer"
-                >
-                  Create client stub
-                </button>
-                {selectedClientId && selectedClientId !== user?.uid && (
-                  <button
-                    onClick={handleDeleteClient}
-                    className="bg-red-600 hover:bg-red-700 text-white rounded-xl py-3.5 px-4 text-xs font-bold uppercase tracking-wide transition-colors text-center cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Delete client</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Grid and Tabs layout */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           {/* Navigation drawer rail (Desktop) */}
           <div className="lg:col-span-1 space-y-3">
-            <button
-              onClick={() => setActiveTab('applications')}
-              className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
-                activeTab === 'applications'
-                  ? 'bg-primary text-white border-primary shadow-md'
-                  : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Briefcase className="h-4 w-4 shrink-0" />
-                <span className="text-xs font-bold uppercase tracking-wider">Application tracker</span>
-              </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'applications' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                {applications.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('documents')}
-              className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
-                activeTab === 'documents'
-                  ? 'bg-primary text-white border-primary shadow-md'
-                  : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 shrink-0" />
-                <span className="text-xs font-bold uppercase tracking-wider">Document vaults</span>
-              </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'documents' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                {documents.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('compliance')}
-              className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
-                activeTab === 'compliance'
-                  ? 'bg-primary text-white border-primary shadow-md'
-                  : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Calendar className="h-4 w-4 shrink-0" />
-                <span className="text-xs font-bold uppercase tracking-wider">Compliance track</span>
-              </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'compliance' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                {complianceFilings.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
-                activeTab === 'chat'
-                  ? 'bg-primary text-white border-primary shadow-md'
-                  : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <MessageSquare className="h-4 w-4 shrink-0" />
-                <span className="text-xs font-bold uppercase tracking-wider">Consultation Chat</span>
-              </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'chat' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
-                {chatMessages.length}
-              </span>
-            </button>
-
             {isAdmin && (
-              <button
-                onClick={() => setActiveTab('admin')}
-                className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
-                  activeTab === 'admin'
-                    ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
-                    : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Upload className="h-4 w-4 shrink-0" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Deploy data flow</span>
-                </div>
-                <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
-                  Filing Panel
-                </span>
-              </button>
+              <div className="mb-4">
+                <button
+                  type="button"
+                  id="clients-master-nav-btn"
+                  onClick={() => setActiveTab('clients')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                    activeTab === 'clients'
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+                  } mb-2 cursor-pointer`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className="h-4 w-4 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Clients master</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'clients' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                    {clients.length}
+                  </span>
+                </button>
+                {selectedClientEmail && (
+                  <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-medium text-slate-700 flex items-center justify-between border border-slate-200 rounded-lg">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span className="truncate">Focus: {selectedClientEmail}</span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setSelectedClientId('');
+                        setSelectedClientEmail('');
+                        setActiveTab('clients');
+                      }} 
+                      className="text-[9px] text-slate-500 hover:text-slate-800 underline font-semibold ml-1 cursor-pointer shrink-0"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(!isAdmin || selectedClientId) && (
+              <>
+                <button
+                  onClick={() => setActiveTab('applications')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                    activeTab === 'applications'
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Briefcase className="h-4 w-4 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Application tracker</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'applications' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                    {applications.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('documents')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                    activeTab === 'documents'
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Document vaults</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'documents' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                    {documents.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('compliance')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                    activeTab === 'compliance'
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Compliance track</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'compliance' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                    {complianceFilings.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                    activeTab === 'chat'
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className="h-4 w-4 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Consultation Chat</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'chat' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                    {chatMessages.length}
+                  </span>
+                </button>
+
+                {isAdmin && (
+                  <button
+                    onClick={() => setActiveTab('admin')}
+                    className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                      activeTab === 'admin'
+                        ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
+                        : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Upload className="h-4 w-4 shrink-0" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Deploy data flow</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                      Filing Panel
+                    </span>
+                  </button>
+                )}
+              </>
             )}
 
             {/* Quick Consultation help box */}
@@ -3025,16 +3168,17 @@ Stewardship, Accuracy, Legacy.
                               </td>
                               <td className="py-4 font-medium text-slate-950">
                                 {isAdmin ? (
-                                  <select
+                                  <CustomSelect
                                     value={filing.status}
-                                    onChange={(e) => handleUpdateFilingStatus(filing.id, e.target.value as any, filing.arn)}
-                                    className="bg-white border border-slate-200 rounded-lg py-1 px-2 text-[10px] font-bold text-slate-800 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer transition-colors"
-                                  >
-                                    <option value="Upcoming">Upcoming</option>
-                                    <option value="In Progress">In Progress</option>
-                                    <option value="Pending Client Action">Action Required</option>
-                                    <option value="Filed">Filed</option>
-                                  </select>
+                                    onChange={(val) => handleUpdateFilingStatus(filing.id, val as any, filing.arn)}
+                                    className="bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px]"
+                                    options={[
+                                      "Upcoming",
+                                      "In Progress",
+                                      "Pending Client Action",
+                                      "Filed"
+                                    ]}
+                                  />
                                 ) : (
                                   <span className={`px-2.5 py-1 text-[9px] uppercase font-bold tracking-widest rounded-full border ${getFilingStatusBadge(filing.status)}`}>
                                     {filing.status}
@@ -3343,17 +3487,18 @@ Stewardship, Accuracy, Legacy.
                               </div>
                               <div>
                                 <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Vault Category</label>
-                                <select
+                                <CustomSelect
                                   value={reqDocCategory}
-                                  onChange={(e) => setReqDocCategory(e.target.value)}
-                                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-950 font-medium outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                                >
-                                  <option value="Certificates">Certificates</option>
-                                  <option value="Financials">Financials</option>
-                                  <option value="Audit Reports">Audit Reports</option>
-                                  <option value="Tax Filing">Tax Filing</option>
-                                  <option value="KYC Verification">KYC Verification</option>
-                                </select>
+                                  onChange={(val) => setReqDocCategory(val)}
+                                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-950 font-medium"
+                                  options={[
+                                    "Certificates",
+                                    "Financials",
+                                    "Audit Reports",
+                                    "Tax Filing",
+                                    "KYC Verification"
+                                  ]}
+                                />
                               </div>
                               <div>
                                 <label className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1">Instructions for Client</label>
@@ -3488,7 +3633,7 @@ Stewardship, Accuracy, Legacy.
                   <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-xl mt-4 flex items-center gap-3">
                     <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
                     <span className="text-xs font-semibold text-slate-100">
-                      Active client focus: <span className="text-amber-300 underline underline-offset-4">{selectedClientEmail || 'Self Default Sandbox'}</span>
+                      Active client focus: <span className="text-amber-300 underline underline-offset-4">{selectedClientEmail || 'No client selected'}</span>
                     </span>
                   </div>
                 </div>
@@ -3800,30 +3945,32 @@ Stewardship, Accuracy, Legacy.
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Department Sector</label>
-                          <select
+                          <CustomSelect
                             value={newAppType}
-                            onChange={(e) => setNewAppType(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
-                          >
-                            <option value="GST Service">GST Service</option>
-                            <option value="Direct Tax">Direct Tax</option>
-                            <option value="Corporate Compliance">Corporate Compliance</option>
-                            <option value="Statutory Audit">Statutory Audit</option>
-                          </select>
+                            onChange={(val) => setNewAppType(val)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
+                            options={[
+                              "GST Service",
+                              "Direct Tax",
+                              "Corporate Compliance",
+                              "Statutory Audit"
+                            ]}
+                          />
                         </div>
                         <div>
                           <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Target Status</label>
-                          <select
+                          <CustomSelect
                             value={newAppStatus}
-                            onChange={(e) => setNewAppStatus(e.target.value as any)}
-                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
-                          >
-                            <option value="Pending Documents">Pending Documents</option>
-                            <option value="Under Review">Under Review</option>
-                            <option value="Submitted to Department">Submitted</option>
-                            <option value="Query Raised">Query Raised</option>
-                            <option value="Approved & Issued">Issued</option>
-                          </select>
+                            onChange={(val) => setNewAppStatus(val as any)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
+                            options={[
+                              "Pending Documents",
+                              "Under Review",
+                              "Submitted to Department",
+                              "Query Raised",
+                              "Approved & Issued"
+                            ]}
+                          />
                         </div>
                       </div>
 
@@ -3958,16 +4105,17 @@ Stewardship, Accuracy, Legacy.
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Subcategory</label>
-                          <select
+                          <CustomSelect
                             value={newDocCategory}
-                            onChange={(e) => setNewDocCategory(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
-                          >
-                            <option value="Certificates">Certificates</option>
-                            <option value="Taxes and Filing">Taxes and Filing</option>
-                            <option value="Internal Financials">Internal Financials</option>
-                            <option value="Audited Statements">Audited Statements</option>
-                          </select>
+                            onChange={(val) => setNewDocCategory(val)}
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
+                            options={[
+                              "Certificates",
+                              "Taxes and Filing",
+                              "Internal Financials",
+                              "Audited Statements"
+                            ]}
+                          />
                         </div>
                         <div>
                           <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Payload size estimation</label>
@@ -4035,16 +4183,17 @@ Stewardship, Accuracy, Legacy.
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Segment Sector</label>
-                            <select
+                            <CustomSelect
                               value={newFilingService}
-                              onChange={(e) => setNewFilingService(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
-                            >
-                              <option value="GST">GST</option>
-                              <option value="Income Tax">Income Tax</option>
-                              <option value="Corporate Compliance">Corporate Compliance</option>
-                              <option value="TDS and PF">TDS and PF</option>
-                            </select>
+                              onChange={(val) => setNewFilingService(val)}
+                              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
+                              options={[
+                                "GST",
+                                "Income Tax",
+                                "Corporate Compliance",
+                                "TDS and PF"
+                              ]}
+                            />
                           </div>
                           <div>
                             <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Financial Assessment Year</label>
@@ -4087,16 +4236,17 @@ Stewardship, Accuracy, Legacy.
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Filing status</label>
-                            <select
+                            <CustomSelect
                               value={newFilingStatus}
-                              onChange={(e) => setNewFilingStatus(e.target.value as any)}
-                              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
-                            >
-                              <option value="Upcoming">Upcoming</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Pending Client Action">Action Required</option>
-                              <option value="Filed">Filed (Success)</option>
-                            </select>
+                              onChange={(val) => setNewFilingStatus(val as any)}
+                              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
+                              options={[
+                                "Upcoming",
+                                "In Progress",
+                                "Pending Client Action",
+                                "Filed"
+                              ]}
+                            />
                           </div>
                           <div>
                             <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Govt Receipt ARN Reference</label>
@@ -4126,11 +4276,480 @@ Stewardship, Accuracy, Legacy.
               </div>
             )}
 
+            {/* CLIENTS MASTER BOARD */}
+            {activeTab === 'clients' && isAdmin && (
+              <div className="space-y-6">
+                
+                {/* Header card with Add Client Action on top right */}
+                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <Users className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-serif font-semibold text-slate-900 tracking-tight">Clients Master Register</h2>
+                      <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                        Create client stubs, view client account records, delete client profiles, and select the specific client thread context you want to manage across the workspace portals.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Add Client Action Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingClientUid(null);
+                      setNewClientEmail('');
+                      setNewClientPassword('');
+                      setNewClientName('');
+                      setNewClientKyc('Pending');
+                      setNewClientServices([]);
+                      setNewClientEntityType('Individual');
+                      setNewClientMobile('');
+                      setNewClientGstin('');
+                      setNewClientPan('');
+                      setNewClientTan('');
+                      setNewClientAddress('');
+                      setShowAddNewClientModal(true);
+                    }}
+                    className="shrink-0 self-start md:self-center bg-primary hover:bg-slate-900 text-white transition-all font-bold px-5 py-3 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer border border-transparent font-sans"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Add Client</span>
+                  </button>
+                </div>
+
+                {/* Active Client Registry and Filter */}
+                <div className="bg-white border border-slate-150 rounded-3xl p-6 sm:p-8 shadow-sm text-left">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 mb-5 gap-3">
+                    <div>
+                      <h3 className="text-sm font-serif font-semibold text-slate-900 flex items-center gap-1.5">
+                        <Users className="h-4 w-4 text-primary" />
+                        <span>Active Client Space Registers ({clients.length})</span>
+                      </h3>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Click profile cards to switch active workspace focus</p>
+                    </div>
+
+                    {/* Search box inline */}
+                    <div className="relative w-full sm:w-48">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      <input 
+                        type="text"
+                        placeholder="Filter email / name..."
+                        value={clientSearchQuery}
+                        onChange={(e) => setClientSearchQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:border-primary hover:border-slate-350 focus:ring-1 focus:ring-primary transition-all text-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                    {/* Client stubs from Firestore */}
+                    {clients
+                      .filter(c => {
+                        if (!clientSearchQuery) return true;
+                        return c.email.toLowerCase().includes(clientSearchQuery.toLowerCase()) || 
+                          (c.displayName && c.displayName.toLowerCase().includes(clientSearchQuery.toLowerCase()));
+                      })
+                      .map((c) => {
+                        const isFocused = selectedClientId === c.uid;
+                        return (
+                          <div 
+                            key={c.uid}
+                            className={`p-4 rounded-2xl border transition-all flex justify-between items-center group relative ${
+                              isFocused 
+                                ? 'border-primary bg-slate-50 ring-1 ring-primary/20' 
+                                : 'border-slate-150 hover:bg-slate-50 bg-white'
+                            }`}
+                          >
+                            <div 
+                              onClick={() => {
+                                setSelectedClientId(c.uid);
+                                setSelectedClientEmail(c.email);
+                                setActiveTab('applications');
+                              }}
+                              className="flex-1 text-left cursor-pointer pr-3 min-w-0"
+                            >
+                              <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5 min-w-0">
+                                <span className="truncate">{c.displayName || c.email.split('@')[0]}</span>
+                                {isFocused && (
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                )}
+                              </p>
+                              <div className="flex flex-col gap-1.5 mt-1">
+                                <p className="text-[10px] text-slate-400 font-mono truncate font-medium">
+                                  {c.email}
+                                </p>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {c.kycStatus === 'Verified' ? (
+                                    <span className="text-[8px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 font-bold uppercase rounded border border-emerald-200">KYC VERIFIED</span>
+                                  ) : c.kycStatus === 'Rejected' ? (
+                                    <span className="text-[8px] px-1.5 py-0.5 bg-rose-100 text-rose-700 font-bold uppercase rounded border border-rose-200">KYC REJECTED</span>
+                                  ) : (
+                                    <span className="text-[8px] px-1.5 py-0.5 bg-amber-100 text-amber-700 font-bold uppercase rounded border border-amber-200">KYC PENDING</span>
+                                  )}
+                                  
+                                  {c.services?.slice(0, 2).map(srv => (
+                                    <span key={srv} className="text-[8px] px-1.5 py-0.5 bg-slate-100 text-slate-600 font-bold uppercase rounded border border-slate-200">{srv}</span>
+                                  ))}
+                                  {(c.services?.length || 0) > 2 && (
+                                    <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 text-slate-600 font-bold uppercase rounded border border-slate-200">+{c.services!.length - 2}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {isFocused ? (
+                                <span className="text-[9px] font-bold text-primary bg-slate-100 px-2.5 py-1 rounded-full shrink-0">
+                                  Active Focus
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedClientId(c.uid);
+                                    setSelectedClientEmail(c.email);
+                                    setActiveTab('applications');
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 text-[10px] sm:text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-250 rounded-lg px-2.5 py-1.5 transition-all cursor-pointer"
+                                >
+                                  Focus client
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingClientUid(c.uid);
+                                  setNewClientEmail(c.email);
+                                  setNewClientPassword('');
+                                  setNewClientName(c.displayName || '');
+                                  setNewClientKyc(c.kycStatus || 'Pending');
+                                  setNewClientServices(c.services || []);
+                                  setNewClientEntityType(c.entityType || 'Individual');
+                                  setNewClientMobile(c.mobile || '');
+                                  setNewClientGstin(c.gstin || '');
+                                  setNewClientPan(c.pan || '');
+                                  setNewClientTan(c.tan || '');
+                                  setNewClientAddress(c.address || '');
+                                  setShowAddNewClientModal(true);
+                                }}
+                                className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-colors cursor-pointer shrink-0"
+                                title="Edit client profile"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClientById(c.uid, c.email);
+                                }}
+                                disabled={c.uid === user?.uid}
+                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                                title="Delete client profile"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                    {clients.filter(c => {
+                      if (!clientSearchQuery) return true;
+                      return c.email.toLowerCase().includes(clientSearchQuery.toLowerCase()) || 
+                        (c.displayName && c.displayName.toLowerCase().includes(clientSearchQuery.toLowerCase()));
+                    }).length === 0 && (
+                      <div className="py-12 text-center text-slate-400 text-xs italic">
+                        No registered clients found matching filter.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )}
+
           </div>
 
         </div>
 
       </div>
+
+      {/* Add New Client Dialog Modal */}
+      <AnimatePresence>
+        {showAddNewClientModal && (
+          <div id="add-new-client-modal-overlay" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              id="add-new-client-modal-card"
+              className="bg-white rounded-[2rem] shadow-2xl border border-slate-100/80 w-full max-w-2xl overflow-hidden font-sans text-slate-950 flex flex-col max-h-[90vh]"
+            >
+              {/* Header Section */}
+              <div className="bg-slate-900 px-6 py-5 text-white flex justify-between items-center relative overflow-hidden shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-r from-amber-500/15 to-transparent pointer-events-none" />
+                <div className="relative z-10 flex items-center gap-3">
+                  <div className="bg-amber-500/20 p-2 rounded-xl text-amber-300 border border-amber-500/25">
+                    <Users className="h-5 w-5 text-amber-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-serif font-semibold tracking-tight">{editingClientUid ? 'Edit Client Account' : 'Add New Client Account'}</h3>
+                    <p className="text-[10px] text-amber-200/75 font-medium uppercase tracking-wider">{editingClientUid ? 'Update workspace profile' : 'Register workspace profile stub'}</p>
+                  </div>
+                </div>
+                <button
+                  id="close-add-client-modal-btn"
+                  type="button"
+                  onClick={() => setShowAddNewClientModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Body Form */}
+              <form id="add-new-client-form" onSubmit={handleAddNewClientInModal} className="p-6 md:p-8 space-y-5 text-left flex-1 overflow-y-auto">
+                
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                    Client Name / Organization Name *
+                  </label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Acme Industries Ltd"
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 focus:ring-1 focus:ring-amber-500 transition-all text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                    Client Email Address *
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="email"
+                      required
+                      disabled={!!editingClientUid}
+                      placeholder="e.g. contact@clientcorp.com"
+                      value={newClientEmail}
+                      onChange={(e) => setNewClientEmail(e.target.value)}
+                      className={`w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 focus:ring-1 focus:ring-amber-500 transition-all ${!!editingClientUid ? 'text-slate-400 cursor-not-allowed opacity-70' : 'text-slate-900'}`}
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">
+                    A profile workspace context will be created mapped to this email handle.
+                  </p>
+                </div>
+
+                {!editingClientUid && (
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      Client Login Password *
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <input
+                        type="password"
+                        required
+                        placeholder="e.g. Set initial password"
+                        value={newClientPassword}
+                        onChange={(e) => setNewClientPassword(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 focus:ring-1 focus:ring-amber-500 transition-all text-slate-900"
+                      />
+                    </div>
+                    <p className="text-[9px] text-slate-400 mt-1.5 leading-relaxed">
+                      If provided, the client can use these credentials to log in. Must be at least 6 characters.
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      Entity Type *
+                    </label>
+                    <CustomSelect
+                      value={newClientEntityType}
+                      onChange={(val) => setNewClientEntityType(val)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-slate-900"
+                      options={[
+                        "Individual",
+                        "Company",
+                        "LLP",
+                        "Partnership",
+                        "Trust"
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      Mobile Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 9876543210"
+                      value={newClientMobile}
+                      onChange={(e) => setNewClientMobile(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 transition-all text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      GSTIN *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 29ABCDE1234F1Z5"
+                      value={newClientGstin}
+                      onChange={(e) => setNewClientGstin(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 transition-all text-slate-900 uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      PAN *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. ABCDE1234F"
+                      value={newClientPan}
+                      onChange={(e) => setNewClientPan(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 transition-all text-slate-900 uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      TAN *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. ABCD12345E"
+                      value={newClientTan}
+                      onChange={(e) => setNewClientTan(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 transition-all text-slate-900 uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                    Address *
+                  </label>
+                  <textarea
+                    required
+                    placeholder="Enter full address"
+                    value={newClientAddress}
+                    onChange={(e) => setNewClientAddress(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-amber-500 hover:border-slate-350 transition-all text-slate-900 resize-none h-20"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-5">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      Client KYC Status *
+                    </label>
+                    <CustomSelect
+                      value={newClientKyc}
+                      onChange={(val) => setNewClientKyc(val)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-slate-900"
+                      options={[
+                        "Pending",
+                        "Verified",
+                        "Rejected"
+                      ]}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                      Services We Offer *
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Audit', 'Accounting', 'Tax Filing', 'Payroll', 'Legal Advice'].map((srv) => (
+                        <button
+                          key={srv}
+                          type="button"
+                          onClick={() => {
+                            if (newClientServices.includes(srv)) {
+                              setNewClientServices(prev => prev.filter(s => s !== srv));
+                            } else {
+                              setNewClientServices(prev => [...prev, srv]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold font-sans transition-all cursor-pointer border ${
+                            newClientServices.includes(srv)
+                              ? 'bg-primary text-white border-primary shadow-sm'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          {srv}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 text-[10px] text-amber-800 leading-relaxed">
+                  <span className="font-bold block mb-0.5">ℹ Workspace Virtualization</span>
+                  The administrator and staff can then instantly assign GST, Income Tax filings, document checklist requests, or support chat tickets specifically to this client.
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddNewClientModal(false)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 hover:text-slate-950 font-bold rounded-xl py-3 text-xs uppercase tracking-wider transition cursor-pointer text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={newClientLoading}
+                    className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-bold rounded-xl py-3 px-4 text-xs uppercase tracking-wider transition shadow-sm hover:scale-[1.01] active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {newClientLoading ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>{editingClientUid ? 'Updating...' : 'Creating...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        {editingClientUid ? <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> : <Plus className="h-3.5 w-3.5" />}
+                        <span>{editingClientUid ? 'Update Client' : 'Create Client'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Client New Request Modal Dialog */}
       <AnimatePresence>
@@ -4247,21 +4866,21 @@ Stewardship, Accuracy, Legacy.
                     <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">
                       Service Category
                     </label>
-                    <select
-                      id="select-request-category"
+                    <CustomSelect
                       value={requestCategory}
-                      onChange={(e) => setRequestCategory(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium outline-none focus:border-primary transition-colors cursor-pointer"
-                    >
-                      <option value="GST Registration">GST Registration</option>
-                      <option value="GST Monthly Return">GST Monthly Return</option>
-                      <option value="Income Tax Return">Income Tax Return</option>
-                      <option value="ROC Compliance">ROC Compliance / MCA</option>
-                      <option value="Company Incorporation">Company Incorporation</option>
-                      <option value="FEMA & RBI Compliance">FEMA & RBI Compliance</option>
-                      <option value="Audit & Assurance">Audit & Assurance / Ledger Check</option>
-                      <option value="Other Consulting">Other Corporate Advisory</option>
-                    </select>
+                      onChange={(val) => setRequestCategory(val)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium cursor-pointer"
+                      options={[
+                        "GST Registration",
+                        "GST Monthly Return",
+                        "Income Tax Return",
+                        "ROC Compliance / MCA",
+                        "Company Incorporation",
+                        "FEMA & RBI Compliance",
+                        "Audit & Assurance / Ledger Check",
+                        "Other Corporate Advisory"
+                      ]}
+                    />
                   </div>
                 </div>
 
