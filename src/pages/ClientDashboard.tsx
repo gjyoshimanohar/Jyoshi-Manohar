@@ -1322,7 +1322,7 @@ Stewardship, Accuracy, Legacy.
         status: newFilingStatus,
         financialYear: newFilingFY,
         period: newFilingPeriod,
-        arn: newFilingARN || undefined,
+        arn: newFilingARN || "",
         filedDate: newFilingStatus === 'Filed' ? new Date().toISOString().split('T')[0] : null
       };
 
