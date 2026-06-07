@@ -1282,7 +1282,7 @@ Stewardship, Accuracy, Legacy.
       }
 
       // Save the draft proposal inside 'client_requests' collection
-      const clientRequestObj: Omit<ClientRequest, 'id'> = {
+      const clientRequestObj: any = {
         userId: user.uid,
         userEmail: user.email || '',
         clientName: user.displayName || user.email?.split('@')[0] || "Client",
@@ -1290,13 +1290,18 @@ Stewardship, Accuracy, Legacy.
         type: requestType, // 'engagement', 'task', 'document'
         category: requestCategory,
         description: requestDescription || "Requested online by client.",
-        fileUrl: finalFileUrl || undefined,
-        fileName: requestFile ? requestFile.name : undefined,
-        fileSize: requestFile ? finalFileSize : undefined,
-        fileType: requestFile ? finalFileType : undefined,
         createdAt: Date.now(),
         status: 'pending'
       };
+
+      if (requestFile) {
+        if (finalFileUrl) {
+          clientRequestObj.fileUrl = finalFileUrl;
+        }
+        clientRequestObj.fileName = requestFile.name;
+        clientRequestObj.fileSize = finalFileSize;
+        clientRequestObj.fileType = finalFileType;
+      }
 
       await addDoc(collection(db, 'client_requests'), clientRequestObj);
 
