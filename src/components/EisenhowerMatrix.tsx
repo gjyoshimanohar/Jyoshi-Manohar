@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Todo, Project } from '../types';
-import { Flag, Trash2, Plus, Calendar } from 'lucide-react';
+import { Flag, Trash2, Plus, Calendar, RefreshCw, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { determineProjectByTitle } from '../utils/autoCategorize';
 
@@ -141,7 +141,9 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  className="bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col justify-between"
  >
  <div className="flex items-start justify-between">
- <span className="text-xs text-gray-800 font-semibold truncate flex-1 leading-normal pr-2">
+ <span className="text-xs text-gray-800 font-semibold truncate flex-1 leading-normal pr-2 flex items-center gap-1">
+ {item.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+ {(item.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
  {item.title}
  </span>
  <span className="text-xs text-gray-400 select-none">⋮⋮</span>

@@ -8,7 +8,7 @@ import {
  Flame, HelpCircle, RefreshCw, Bell, Award, Sparkles, FolderOpen,
  Milestone, BookOpen, Smile, Play, Volume2, ShieldCheck, Target,
  GraduationCap, ArrowUpDown, Hourglass, Lightbulb, Minimize2, Maximize2,
- Settings, FileSpreadsheet, Download
+ Settings, FileSpreadsheet, Download, Lock
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
 import { Todo, Project, Folder as FolderType } from '../types';
@@ -295,6 +295,8 @@ export default function WorkspaceApp() {
  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
  const [newTaskDeadline, setNewTaskDeadline] = useState<Date | undefined>(undefined);
  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [newTaskRepeatInterval, setNewTaskRepeatInterval] = useState<'daily' | 'weekly' | 'monthly' | null>(null);
+  const [showRepeatPicker, setShowRepeatPicker] = useState(false);
  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
  const [showProjectPicker, setShowProjectPicker] = useState(false);
  const [showPriorityPicker, setShowPriorityPicker] = useState(false);
@@ -302,6 +304,8 @@ export default function WorkspaceApp() {
  // Detail Modal Picker States
  const [showDetailDatePicker, setShowDetailDatePicker] = useState(false);
  const [showDetailPriorityPicker, setShowDetailPriorityPicker] = useState(false);
+ const [showDetailRepeatPicker, setShowDetailRepeatPicker] = useState(false);
+ const [showDetailBlockingPicker, setShowDetailBlockingPicker] = useState(false);
 
  // Collapsible Checked Category State (Replicates visual checked list expander)
  const [isCompletedSectionExpanded, setIsCompletedSectionExpanded] = useState(true);
@@ -612,7 +616,8 @@ export default function WorkspaceApp() {
  projectId: targetProjectId,
  priority: newTaskPriority,
  dueDate: dueDateVal,
- tags: detectedTags.length > 0 ? detectedTags : undefined,
+ repeatInterval: newTaskRepeatInterval,
+      tags: detectedTags.length > 0 ? detectedTags : undefined,
  });
 
  if (matchedProjectName && targetProjectId !== currentBaseProjId) {
@@ -624,6 +629,7 @@ export default function WorkspaceApp() {
  setNewTaskTitle('');
  setNewTaskDesc('');
  setNewTaskPriority(4);
+      setNewTaskRepeatInterval(null);
  setNewTaskDueDate(undefined);
  setShowDatePicker(false);
  setShowPriorityPicker(false);
@@ -708,6 +714,35 @@ export default function WorkspaceApp() {
  const handleToggleTodo = async (todo: Todo) => {
  const isCompleting = !todo.completed;
  await todoService.updateTodoStatus(todo.id, isCompleting);
+
+ if (isCompleting && todo.repeatInterval) {
+ const baseDate = todo.dueDate ? new Date(todo.dueDate) : new Date();
+ let nextDate = new Date(baseDate);
+
+ if (todo.repeatInterval === 'daily') {
+ nextDate = addDays(nextDate, 1);
+ } else if (todo.repeatInterval === 'weekly') {
+ nextDate = addWeeks(nextDate, 1);
+ } else if (todo.repeatInterval === 'monthly') {
+ nextDate = addMonths(nextDate, 1);
+ }
+
+ if (auth.currentUser) {
+ await todoService.createTodo({
+ title: todo.title,
+ description: todo.description,
+ userId: auth.currentUser.uid,
+ completed: false,
+ projectId: todo.projectId,
+ priority: todo.priority || 4,
+ dueDate: startOfDay(nextDate).getTime(),
+ deadline: todo.deadline,
+ tags: todo.tags,
+ sectionName: todo.sectionName,
+ repeatInterval: todo.repeatInterval
+ });
+ }
+ }
  };
 
  // Kanban Board custom sections helper handlers
@@ -2182,7 +2217,9 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1">
- <span className="text-xs font-medium text-gray-800 break-words leading-relaxed leading-snug">
+ <span className="text-xs font-medium text-gray-800 break-words leading-relaxed leading-snug flex items-center gap-1">
+ {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+ {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
  {todo.title}
  </span>
  {todo.description && (
@@ -2283,7 +2320,9 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1">
- <span className="text-xs font-medium text-gray-400 line-through truncate block">
+ <span className="text-xs font-medium text-gray-400 line-through truncate block flex items-center gap-1.5 mt-0.5">
+ {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+ {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
  {todo.title}
  </span>
  <div className="text-xs text-gray-400 font-medium tracking-wide mt-0.5">
@@ -2391,7 +2430,7 @@ export default function WorkspaceApp() {
  type="text"
  placeholder={`+ Add task to "${viewMode === 'project' ? (projects.find(p=>p.id===selectedProjectId)?.name || 'Inbox') : 'Inbox'}"... (Press Enter)`}
  value={newTaskTitle}
- onChange={(e) => setNewTaskTitle(e.target.value)}
+ onChange={(e) => { const text = e.target.value; setNewTaskTitle(text); const lower = text.toLowerCase(); if (/(daily|every day)/.test(lower)) setNewTaskRepeatInterval('daily'); else if (/(weekly|every week)/.test(lower)) setNewTaskRepeatInterval('weekly'); else if (/(monthly|every month)/.test(lower)) setNewTaskRepeatInterval('monthly'); else if (/(quarterly|every quarter)/.test(lower)) setNewTaskRepeatInterval('quarterly'); else if (/(yearly|every year|annually)/.test(lower)) setNewTaskRepeatInterval('yearly'); else setNewTaskRepeatInterval(null); }}
  onKeyDown={(e) => {
  if (e.key === 'Enter' && newTaskTitle.trim()) {
  handleUnifiedQuickAdd(newTaskTitle);
@@ -2450,7 +2489,7 @@ export default function WorkspaceApp() {
  <div className="relative">
  <button
  type="button"
- onClick={() => { setShowDatePicker(!showDatePicker); setShowPriorityPicker(false); }}
+ onClick={() => { setShowDatePicker(!showDatePicker); setShowPriorityPicker(false); setShowRepeatPicker(false); }}
  className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${newTaskDueDate ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
  >
  <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
@@ -2458,76 +2497,13 @@ export default function WorkspaceApp() {
  <ChevronDown className="w-2.5 h-2.5 opacity-60" />
  </button>
  <AnimatePresence>
- {showDatePicker && (
- <motion.div
- initial={{ opacity: 0, y: 8, scale: 0.95 }}
- animate={{ opacity: 1, y: 0, scale: 1 }}
- exit={{ opacity: 0, y: 8, scale: 0.95 }}
- transition={{ duration: 0.12 }}
- className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-3 w-[265px]"
- >
- {/* Quick Presets */}
- <div className="grid grid-cols-2 gap-1.5 mb-2.5">
- <button
- type="button"
- onClick={() => {
- setNewTaskDueDate(startOfDay(new Date()));
- setShowDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
- Today
- </button>
- <button
- type="button"
- onClick={() => {
- const tomorrow = new Date();
- tomorrow.setDate(tomorrow.getDate() + 1);
- setNewTaskDueDate(startOfDay(tomorrow));
- setShowDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-primary rounded-full" />
- Tomorrow
- </button>
- <button
- type="button"
- onClick={() => {
- const nextWeek = new Date();
- nextWeek.setDate(nextWeek.getDate() + 7);
- setNewTaskDueDate(startOfDay(nextWeek));
- setShowDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
- Next Week
- </button>
- <button
- type="button"
- onClick={() => {
- setNewTaskDueDate(undefined);
- setShowDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
- Clear Date
- </button>
- </div>
- <div className="h-px bg-gray-100 my-2.5" />
- <DayPicker
- mode="single"
- selected={newTaskDueDate}
- onSelect={(d) => {
- setNewTaskDueDate(d ? startOfDay(d) : undefined);
- setShowDatePicker(false);
- }}
- />
- </motion.div>
- )}
+                          {showDatePicker && (
+                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
+                              {[ { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" }, { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" }, { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" }, ].map((preset) => { const isSelected = newTaskDueDate && isSameDay(newTaskDueDate, preset.date); return ( <button key={preset.label} type="button" onClick={() => { setNewTaskDueDate(preset.date); setShowDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} /> {preset.label} </span> {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button> ); })}
+                              <button type="button" onClick={() => { setNewTaskDueDate(undefined); setShowDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!newTaskDueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Clear Date </span> {!newTaskDueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button>
+                              <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={newTaskDueDate ? format(newTaskDueDate, "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { setNewTaskDueDate(startOfDay(new Date(e.target.value + "T00:00:00"))); } else { setNewTaskDueDate(undefined); } }} /> </div>
+                            </motion.div>
+                          )}
  </AnimatePresence>
  </div>
 
@@ -2535,7 +2511,7 @@ export default function WorkspaceApp() {
  <div className="relative">
  <button
  type="button"
- onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowDatePicker(false); }}
+ onClick={() => { setShowPriorityPicker(!showPriorityPicker); setShowDatePicker(false); setShowRepeatPicker(false); }}
  className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${newTaskPriority < 4 ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
  >
  <Flag className={`w-3.5 h-3.5 ${getPriorityColor(newTaskPriority)} ${newTaskPriority < 4 ? 'fill-current' : ''}`} />
@@ -2570,6 +2546,54 @@ export default function WorkspaceApp() {
  >
  <span className="flex items-center">
  <Flag className={`w-3.5 h-3.5 mr-2 ${getPriorityColor(level)} ${level < 4 ? 'fill-current' : ''}`} />
+ {label}
+ </span>
+ {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+ </button>
+ );
+ })}
+ </motion.div>
+ )}
+ </AnimatePresence>
+ </div>
+ {/* 3. Repeat Selector */}
+ <div className="relative">
+ <button
+ type="button"
+ onClick={() => { setShowRepeatPicker(!showRepeatPicker); setShowPriorityPicker(false); setShowDatePicker(false); }}
+ className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${newTaskRepeatInterval ? 'bg-primary/5 text-primary border-primary/20' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+ >
+ <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${newTaskRepeatInterval ? 'text-primary' : 'text-gray-400'}`} />
+ <span>{newTaskRepeatInterval ? newTaskRepeatInterval.charAt(0).toUpperCase() + newTaskRepeatInterval.slice(1) : 'Repeat'}</span>
+ <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+ </button>
+ <AnimatePresence>
+ {showRepeatPicker && (
+ <motion.div
+ initial={{ opacity: 0, y: 8, scale: 0.95 }}
+ animate={{ opacity: 1, y: 0, scale: 1 }}
+ exit={{ opacity: 0, y: 8, scale: 0.95 }}
+ transition={{ duration: 0.12 }}
+ className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-32"
+ >
+ {[
+ { value: null, label: 'None' },
+ { value: 'daily', label: 'Daily' },
+ { value: 'weekly', label: 'Weekly' },
+ { value: 'monthly', label: 'Monthly' }
+ ].map(({ value, label }) => {
+ const isSelected = newTaskRepeatInterval === value || (!newTaskRepeatInterval && !value);
+ return (
+ <button
+ key={value || 'none'}
+ type="button"
+ onClick={() => {
+ setNewTaskRepeatInterval(value as any);
+ setShowRepeatPicker(false);
+ }}
+ className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+ >
+ <span className="flex items-center">
  {label}
  </span>
  {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
@@ -2626,9 +2650,11 @@ export default function WorkspaceApp() {
  <Hourglass className="w-4 h-4 animate-spin-slow" />
  </div>
  <span 
- className="text-xs sm:text-sm text-[#202020] font-medium truncate cursor-pointer hover:text-primary"
+ className="text-xs sm:text-sm text-[#202020] font-medium truncate cursor-pointer hover:text-primary flex items-center gap-1.5"
  onClick={() => setSelectedTodoId(todo.id)}
  >
+ {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+ {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
  {todo.title}
  </span>
  </div>
@@ -2700,7 +2726,9 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
- <span className="text-xs sm:text-sm text-[#202020] font-semibold leading-relaxed">
+ <span className="text-xs sm:text-sm text-[#202020] font-semibold leading-relaxed flex items-center gap-1.5">
+ {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+ {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
  {todo.title}
  </span>
  {todo.description && (
@@ -2791,7 +2819,9 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
- <span className="text-xs sm:text-sm text-gray-400 line-through font-semibold leading-relaxed truncate block">
+ <span className="text-xs sm:text-sm text-gray-400 line-through font-semibold leading-relaxed truncate block flex items-center gap-1.5">
+ {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+ {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
  {todo.title}
  </span>
  </div>
@@ -2838,7 +2868,7 @@ export default function WorkspaceApp() {
  type="text"
  placeholder="Task title"
  value={newTaskTitle}
- onChange={(e) => setNewTaskTitle(e.target.value)}
+ onChange={(e) => { const text = e.target.value; setNewTaskTitle(text); const lower = text.toLowerCase(); if (/(daily|every day)/.test(lower)) setNewTaskRepeatInterval('daily'); else if (/(weekly|every week)/.test(lower)) setNewTaskRepeatInterval('weekly'); else if (/(monthly|every month)/.test(lower)) setNewTaskRepeatInterval('monthly'); else if (/(quarterly|every quarter)/.test(lower)) setNewTaskRepeatInterval('quarterly'); else if (/(yearly|every year|annually)/.test(lower)) setNewTaskRepeatInterval('yearly'); else setNewTaskRepeatInterval(null); }}
  onKeyDown={(e) => { if (e.key === 'Enter') handleAddTask(); }}
  className="w-full font-medium text-[#202020] text-sm outline-none placeholder:text-gray-400 mb-2"
  />
@@ -2900,7 +2930,11 @@ export default function WorkspaceApp() {
  <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3.5 bg-red-50/30 border border-red-100 rounded-xl hover:shadow transition-all cursor-pointer flex justify-between items-center">
  <div className="flex items-center space-x-2.5">
  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
- <span className="text-xs font-medium text-gray-800">{todo.title}</span>
+ <span className="text-xs font-medium text-gray-800 flex items-center gap-1.5">
+ {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+ {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+ {todo.title}
+ </span>
  </div>
  <span className="text-xs bg-red-100/75 text-red-700 font-medium px-2 py-0.5 rounded-full uppercase">P1 High Target</span>
  </div>
@@ -3069,7 +3103,11 @@ export default function WorkspaceApp() {
  <div className="space-y-2">
  {todos.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 10).map(todo => (
  <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3 bg-white border border-gray-100 hover:border-[#1a2b58] cursor-pointer rounded-xl flex justify-between items-center">
- <span className="text-xs font-medium">{todo.title}</span>
+ <span className="text-xs font-medium flex items-center gap-1.5">
+ {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+ {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+ {todo.title}
+ </span>
  <span className={`text-xs px-2 py-0.5 font-medium rounded-full ${todo.completed ? 'bg-gray-100 text-gray-400' : 'bg-green-100 text-green-700'}`}>
  {todo.completed ? 'Completed' : 'Active'}
  </span>
@@ -3085,13 +3123,19 @@ export default function WorkspaceApp() {
  {/* DETAILED SIDEBAR DETAIL DRAWER DRAWS OUT */}
  <AnimatePresence>
  {selectedTodoId && (
- <div className="fixed inset-0 z-[80] flex justify-end bg-black/15 p-0 sm:p-4 backdrop-blur-sm" onClick={() => setSelectedTodoId(null)}>
  <motion.div 
- initial={{ x: '100%', opacity: 0 }}
- animate={{ x: 0, opacity: 1 }}
- exit={{ x: '100%', opacity: 0 }}
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ className="fixed inset-0 z-[80] flex justify-end bg-black/15 p-0 sm:p-4 backdrop-blur-sm" 
+ onClick={() => setSelectedTodoId(null)}
+ >
+ <motion.div 
+ initial={{ x: '100%' }}
+ animate={{ x: 0 }}
+ exit={{ x: '100%' }}
  onClick={(e) => e.stopPropagation()}
- transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
+ transition={{ type: 'tween', ease: 'easeInOut', duration: 0.3 }}
  className="bg-white w-full sm:w-[450px] shadow-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl flex flex-col overflow-hidden"
  >
  {(() => {
@@ -3160,7 +3204,7 @@ export default function WorkspaceApp() {
  <div className="relative">
  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Due Date</label>
  <button 
- onClick={() => { setShowDetailDatePicker(!showDetailDatePicker); setShowDetailPriorityPicker(false); }}
+ onClick={() => { setShowDetailDatePicker(!showDetailDatePicker); setShowDetailPriorityPicker(false); setShowDetailRepeatPicker(false); }}
  className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailDatePicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
  >
  <span className="truncate flex items-center gap-1.5">
@@ -3168,82 +3212,23 @@ export default function WorkspaceApp() {
  {todo.dueDate ? format(new Date(todo.dueDate), 'MMM d, yyyy') : 'No Date'}
  </span>
  <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailDatePicker ? 'rotate-180' : ''}`} />
- </button>
- <AnimatePresence>
- {showDetailDatePicker && (
- <motion.div 
- initial={{ opacity: 0, y: 8, scale: 0.95 }}
- animate={{ opacity: 1, y: 0, scale: 1 }}
- exit={{ opacity: 0, y: 8, scale: 0.95 }}
- transition={{ duration: 0.15 }}
- className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-3 w-[265px]"
- >
- {/* Quick Presets */}
- <div className="grid grid-cols-2 gap-1.5 mb-2.5">
- <button
- onClick={() => {
- todoService.updateTodo(todo.id, { dueDate: startOfDay(new Date()).getTime() });
- setShowDetailDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
- Today
- </button>
- <button
- onClick={() => {
- const tomorrow = new Date();
- tomorrow.setDate(tomorrow.getDate() + 1);
- todoService.updateTodo(todo.id, { dueDate: startOfDay(tomorrow).getTime() });
- setShowDetailDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-primary rounded-full" />
- Tomorrow
- </button>
- <button
- onClick={() => {
- const nextWeek = new Date();
- nextWeek.setDate(nextWeek.getDate() + 7);
- todoService.updateTodo(todo.id, { dueDate: startOfDay(nextWeek).getTime() });
- setShowDetailDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
- Next Week
- </button>
- <button
- onClick={() => {
- todoService.updateTodo(todo.id, { dueDate: null });
- setShowDetailDatePicker(false);
- }}
- className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100/60 rounded-lg transition-colors text-left"
- >
- <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
- Clear Date
- </button>
- </div>
- <div className="h-px bg-gray-100 my-2.5" />
- <DayPicker 
- mode="single" 
- selected={todo.dueDate ? new Date(todo.dueDate) : undefined} 
- onSelect={(d) => { 
- todoService.updateTodo(todo.id, { dueDate: d ? startOfDay(d).getTime() : null }); 
- setShowDetailDatePicker(false); 
- }} 
- />
- </motion.div>
- )}
- </AnimatePresence>
+</button>
+<AnimatePresence>
+{showDetailDatePicker && (
+                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
+                              {[ { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" }, { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" }, { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" }, ].map((preset) => { const isSelected = todo.dueDate && isSameDay(new Date(todo.dueDate), preset.date); return ( <button key={preset.label} type="button" onClick={() => { todoService.updateTodo(todo.id, { dueDate: preset.date.getTime() }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} /> {preset.label} </span> {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button> ); })}
+                              <button type="button" onClick={() => { todoService.updateTodo(todo.id, { dueDate: null }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.dueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Clear Date </span> {!todo.dueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button>
+                              <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={todo.dueDate ? format(new Date(todo.dueDate), "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { todoService.updateTodo(todo.id, { dueDate: startOfDay(new Date(e.target.value + "T00:00:00")).getTime() }); } else { todoService.updateTodo(todo.id, { dueDate: null }); } }} /> </div>
+                            </motion.div>
+                          )}
+</AnimatePresence>
  </div>
 
  {/* Priority Picker */}
  <div className="relative">
  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
  <button 
- onClick={() => { setShowDetailPriorityPicker(!showDetailPriorityPicker); setShowDetailDatePicker(false); }}
+ onClick={() => { setShowDetailPriorityPicker(!showDetailPriorityPicker); setShowDetailDatePicker(false); setShowDetailRepeatPicker(false); }}
  className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailPriorityPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
  >
  <span className="flex items-center gap-1.5 truncate">
@@ -3289,6 +3274,114 @@ export default function WorkspaceApp() {
  )}
  </AnimatePresence>
  </div>
+
+ {/* Repeat Interval Picker */}
+ <div className="relative">
+ <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Repeat</label>
+ <button 
+ onClick={() => { setShowDetailRepeatPicker(!showDetailRepeatPicker); setShowDetailDatePicker(false); setShowDetailPriorityPicker(false); }}
+ className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailRepeatPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
+ >
+ <span className="flex items-center gap-1.5 truncate">
+ <RefreshCw className={`w-3.5 h-3.5 ${todo.repeatInterval ? 'text-primary' : 'text-gray-400'}`} />
+ {todo.repeatInterval ? todo.repeatInterval.charAt(0).toUpperCase() + todo.repeatInterval.slice(1) : 'None'}
+ </span>
+ <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailRepeatPicker ? 'rotate-180' : ''}`} />
+ </button>
+ <AnimatePresence>
+ {showDetailRepeatPicker && (
+ <motion.div 
+ initial={{ opacity: 0, y: 8, scale: 0.95 }}
+ animate={{ opacity: 1, y: 0, scale: 1 }}
+ exit={{ opacity: 0, y: 8, scale: 0.95 }}
+ transition={{ duration: 0.15 }}
+ className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-40"
+ >
+ {[
+ { value: null, label: 'None' },
+ { value: 'daily', label: 'Daily' },
+ { value: 'weekly', label: 'Weekly' },
+ { value: 'monthly', label: 'Monthly' }
+ ].map(({ value, label }) => {
+ const isSelected = todo.repeatInterval === value || (!todo.repeatInterval && !value);
+ return (
+ <button
+ key={value || 'none'}
+ onClick={() => {
+ todoService.updateTodo(todo.id, { repeatInterval: value as any });
+ setShowDetailRepeatPicker(false);
+ }}
+ className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+ >
+ <span className="flex items-center">
+ <RefreshCw className={`w-3.5 h-3.5 mr-2 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
+ {label}
+ </span>
+ {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+ </button>
+ );
+ })}
+ </motion.div>
+ )}
+ </AnimatePresence>
+ </div>
+ </div>
+
+ {/* Blocking Picker */}
+ <div className="relative mt-4">
+ <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Blocked By</label>
+ <button 
+ onClick={() => { setShowDetailBlockingPicker(!showDetailBlockingPicker); setShowDetailDatePicker(false); setShowDetailPriorityPicker(false); setShowDetailRepeatPicker(false); }}
+ className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailBlockingPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
+ >
+ <span className="flex items-center gap-1.5 truncate">
+ <Lock className={`w-3.5 h-3.5 ${(todo.blockedBy?.length || 0) > 0 ? 'text-rose-500' : 'text-gray-400'}`} />
+ {(todo.blockedBy?.length || 0) > 0 ? `${todo.blockedBy?.length} Task(s)` : 'None'}
+ </span>
+ <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailBlockingPicker ? 'rotate-180' : ''}`} />
+ </button>
+ <AnimatePresence>
+ {showDetailBlockingPicker && (
+ <motion.div 
+ initial={{ opacity: 0, y: 8, scale: 0.95 }}
+ animate={{ opacity: 1, y: 0, scale: 1 }}
+ exit={{ opacity: 0, y: 8, scale: 0.95 }}
+ transition={{ duration: 0.15 }}
+ className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-60 max-h-48 overflow-y-auto"
+ >
+ {todos.filter(t => t.id !== todo.id && !t.completed && !t.deletedAt).length === 0 ? (
+ <div className="px-2.5 py-2 text-xs text-gray-400">No active tasks to block this.</div>
+ ) : (
+ todos.filter(t => t.id !== todo.id && !t.completed && !t.deletedAt).map(t => {
+ const isSelected = todo.blockedBy?.includes(t.id);
+ return (
+ <button
+ key={t.id}
+ onClick={() => {
+ const currentBlockedBy = todo.blockedBy || [];
+ let nextBlockedBy;
+ if (isSelected) {
+ nextBlockedBy = currentBlockedBy.filter(id => id !== t.id);
+ } else {
+ nextBlockedBy = [...currentBlockedBy, t.id];
+ }
+ todoService.updateTodo(todo.id, { blockedBy: nextBlockedBy.length > 0 ? nextBlockedBy : undefined });
+ setShowDetailBlockingPicker(false);
+ }}
+ className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors text-left ${isSelected ? 'bg-rose-50 text-rose-600' : 'hover:bg-gray-50 text-gray-700'}`}
+ >
+ <span className="flex items-center truncate max-w-[180px]">
+ <Lock className={`w-3.5 h-3.5 mr-2 shrink-0 ${isSelected ? 'text-rose-500' : 'text-gray-400'}`} />
+ <span className="truncate">{t.title}</span>
+ </span>
+ {isSelected && <Check className="w-3.5 h-3.5 text-rose-500 shrink-0 ml-2" />}
+ </button>
+ );
+ })
+ )}
+ </motion.div>
+ )}
+ </AnimatePresence>
  </div>
 
  {/* Notes / Descriptions and subtasks checklist inside Drawer */}
@@ -3352,7 +3445,7 @@ export default function WorkspaceApp() {
  );
  })()}
  </motion.div>
- </div>
+ </motion.div>
  )}
  </AnimatePresence>
 

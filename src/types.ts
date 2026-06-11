@@ -39,6 +39,8 @@ export interface Todo {
 	sectionName?: string | null;
 	deleteReason?: string;
 	declineReason?: string;
+	repeatInterval?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null;
+	blockedBy?: string[];
 	metadata?: {
 		deleteReason?: string;
 		declineReason?: string;

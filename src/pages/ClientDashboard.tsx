@@ -384,7 +384,7 @@ export default function ClientDashboard() {
     let unsubscribeUsers = () => {};
     if (isAdmin) {
       unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-        const clientList: { uid: string; email: string; displayName?: string; kycStatus?: string; services?: string[] }[] = [];
+        const clientList: { uid: string; email: string; displayName?: string; kycStatus?: string; services?: string[]; entityType?: string; mobile?: string; gstin?: string; pan?: string; tan?: string; address?: string }[] = [];
         snapshot.forEach((docRef) => {
           const data = docRef.data();
           clientList.push({
