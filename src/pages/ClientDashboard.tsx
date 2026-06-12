@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import CustomSelect from '../components/CustomSelect';
@@ -66,7 +67,8 @@ import {
   Save,
   Bell,
   Check,
-  Users
+  Users,
+  LayoutDashboard
 } from 'lucide-react';
 
 // Pre-defined interfaces
@@ -184,7 +186,7 @@ export default function ClientDashboard() {
   const [selectedClientEmail, setSelectedClientEmail] = useState<string>('');
 
   // Active Tab/Filter State
-  const [activeTab, setActiveTab] = useState<'applications' | 'documents' | 'compliance' | 'admin' | 'chat' | 'clients'>('applications');
+  const [activeTab, setActiveTab] = useState<'portal-dashboard' | 'applications' | 'documents' | 'compliance' | 'admin' | 'chat' | 'clients'>('applications');
   const [serviceFilter, setServiceFilter] = useState<string>('All');
 
   // Real-time Chat States
@@ -269,6 +271,12 @@ export default function ClientDashboard() {
   const [requestUploadProgress, setRequestUploadProgress] = useState<number | null>(null);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
+  const switchClientAndTab = (clientUid: string, clientEmail: string, targetTab: 'portal-dashboard' | 'applications' | 'documents' | 'compliance' | 'admin' | 'chat' | 'clients') => {
+    setSelectedClientId(clientUid);
+    setSelectedClientEmail(clientEmail);
+    setActiveTab(targetTab);
+  };
+
   // Admin acceptance workflow states
   const [acceptingReqId, setAcceptingReqId] = useState<string | null>(null);
   const [acceptEstCompletion, setAcceptEstCompletion] = useState('June 30, 2026');
@@ -287,7 +295,7 @@ export default function ClientDashboard() {
         const isAdminUser = currentUser.email === 'gjyoshimanohar@gmail.com';
         setIsAdmin(isAdminUser);
         if (isAdminUser && !selectedClientId) {
-          setActiveTab('clients');
+          setActiveTab('portal-dashboard');
         }
         // If logged in, automatically trigger seeding if they have no records yet
         await ensureDataIsSeeded(currentUser);
@@ -307,9 +315,17 @@ export default function ClientDashboard() {
     // Determine which clients to view: Admin views selectedClientId or all, Client views only their user.uid
     const targetUserId = isAdmin ? (selectedClientId || user.uid) : user.uid;
 
-    const appsQuery = query(collection(db, 'applications'), where('userId', '==', targetUserId));
-    const docsQuery = query(collection(db, 'documents'), where('userId', '==', targetUserId));
-    const filingsQuery = query(collection(db, 'compliance_filings'), where('userId', '==', targetUserId));
+    const appsQuery = (isAdmin && !selectedClientId)
+      ? query(collection(db, 'applications'))
+      : query(collection(db, 'applications'), where('userId', '==', targetUserId));
+
+    const docsQuery = (isAdmin && !selectedClientId)
+      ? query(collection(db, 'documents'))
+      : query(collection(db, 'documents'), where('userId', '==', targetUserId));
+
+    const filingsQuery = (isAdmin && !selectedClientId)
+      ? query(collection(db, 'compliance_filings'))
+      : query(collection(db, 'compliance_filings'), where('userId', '==', targetUserId));
 
     const unsubscribeApps = onSnapshot(appsQuery, (snapshot) => {
       const list: Application[] = [];
@@ -2296,6 +2312,14 @@ Stewardship, Accuracy, Legacy.
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-primary transition-all whitespace-nowrap cursor-pointer h-9"
+              >
+                <span>Blog Admin</span>
+              </Link>
+            )}
             {/* Real-time Notifications Bell dropdown */}
             <div className="relative">
               <button
@@ -2439,6 +2463,25 @@ Stewardship, Accuracy, Legacy.
           <div className="lg:col-span-1 space-y-3">
             {isAdmin && (
               <div className="mb-4">
+                <button
+                  type="button"
+                  id="portal-dashboard-nav-btn"
+                  onClick={() => setActiveTab('portal-dashboard')}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                    activeTab === 'portal-dashboard'
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+                  } mb-2 cursor-pointer`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutDashboard className="h-4 w-4 shrink-0" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Portal Dashboard</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'portal-dashboard' ? 'bg-white/15 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                    Active
+                  </span>
+                </button>
+
                 <button
                   type="button"
                   id="clients-master-nav-btn"
@@ -2593,6 +2636,495 @@ Stewardship, Accuracy, Legacy.
               <div className="flex items-center space-x-2 bg-white/60 p-4 rounded-xl shadow-sm border border-slate-100">
                 <RefreshCw className="h-4 w-4 text-primary animate-spin" />
                 <span className="text-xs font-medium text-slate-600">Verifying synchronization across active registers...</span>
+              </div>
+            )}
+
+            {/* CENTRAL EXECUTIVE PORTAL DASHBOARD (ADMIN-ONLY) */}
+            {activeTab === 'portal-dashboard' && isAdmin && (
+              <div className="space-y-6">
+                
+                {/* Header card */}
+                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
+                  <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -z-1" />
+                  <div className="flex items-start gap-4">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <LayoutDashboard className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-serif font-semibold text-slate-900 tracking-tight">Executive Portal Analytics</h2>
+                      <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                        Control center overview of registered client workspaces, statutory filings, documents vault, and active consultation requests.
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 uppercase tracking-widest">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Portal Desk Live
+                    </span>
+                  </div>
+                </div>
+
+                {/* KPI Metrics bento grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* KPI 1 */}
+                  <div 
+                    onClick={() => setActiveTab('clients')}
+                    className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs hover:border-slate-350 hover:shadow-md transition-all cursor-pointer text-left relative overflow-hidden group"
+                  >
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Users className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Clients</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900">{clients.length}</p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate">
+                      {clients.filter(c => c.kycStatus === 'Approved').length} KYC Approved • {clients.filter(c => c.kycStatus === 'Pending' || !c.kycStatus).length} Pending
+                    </p>
+                  </div>
+
+                  {/* KPI 2 */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Bell className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg text-amber-600 bg-amber-50">
+                        <Bell className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Pending Proposals</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
+                      {clientRequests.filter(r => r.status === 'pending').length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      Requires immediate CA verification & deployment
+                    </p>
+                  </div>
+
+                  {/* KPI 3 */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Briefcase className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg text-rose-600 bg-rose-50">
+                        <Briefcase className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Service Trackers</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
+                      {applications.length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      Active service tracker workflows in real-time
+                    </p>
+                  </div>
+
+                  {/* KPI 4 */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Calendar className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg text-emerald-600 bg-emerald-50">
+                        <Calendar className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Compliance Filings</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
+                      {complianceFilings.length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      Upcoming, in-progress or filed compliance records
+                    </p>
+                  </div>
+                </div>
+
+                {/* Main Body Columns */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Left Column: Client requests (2 columns wide) */}
+                  <div className="lg:col-span-2 space-y-6">
+                    
+                    {/* Awaiting Review list */}
+                    <div className="bg-white border border-slate-150 rounded-3xl p-6 sm:p-8 shadow-sm text-left">
+                      <div className="border-b border-slate-100 pb-3 mb-5 flex justify-between items-center">
+                        <div>
+                          <h3 className="text-base font-serif font-semibold text-slate-900 flex items-center gap-1.5">
+                            <Clock className="h-4 w-4 text-amber-500 animate-pulse" />
+                            <span>Client Proposals Inbox Queues ({clientRequests.filter(r => r.status === 'pending').length})</span>
+                          </h3>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Approve, decline and spawn automated client workspace milestones</p>
+                        </div>
+                      </div>
+
+                      {clientRequests.filter(r => r.status === 'pending').length === 0 ? (
+                        <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2.5" />
+                          <p className="text-xs font-semibold text-slate-700">Proposal Queue All Clear</p>
+                          <p className="text-[10px] text-slate-500 mt-1 max-w-sm mx-auto">No pending consulting, task or upload proposals are awaiting CA review state at this moment.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {clientRequests.filter(r => r.status === 'pending').map((req) => {
+                            const isAccepting = acceptingReqId === req.id;
+                            const isDeclining = decliningReqId === req.id;
+                            return (
+                              <div 
+                                key={req.id}
+                                className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:border-slate-350 hover:shadow-xs transition-all flex flex-col gap-4 text-left relative overflow-hidden"
+                              >
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-dashed border-slate-100">
+                                  <div>
+                                    <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                      <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-800 px-2 py-0.5 rounded">
+                                        {req.type?.toUpperCase()}
+                                      </span>
+                                      <span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-805 border border-amber-200 px-2 py-0.5 rounded">
+                                        {req.category}
+                                      </span>
+                                    </div>
+                                    <h4 className="text-sm font-semibold text-slate-900 tracking-tight">
+                                      {req.title}
+                                    </h4>
+                                    <p className="text-[10px] text-slate-500 mt-1 font-sans">
+                                      Proposed by: <span className="font-bold text-slate-700 underline">{req.clientName}</span> ({req.userEmail}) • {new Date(req.createdAt).toLocaleString()}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAcceptingReqId(req.id);
+                                        setDecliningReqId(null);
+                                        const nextMonth = new Date();
+                                        nextMonth.setMonth(nextMonth.getMonth() + 1);
+                                        setAcceptEstCompletion(nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+                                        if (req.type === 'document') {
+                                          setAcceptStepsText("1. Client attachment intake verification\n2. Certified document review checklist\n3. Approval and secure storage vaulting");
+                                        } else {
+                                          setAcceptStepsText("1. Intake checklist & document verify\n2. CA audit & compliance draft analysis\n3. Execution filings and certification");
+                                        }
+                                      }}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDecliningReqId(req.id);
+                                        setAcceptingReqId(null);
+                                        setDeclineReason("Standard statutory criteria check mismatch. Please check your parameters and file attachment, or propose an alternative service draft.");
+                                      }}
+                                      className="bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-rose-100 transition-colors cursor-pointer"
+                                    >
+                                      Decline
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                  <span className="font-bold text-[9px] uppercase tracking-wider font-mono text-slate-400 block mb-1">Details & Scope Description:</span>
+                                  {req.description}
+                                  
+                                  {req.fileUrl && (
+                                    <div className="mt-3 flex items-center justify-between bg-white border border-slate-100 p-2.5 rounded-xl">
+                                      <div className="flex items-center gap-2 truncate">
+                                        <FileText className="h-4 w-4 text-primary shrink-0" />
+                                        <div className="truncate text-left">
+                                          <p className="text-[10px] font-bold text-slate-800 truncate max-w-[200px]">
+                                            {req.fileName}
+                                          </p>
+                                          <p className="text-[9px] text-slate-400">
+                                            {req.fileType} • {req.fileSize}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <a 
+                                        href={req.fileUrl} 
+                                        target="_blank" 
+                                        referrerPolicy="no-referrer"
+                                        rel="noreferrer"
+                                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg flex items-center gap-1 transition-colors"
+                                      >
+                                        <Download className="h-3 w-3" />
+                                        <span>Download</span>
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Acceptance Customizer */}
+                                {isAccepting && (
+                                  <div className="bg-emerald-50/70 border border-emerald-200 p-4 rounded-xl space-y-3 mt-3 text-left">
+                                    <div className="flex justify-between items-center text-[10px] font-bold text-emerald-800 font-mono uppercase tracking-wider">
+                                      <span>⚙️ Initialise Tracker Milestones</span>
+                                      <button type="button" onClick={() => setAcceptingReqId(null)} className="hover:underline text-emerald-600">Cancel</button>
+                                    </div>
+                                    <div className="space-y-3">
+                                      <div>
+                                        <label className="block text-[8.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Estimated Completion</label>
+                                        <input 
+                                          type="text"
+                                          value={acceptEstCompletion}
+                                          onChange={(e) => setAcceptEstCompletion(e.target.value)}
+                                          className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2.5 text-xs outline-none focus:border-emerald-500 font-medium"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[8.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Steps Schedule (One step per line)</label>
+                                        <textarea
+                                          rows={3}
+                                          value={acceptStepsText}
+                                          onChange={(e) => setAcceptStepsText(e.target.value)}
+                                          className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2.5 text-xs outline-none focus:border-emerald-500 resize-none font-medium"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-1">
+                                      <button 
+                                        type="button" 
+                                        onClick={() => setAcceptingReqId(null)} 
+                                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[9px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-100"
+                                      >
+                                        Close
+                                      </button>
+                                      <button 
+                                        type="button" 
+                                        onClick={() => handleAcceptRequestFinal(req)}
+                                        disabled={isProcessingApproval}
+                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-55 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1"
+                                      >
+                                        {isProcessingApproval ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                                        <span>Approve & Deploy Workspace</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Decline Customizer */}
+                                {isDeclining && (
+                                  <div className="bg-rose-50/70 border border-rose-250 p-4 rounded-xl space-y-3 mt-3 text-left">
+                                    <div className="flex justify-between items-center text-[10px] font-bold text-rose-850 font-mono uppercase tracking-wider">
+                                      <span>❌ Refusal Notification Draft</span>
+                                      <button type="button" onClick={() => setDecliningReqId(null)} className="hover:underline text-rose-600 font-sans">Cancel</button>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Rejection Reason Alert</label>
+                                      <textarea
+                                        rows={2}
+                                        value={declineReason}
+                                        onChange={(e) => setDeclineReason(e.target.value)}
+                                        className="w-full bg-white border border-slate-200 text-slate-850 rounded-lg p-2.5 text-xs outline-none focus:border-rose-500 resize-none font-medium"
+                                      />
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                      <button 
+                                        type="button" 
+                                        onClick={() => setDecliningReqId(null)} 
+                                        className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[9px] font-bold uppercase tracking-wider text-slate-600 hover:bg-slate-100"
+                                      >
+                                        Close
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={() => handleDeclineRequest(req, declineReason)}
+                                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-bold uppercase tracking-wider flex items-center gap-1"
+                                      >
+                                        <XCircle className="h-3.5 w-3.5" />
+                                        <span>Confirm Refuse</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Interactive Client Directory */}
+                    <div className="bg-white border border-slate-150 rounded-3xl p-6 sm:p-8 shadow-sm text-left">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-5">
+                        <div>
+                          <h3 className="text-base font-serif font-semibold text-slate-900 flex items-center gap-1.5">
+                            <Users className="h-4.5 w-4.5 text-primary" />
+                            <span>Direct Workspace Focus Launcher ({clients.length})</span>
+                          </h3>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Quickly select customer profile to track documents, filings, and chats</p>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-500 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider">
+                              <th className="py-3 px-4 text-left">Client Profile</th>
+                              <th className="py-3 px-4 text-left">Entity & Scope</th>
+                              <th className="py-3 px-4 text-left">KYC</th>
+                              <th className="py-3 px-4 text-right">Go to active portals</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {clients.map((c) => (
+                              <tr key={c.uid} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3.5 px-4 text-left">
+                                  <div className="font-semibold text-slate-900">{c.displayName || "Stub Profile"}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono">{c.email}</div>
+                                </td>
+                                <td className="py-3.5 px-4 text-left">
+                                  <div className="font-medium text-slate-700 text-[11px]">{c.entityType || "Individual"}</div>
+                                  <div className="text-[10px] text-slate-450 truncate max-w-[150px]" title={(c.services || []).join(', ')}>
+                                    {(c.services || []).join(', ') || "No active scope setup"}
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4 text-left">
+                                  <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                    c.kycStatus === 'Approved' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-amber-50 text-amber-850 border border-amber-100'
+                                  }`}>
+                                    {c.kycStatus || 'Pending'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right">
+                                  <div className="flex justify-end items-center gap-1.5">
+                                    <button 
+                                      onClick={() => switchClientAndTab(c.uid, c.email, 'applications')}
+                                      className="p-1 px-2.5 bg-slate-50 hover:bg-slate-150 border border-slate-200 text-slate-700 hover:text-black rounded-lg text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                      title="Application Track"
+                                    >
+                                      <Briefcase className="h-3 w-3 text-slate-400" />
+                                      <span>Apps</span>
+                                    </button>
+                                    <button 
+                                      onClick={() => switchClientAndTab(c.uid, c.email, 'documents')}
+                                      className="p-1 px-2.5 bg-slate-50 hover:bg-slate-150 border border-slate-200 text-slate-700 hover:text-black rounded-lg text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                      title="Docs Vault"
+                                    >
+                                      <FileText className="h-3 w-3 text-slate-400" />
+                                      <span>Vault</span>
+                                    </button>
+                                    <button 
+                                      onClick={() => switchClientAndTab(c.uid, c.email, 'chat')}
+                                      className="p-1 px-2.5 bg-slate-55 hover:bg-slate-150 border border-slate-200 text-slate-700 hover:text-black rounded-lg text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                      title="Consultation Chat Room"
+                                    >
+                                      <MessageSquare className="h-3 w-3 text-slate-400" />
+                                      <span>Chat</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Mini charts & stat feeds (1 column wide) */}
+                  <div className="lg:col-span-1 space-y-6">
+                    
+                    {/* Active Applications by Type */}
+                    <div className="bg-white border border-slate-150 rounded-3xl p-6 shadow-sm text-left">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-3 mb-4 flex items-center gap-1.5 font-mono">
+                        <Activity className="h-4 w-4 text-rose-500" />
+                        <span>Ongoing Services (Types)</span>
+                      </h4>
+                      
+                      <div className="space-y-4">
+                        {['GST Registration', 'GST Return Filing', 'Income Tax Filing (ITR)', 'Corporate Audits', 'TDS and PF filing'].map((type) => {
+                          const matchingCount = applications.filter(a => a.type === type).length;
+                          const total = applications.length || 1;
+                          const pct = Math.round((matchingCount / total) * 100);
+                          return (
+                            <div key={type} className="space-y-1">
+                              <div className="flex justify-between text-[11px] font-medium text-slate-700">
+                                <span className="truncate max-w-[130px] font-sans">{type}</span>
+                                <span className="font-mono text-[10px]">{matchingCount} items ({pct}%)</span>
+                              </div>
+                              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-primary rounded-full transition-all duration-500"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Pending Filings & Compliance stats */}
+                    <div className="bg-white border border-slate-150 rounded-3xl p-6 shadow-sm text-left">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-3 mb-4 flex items-center gap-1.5 font-mono">
+                        <Calendar className="h-4 w-4 text-emerald-500" />
+                        <span>Filing statuses</span>
+                      </h4>
+
+                      <div className="space-y-4">
+                        {[
+                          { status: 'Upcoming', count: complianceFilings.filter(f => f.status === 'Upcoming').length, color: 'bg-slate-400' },
+                          { status: 'In Progress', count: complianceFilings.filter(f => f.status === 'In Progress').length, color: 'bg-amber-500' },
+                          { status: 'Pending Client Action', count: complianceFilings.filter(f => f.status === 'Pending Client Action').length, color: 'bg-rose-500' },
+                          { status: 'Filed', count: complianceFilings.filter(f => f.status === 'Filed').length, color: 'bg-emerald-600' }
+                        ].map((item) => {
+                          const total = complianceFilings.length || 1;
+                          const pct = Math.round((item.count / total) * 100);
+                          return (
+                            <div key={item.status} className="space-y-1">
+                              <div className="flex justify-between text-[11px] font-medium text-slate-700">
+                                <span className="truncate max-w-[150px] font-sans">{item.status}</span>
+                                <span className="font-mono text-[10px]">{item.count} filings</span>
+                              </div>
+                              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${item.color} rounded-full transition-all duration-500`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Recent Documents list */}
+                    <div className="bg-white border border-slate-150 rounded-3xl p-6 shadow-sm text-left">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-3 mb-4 flex items-center gap-1.5 font-mono">
+                        <FileText className="h-4 w-4 text-primary" />
+                        <span>Recent Vault Uploads</span>
+                      </h4>
+
+                      {documents.length === 0 ? (
+                        <p className="text-[10px] text-slate-400 py-4 text-center">No client vault items uploaded yet.</p>
+                      ) : (
+                        <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                          {documents.slice(0, 5).map((docObj) => (
+                            <div key={docObj.id} className="text-xs p-2.5 bg-slate-50 border border-slate-100/60 rounded-xl relative overflow-hidden text-left hover:border-slate-200 transition-colors">
+                              <div className="flex justify-between items-start gap-1">
+                                <span className="text-[9px] font-bold text-slate-400 font-mono uppercase tracking-wider">{docObj.category || "General"}</span>
+                                <span className="text-[8px] font-mono text-slate-500 bg-white border border-slate-150 px-1.5 rounded">{docObj.fileType}</span>
+                              </div>
+                              <p className="font-semibold text-slate-800 line-clamp-1 mt-1 font-sans text-[11px]">{docObj.name}</p>
+                              <p className="text-[9.5px] text-slate-400 font-mono mt-0.5">Size: {docObj.size} • {new Date(docObj.uploadedAt).toLocaleDateString()}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+
+                </div>
+
               </div>
             )}
 

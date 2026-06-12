@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { 
  signInWithEmailAndPassword, 
@@ -10,7 +11,7 @@ import { auth } from '../lib/firebase';
 import { blogService } from '../services/blogService';
 import { BlogPost } from '../types';
 import { blogPosts as staticPosts } from '../data';
-import { Plus, Trash2, LogOut, ChevronRight, Save, X, Database, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Plus, Trash2, LogOut, ChevronRight, Save, X, Database, Image as ImageIcon, Loader2, LayoutDashboard } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
@@ -251,6 +252,13 @@ export default function Admin() {
  <h1 className="text-4xl lg:text-5xl text-primary tracking-tighter leading-none">Management</h1>
  </div>
  <div className="flex items-center space-x-4">
+ <Link
+ to="/dashboard"
+ className="flex items-center space-x-2 bg-slate-100 text-black px-6 py-3 uppercase text-xs tracking-widest hover:bg-slate-200 transition-all rounded-md"
+ >
+ <LayoutDashboard className="h-4 w-4" />
+ <span>Client Dashboard</span>
+ </Link>
  {!confirmSeed ? (
  <button
  onClick={() => setConfirmSeed(true)}
