@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { 
  Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Hash, 
  MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, 
@@ -80,6 +80,25 @@ const triggerCSVDownload = (csvContent: string, filename: string) => {
 	link.click();
 	document.body.removeChild(link);
 	URL.revokeObjectURL(url);
+};
+
+const renderHighlightedTitleForInput = (title: string, repeatInterval?: string | null) => {
+  if (!repeatInterval || !title) return title;
+  const regex = new RegExp(`(${repeatInterval})`, 'gi');
+  const parts = title.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === repeatInterval.toLowerCase() ? (
+          <span key={i} className="bg-primary/10 text-primary px-[3px] -mx-[3px] rounded">
+            {part}
+          </span>
+        ) : (
+          <span key={i} className="text-[#202020]">{part}</span>
+        )
+      )}
+    </>
+  );
 };
 
 export default function WorkspaceApp() {
@@ -1359,7 +1378,7 @@ export default function WorkspaceApp() {
  <div className="relative group cursor-pointer hover:bg-gray-200 p-2 text-gray-500 rounded-xl">
  <Bell className="w-4 h-4" />
  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
- <div className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-white border border-gray-100 text-gray-700 text-xs p-3 rounded-xl shadow-2xl z-50 whitespace-nowrap origin-left transition-all text-left">
+ <div className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-white border-none text-gray-700 text-xs p-3 rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] z-50 whitespace-nowrap origin-left transition-all text-left">
  <span className="font-medium text-[#1a2b58] block mb-1">Alert Inbox</span>
  <span>All systems fully connected online ✓</span>
  </div>
@@ -1676,7 +1695,7 @@ export default function WorkspaceApp() {
  </span>
  </button>
  {isTimerOpen && (
- <div className="absolute top-10 right-0 w-60 bg-white rounded-xl shadow-2xl border border-gray-100 p-4.5 z-50">
+ <div className="absolute top-10 right-0 w-60 bg-white rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border-none p-4.5 z-50">
  <h4 className="text-xs font-medium text-gray-800 mb-2 border-b pb-1.5 uppercase tracking-wider block">Task Timer</h4>
  <div className="flex justify-center mb-4 mt-2">
  <span className="text-3xl font-light font-mono text-gray-800 tabular-nums">
@@ -1741,7 +1760,7 @@ export default function WorkspaceApp() {
  </button>
 
  {isHeaderMenuOpen && (
- <div className="absolute top-8 right-0 w-52 bg-white border border-gray-150 rounded-xl shadow-2xl p-1.5 z-50 text-left scale-95 origin-top-right transition-transform animate-in fade-in duration-100">
+ <div className="absolute top-8 right-0 w-52 bg-white border-none rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 z-50 text-left scale-95 origin-top-right transition-transform animate-in fade-in duration-100">
  <div className="text-xs uppercase tracking-wider text-gray-400 px-2 py-1 border-b mb-1">List operations</div>
  <button 
  onClick={() => { handleTriggerSync(); setIsHeaderMenuOpen(false); }}
@@ -2060,7 +2079,7 @@ export default function WorkspaceApp() {
  {activeSectionMenu === sectionName && (
  <>
  <div className="fixed inset-0 z-30" onClick={() => setActiveSectionMenu(null)} />
- <div className="absolute right-0 mt-1 bg-white border border-gray-100 shadow-xl rounded-xl py-1 w-36 z-40 text-left">
+ <div className="absolute right-0 mt-1 bg-white border-none rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] py-1 w-36 z-40 text-left">
  <button
  onClick={() => {
  setCollapsedKanbanColumns(prev => ({ ...prev, [sectionName]: true }));
@@ -2189,6 +2208,7 @@ export default function WorkspaceApp() {
  }
 
  const formattedDate = formatCardDate(todo.dueDate);
+ const isOverdue = todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime();
 
  return (
  <motion.div
@@ -2259,8 +2279,8 @@ export default function WorkspaceApp() {
 
  {/* Date / Recurrence cycle line */}
  {formattedDate && (
- <div className="flex items-center gap-1.5 text-xs tracking-wide text-primary pl-[23px] mt-0.5">
- <span>{formattedDate}</span>
+ <div className={`flex items-center gap-1.5 text-xs tracking-wide pl-[23px] mt-0.5 ${isOverdue ? 'text-red-500 font-semibold' : 'text-primary'}`}>
+ <span>{isOverdue ? `Overdue (${formattedDate})` : formattedDate}</span>
  </div>
  )}
  </motion.div>
@@ -2436,7 +2456,7 @@ export default function WorkspaceApp() {
  handleUnifiedQuickAdd(newTaskTitle);
  }
  }}
- className="w-full pr-10 text-xs sm:text-sm bg-transparent outline-none text-black placeholder:text-gray-400 font-medium"
+ className="w-full pr-10 text-xs sm:text-sm bg-transparent outline-none text-[#202020] placeholder:text-gray-400 font-medium"
  />
  <button
  type="button"
@@ -2498,7 +2518,7 @@ export default function WorkspaceApp() {
  </button>
  <AnimatePresence>
                           {showDatePicker && (
-                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
+                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
                               {[ { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" }, { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" }, { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" }, ].map((preset) => { const isSelected = newTaskDueDate && isSameDay(newTaskDueDate, preset.date); return ( <button key={preset.label} type="button" onClick={() => { setNewTaskDueDate(preset.date); setShowDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} /> {preset.label} </span> {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button> ); })}
                               <button type="button" onClick={() => { setNewTaskDueDate(undefined); setShowDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!newTaskDueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Clear Date </span> {!newTaskDueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button>
                               <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={newTaskDueDate ? format(newTaskDueDate, "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { setNewTaskDueDate(startOfDay(new Date(e.target.value + "T00:00:00"))); } else { setNewTaskDueDate(undefined); } }} /> </div>
@@ -2525,7 +2545,7 @@ export default function WorkspaceApp() {
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: 8, scale: 0.95 }}
  transition={{ duration: 0.12 }}
- className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-40"
+ className="absolute left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-40"
  >
  {[
  { level: 1, label: 'P1 Urgent' },
@@ -2574,7 +2594,7 @@ export default function WorkspaceApp() {
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: 8, scale: 0.95 }}
  transition={{ duration: 0.12 }}
- className="absolute left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-32"
+ className="absolute left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-32"
  >
  {[
  { value: null, label: 'None' },
@@ -2661,8 +2681,9 @@ export default function WorkspaceApp() {
 
  <div className="flex items-center space-x-2 shrink-0">
  {renderItemProjectBadge(todo)}
- <span className="text-xs sm:text-xs text-[#1a2b58] font-medium bg-[#ebf3ff]/70 px-2 py-0.5 rounded-full select-none">
- Today
+ <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
+ {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : null}
+ {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'Today'}
  </span>
  <button
  onClick={(e) => handleDeleteTodo(todo.id, e)}
@@ -2742,9 +2763,9 @@ export default function WorkspaceApp() {
 
  {/* Repeat loop icon / or single calendar icon badges */}
  {viewMode !== 'trash' && (
- <span className="text-xs sm:text-xs text-[#1a2b58] font-medium bg-[#ebf3ff]/70 px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none">
- <CalendarIcon className="w-3 h-3 mr-1 text-primary/70" />
- Today
+ <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
+ {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : <CalendarIcon className="w-3 h-3 mr-1 opacity-70" />}
+ {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'No date'}
  </span>
  )}
 
@@ -2829,8 +2850,9 @@ export default function WorkspaceApp() {
 
  <div className="flex items-center space-x-2.5 shrink-0 pl-2">
  {renderItemProjectBadge(todo)}
- <span className="text-xs sm:text-xs text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full select-none">
- Today
+ <span className="text-xs sm:text-xs text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full flex items-center select-none">
+ {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : null}
+ {formatCardDate(todo.dueDate) || 'No date'}
  </span>
  <button
  onClick={(e) => handleDeleteTodo(todo.id, e)}
@@ -2863,6 +2885,7 @@ export default function WorkspaceApp() {
  {/* 3. SECTOR: GENERAL ADDERS INLINE FOR OTHER TABS */}
  {activeAppTab === 'tasks' && viewMode !== 'today' && isAddingTask && (
  <div className="mt-4 border border-[#e5e7eb] bg-white rounded-xl shadow-lg p-4 text-left">
+ <div className="relative mb-2">
  <input
  autoFocus
  type="text"
@@ -2870,8 +2893,9 @@ export default function WorkspaceApp() {
  value={newTaskTitle}
  onChange={(e) => { const text = e.target.value; setNewTaskTitle(text); const lower = text.toLowerCase(); if (/(daily|every day)/.test(lower)) setNewTaskRepeatInterval('daily'); else if (/(weekly|every week)/.test(lower)) setNewTaskRepeatInterval('weekly'); else if (/(monthly|every month)/.test(lower)) setNewTaskRepeatInterval('monthly'); else if (/(quarterly|every quarter)/.test(lower)) setNewTaskRepeatInterval('quarterly'); else if (/(yearly|every year|annually)/.test(lower)) setNewTaskRepeatInterval('yearly'); else setNewTaskRepeatInterval(null); }}
  onKeyDown={(e) => { if (e.key === 'Enter') handleAddTask(); }}
- className="w-full font-medium text-[#202020] text-sm outline-none placeholder:text-gray-400 mb-2"
+ className="w-full font-medium text-[#202020] text-sm outline-none placeholder:text-gray-400 bg-transparent"
  />
+ </div>
  <textarea
  placeholder="Description / Notes"
  value={newTaskDesc}
@@ -3205,20 +3229,24 @@ export default function WorkspaceApp() {
  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Due Date</label>
  <button 
  onClick={() => { setShowDetailDatePicker(!showDetailDatePicker); setShowDetailPriorityPicker(false); setShowDetailRepeatPicker(false); }}
- className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailDatePicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
+ className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailDatePicker ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50/50 text-gray-700'}`}
  >
- <span className="truncate flex items-center gap-1.5">
- <CalendarIcon className={`w-3.5 h-3.5 ${todo.dueDate ? 'text-primary' : 'text-gray-400'}`} />
- {todo.dueDate ? format(new Date(todo.dueDate), 'MMM d, yyyy') : 'No Date'}
+ <span className={`truncate flex items-center gap-1.5 ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'text-red-500 font-semibold' : ''}`}>
+ <CalendarIcon className={`w-3.5 h-3.5 ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'text-red-500' : todo.dueDate ? 'text-primary' : 'text-gray-400'}`} />
+ {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${format(new Date(todo.dueDate), 'MMM d, yyyy')})` : todo.dueDate ? format(new Date(todo.dueDate), 'MMM d, yyyy') : 'No Date'}
  </span>
  <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailDatePicker ? 'rotate-180' : ''}`} />
 </button>
 <AnimatePresence>
 {showDetailDatePicker && (
-                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
-                              {[ { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" }, { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" }, { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" }, ].map((preset) => { const isSelected = todo.dueDate && isSameDay(new Date(todo.dueDate), preset.date); return ( <button key={preset.label} type="button" onClick={() => { todoService.updateTodo(todo.id, { dueDate: preset.date.getTime() }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} /> {preset.label} </span> {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button> ); })}
-                              <button type="button" onClick={() => { todoService.updateTodo(todo.id, { dueDate: null }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.dueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Clear Date </span> {!todo.dueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button>
-                              <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={todo.dueDate ? format(new Date(todo.dueDate), "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { todoService.updateTodo(todo.id, { dueDate: startOfDay(new Date(e.target.value + "T00:00:00")).getTime() }); } else { todoService.updateTodo(todo.id, { dueDate: null }); } }} /> </div>
+                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute top-full left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
+                              {[ { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" }, { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" }, { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" }, ].map((preset) => { const isSelected = todo.dueDate && isSameDay(new Date(todo.dueDate), preset.date); return ( <button key={preset.label} type="button" onClick={() => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: preset.date.getTime() } : t));
+ todoService.updateTodo(todo.id, { dueDate: preset.date.getTime() }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} /> {preset.label} </span> {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button> ); })}
+                              <button type="button" onClick={() => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: null } : t));
+ todoService.updateTodo(todo.id, { dueDate: null }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.dueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Clear Date </span> {!todo.dueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button>
+                              <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={todo.dueDate ? format(new Date(todo.dueDate), "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: startOfDay(new Date(e.target.value + "T00:00:00")).getTime() } : t));
+ todoService.updateTodo(todo.id, { dueDate: startOfDay(new Date(e.target.value + "T00:00:00")).getTime() }); } else { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: null } : t));
+ todoService.updateTodo(todo.id, { dueDate: null }); } }} /> </div>
                             </motion.div>
                           )}
 </AnimatePresence>
@@ -3229,7 +3257,7 @@ export default function WorkspaceApp() {
  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Priority</label>
  <button 
  onClick={() => { setShowDetailPriorityPicker(!showDetailPriorityPicker); setShowDetailDatePicker(false); setShowDetailRepeatPicker(false); }}
- className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailPriorityPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
+ className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailPriorityPicker ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50/50 text-gray-700'}`}
  >
  <span className="flex items-center gap-1.5 truncate">
  <Flag className={`w-3.5 h-3.5 ${getPriorityColor(todo.priority || 4)} fill-current`} />
@@ -3244,7 +3272,7 @@ export default function WorkspaceApp() {
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: 8, scale: 0.95 }}
  transition={{ duration: 0.15 }}
- className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-40"
+ className="absolute top-full left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-40"
  >
  {[
  { level: 1, label: 'P1 Urgent' },
@@ -3257,6 +3285,7 @@ export default function WorkspaceApp() {
  <button
  key={level}
  onClick={() => {
+ setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, priority: level } : t));
  todoService.updateTodo(todo.id, { priority: level });
  setShowDetailPriorityPicker(false);
  }}
@@ -3280,7 +3309,7 @@ export default function WorkspaceApp() {
  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Repeat</label>
  <button 
  onClick={() => { setShowDetailRepeatPicker(!showDetailRepeatPicker); setShowDetailDatePicker(false); setShowDetailPriorityPicker(false); }}
- className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailRepeatPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
+ className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailRepeatPicker ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50/50 text-gray-700'}`}
  >
  <span className="flex items-center gap-1.5 truncate">
  <RefreshCw className={`w-3.5 h-3.5 ${todo.repeatInterval ? 'text-primary' : 'text-gray-400'}`} />
@@ -3295,7 +3324,7 @@ export default function WorkspaceApp() {
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: 8, scale: 0.95 }}
  transition={{ duration: 0.15 }}
- className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-40"
+ className="absolute top-full left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-40"
  >
  {[
  { value: null, label: 'None' },
@@ -3308,6 +3337,7 @@ export default function WorkspaceApp() {
  <button
  key={value || 'none'}
  onClick={() => {
+ setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, repeatInterval: value as any } : t));
  todoService.updateTodo(todo.id, { repeatInterval: value as any });
  setShowDetailRepeatPicker(false);
  }}
@@ -3332,7 +3362,7 @@ export default function WorkspaceApp() {
  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Blocked By</label>
  <button 
  onClick={() => { setShowDetailBlockingPicker(!showDetailBlockingPicker); setShowDetailDatePicker(false); setShowDetailPriorityPicker(false); setShowDetailRepeatPicker(false); }}
- className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl text-xs font-medium transition ${showDetailBlockingPicker ? 'border-primary ring-1 ring-primary/25 bg-primary/5 text-primary' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/50 text-gray-700'}`}
+ className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailBlockingPicker ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50/50 text-gray-700'}`}
  >
  <span className="flex items-center gap-1.5 truncate">
  <Lock className={`w-3.5 h-3.5 ${(todo.blockedBy?.length || 0) > 0 ? 'text-rose-500' : 'text-gray-400'}`} />
@@ -3347,7 +3377,7 @@ export default function WorkspaceApp() {
  animate={{ opacity: 1, y: 0, scale: 1 }}
  exit={{ opacity: 0, y: 8, scale: 0.95 }}
  transition={{ duration: 0.15 }}
- className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 shadow-2xl rounded-2xl p-1.5 w-60 max-h-48 overflow-y-auto"
+ className="absolute top-full left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-60 max-h-48 overflow-y-auto"
  >
  {todos.filter(t => t.id !== todo.id && !t.completed && !t.deletedAt).length === 0 ? (
  <div className="px-2.5 py-2 text-xs text-gray-400">No active tasks to block this.</div>
@@ -3365,6 +3395,7 @@ export default function WorkspaceApp() {
  } else {
  nextBlockedBy = [...currentBlockedBy, t.id];
  }
+ setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, blockedBy: nextBlockedBy.length > 0 ? nextBlockedBy : [] } : t));
  todoService.updateTodo(todo.id, { blockedBy: nextBlockedBy.length > 0 ? nextBlockedBy : undefined });
  setShowDetailBlockingPicker(false);
  }}
@@ -3400,8 +3431,15 @@ export default function WorkspaceApp() {
  <div className="flex flex-col text-left">
  <label className="text-xs text-gray-400 uppercase tracking-widest mb-2">Subtasks</label>
  <div className="space-y-1.5">
+ <Reorder.Group 
+   axis="y" 
+   values={todo.subtasks || []} 
+   onReorder={(newOrder) => todoService.updateTodo(todo.id, { subtasks: newOrder })}
+   className="space-y-1.5"
+ >
  {todo.subtasks?.map(subtask => (
- <div key={subtask.id} className="flex items-center group">
+ <Reorder.Item key={subtask.id} value={subtask} className="flex items-center group">
+ <GripVertical className="w-4 h-4 shrink-0 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-gray-500 cursor-grab active:cursor-grabbing transition-opacity mr-1" />
  <button
  onClick={() => {
  const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
@@ -3413,16 +3451,26 @@ export default function WorkspaceApp() {
  </button>
  <input
  type="text"
- className="text-xs flex-1 outline-none text-gray-700 bg-transparent"
+ className={`text-xs flex-1 outline-none bg-transparent ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}
  value={subtask.title}
  onChange={(e) => {
  const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, title: e.target.value } : s);
  todoService.updateTodo(todo.id, { subtasks: next });
  }}
  />
- </div>
+ <button 
+ onClick={() => {
+ const next = todo.subtasks?.filter(s => s.id !== subtask.id);
+ todoService.updateTodo(todo.id, { subtasks: next });
+ }}
+ className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-red-500 transition-all shrink-0 ml-1"
+ >
+ <Trash2 className="w-3.5 h-3.5" />
+ </button>
+ </Reorder.Item>
  ))}
- <div className="flex items-center mt-2 pl-1 select-none text-[#1a2b58]">
+ </Reorder.Group>
+ <div className="flex items-center mt-2 pl-6 select-none text-[#1a2b58]">
  <Plus className="w-4.5 h-4.5 mr-1" />
  <input
  placeholder="Add a subtask... (Enter)"

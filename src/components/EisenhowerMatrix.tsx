@@ -150,9 +150,9 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  </div>
  
  <div className="flex items-center justify-between mt-2 pt-1 border-t border-gray-50">
- <span className="text-xs text-gray-400 flex items-center">
+ <span className={`text-[11px] font-medium flex items-center ${item.dueDate && item.dueDate < new Date().setHours(0,0,0,0) ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
  <Calendar className="w-2.5 h-2.5 mr-1" />
- {item.dueDate ? format(new Date(item.dueDate), 'MMM d') : 'No date'}
+ {item.dueDate && item.dueDate < new Date().setHours(0,0,0,0) ? `Overdue (${format(new Date(item.dueDate), 'MMM d')})` : item.dueDate ? format(new Date(item.dueDate), 'MMM d') : 'No date'}
  </span>
  <div className="flex items-center space-x-1.5">
  <button

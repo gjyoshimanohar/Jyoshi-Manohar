@@ -56,7 +56,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-50 w-full min-w-max mt-1 bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 overflow-hidden max-h-60 overflow-y-auto"
+            className="absolute z-50 w-full min-w-max mt-1 bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border-none overflow-hidden max-h-60 overflow-y-auto"
           >
             <div className="py-2">
               {options.map((option) => {
