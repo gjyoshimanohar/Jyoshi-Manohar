@@ -182,23 +182,17 @@ const downloadBrowserExtension = async () => {
   zip.file('manifest.json', JSON.stringify({
     manifest_version: 3,
     name: "Portal Login Autofill",
-    version: "1.0",
+    version: "1.1",
     description: "Autofills credentials from the CA admin dashboard into government portals automatically.",
     permissions: ["storage"],
     host_permissions: [
-      "*://*.incometax.gov.in/*",
-      "*://*.gst.gov.in/*",
-      "*://*.mca.gov.in/*",
-      "*://*.epfindia.gov.in/*",
-      "*://*.tdscpc.gov.in/*",
-      "*://*.esic.in/*",
-      "*://*.run.app/*",
-      "http://localhost:*/*"
+      "<all_urls>"
     ],
     background: { service_worker: "background.js" },
     content_scripts: [
       {
-        matches: ["*://*.run.app/*", "http://localhost:*/*"],
+        matches: ["<all_urls>"],
+        all_frames: true,
         js: ["app-script.js"]
       },
       {
@@ -210,6 +204,7 @@ const downloadBrowserExtension = async () => {
           "*://*.tdscpc.gov.in/*",
           "*://*.esic.in/*"
         ],
+        all_frames: true,
         js: ["portal-script.js"],
         run_at: "document_idle"
       }
@@ -220,61 +215,86 @@ const downloadBrowserExtension = async () => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'STORE_CREDENTIALS') {
     chrome.storage.local.set({ storedCredentials: request.data }, () => {
-      console.log('Credentials stored for upcoming autofill operation.');
+      console.log('Extension Background: Credentials securely stored for autofill.');
+      sendResponse({ success: true });
     });
+    return true; // Keep channel open for async response
   }
 });
   `.trim());
 
   zip.file('app-script.js', `
-window.addEventListener('message', function(event) {
-  if (!event.data || event.data.type !== 'PORTAL_LOGIN_AUTOFILL') return;
-  chrome.runtime.sendMessage({ type: 'STORE_CREDENTIALS', data: event.data });
+console.log("Portal Login extension hook loaded.");
+document.addEventListener('PORTAL_LOGIN_AUTOFILL', function(event) {
+  if (!event.detail) return;
+  console.log("Extension intercepted login signal for:", event.detail.portalName);
+  chrome.runtime.sendMessage({ type: 'STORE_CREDENTIALS', data: event.detail }, (response) => {
+    console.log("Extension acknowledged credentials storage.");
+  });
 });
   `.trim());
 
   zip.file('portal-script.js', `
+console.log("Portal Login extension loaded on " + window.location.href);
 chrome.storage.local.get(['storedCredentials'], (result) => {
   const creds = result.storedCredentials;
   if (creds && window.location.href.includes(new URL(creds.url).hostname)) {
-    // Run an interval to continuously attempt autofill for 15 seconds (handles SPAs & 2-step logins)
+    console.log("Credentials found for this portal! Initiating autofill sequence...");
     let attempts = 0;
     const interval = setInterval(() => {
       attemptAutofill(creds);
       attempts++;
-      if (attempts > 30) {
-        clearInterval(interval);
-        chrome.storage.local.remove(['storedCredentials']);
-      }
+      if (attempts > 40) clearInterval(interval);
     }, 500);
+  } else {
+    console.log("No credentials queued for this site.");
   }
 });
+
+function setInputValue(input, value) {
+  if (!input || !value || input.value === value) return false;
+  
+  input.focus();
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+  if (nativeInputValueSetter) {
+    nativeInputValueSetter.call(input, value);
+  } else {
+    input.value = value;
+  }
+  
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+  input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+  input.blur();
+  return true;
+}
 
 function attemptAutofill(creds) {
   const { username, password } = creds;
   
-  // Specific selectors for common government portals, falling back to generic
-  const userInput = document.querySelector('input[formcontrolname="userid"], input[name="pan"], input[id="pan"], input[id="userName"], input[id="username"], input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i], input[name*="pan" i], input[name*="gstin" i], input[type="text"]:not([readonly])');
-  const passInput = document.querySelector('input[type="password"]');
+  // Find visible inputs
+  const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])'))
+    .filter(i => i.offsetWidth > 0 && i.offsetHeight > 0 && getComputedStyle(i).visibility !== 'hidden');
+  
+  const textInputs = inputs.filter(i => i.type === 'text' || i.type === 'email' || !i.type);
+  const passInputs = inputs.filter(i => i.type === 'password');
+  
+  // Advanced heuristic for username
+  const userInput = textInputs.find(i => 
+    /user|login|id|email|pan|gst|name/i.test(i.name) || 
+    /user|login|id|email|pan|gst|name/i.test(i.id) ||
+    /user|login|id|email|pan|gst/i.test(i.placeholder)
+  ) || textInputs[0];
+  
+  const passInput = passInputs[0];
 
-  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-
-  if (userInput && username && userInput.value !== username) {
-    userInput.focus();
-    if (nativeInputValueSetter) nativeInputValueSetter.call(userInput, username);
-    else userInput.value = username;
-    userInput.dispatchEvent(new Event('input', { bubbles: true }));
-    userInput.dispatchEvent(new Event('change', { bubbles: true }));
-    userInput.blur();
+  if (userInput && username) {
+    setInputValue(userInput, username);
   }
   
-  if (passInput && password && passInput.value !== password) {
-    passInput.focus();
-    if (nativeInputValueSetter) nativeInputValueSetter.call(passInput, password);
-    else passInput.value = password;
-    passInput.dispatchEvent(new Event('input', { bubbles: true }));
-    passInput.dispatchEvent(new Event('change', { bubbles: true }));
-    passInput.blur();
+  if (passInput && password) {
+    setInputValue(passInput, password);
   }
 }
   `.trim());
@@ -283,7 +303,7 @@ function attemptAutofill(creds) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'autofill-extension.zip';
+  a.download = 'autofill-extension-v1.1.zip';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1726,14 +1746,15 @@ Stewardship, Accuracy, Legacy.
     const url = getPortalUrl(login.portalName);
     
     if (url !== '#') {
-      // Broadcast the autofill intent to the browser extension (if installed)
-      window.postMessage({
-        type: 'PORTAL_LOGIN_AUTOFILL',
-        portalName: login.portalName,
-        url: url,
-        username: login.username,
-        password: login.password
-      }, '*');
+      // Broadcast the autofill intent to the browser extension (using CustomEvent)
+      document.dispatchEvent(new CustomEvent('PORTAL_LOGIN_AUTOFILL', {
+        detail: {
+          portalName: login.portalName,
+          url: url,
+          username: login.username,
+          password: login.password
+        }
+      }));
 
       window.open(url, '_blank');
     }
