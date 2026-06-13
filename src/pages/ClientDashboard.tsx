@@ -1698,6 +1698,16 @@ Stewardship, Accuracy, Legacy.
           passwordCreated = true;
           await signOut(secondaryAuth); // Clear the secondary auth state safely
 
+          // Register in the CRM database so they appear in 'clients' list 
+          await setDoc(doc(db, 'users', finalUserId), {
+            uid: finalUserId,
+            email: req.userEmail,
+            displayName: req.clientName || 'New Client',
+            kycStatus: 'Pending',
+            services: [],
+            createdAt: Date.now()
+          });
+
           // Send automated email via full-stack Express API proxy (powered by Brevo)
           try {
             await fetch('/api/send-email', {
@@ -1727,7 +1737,11 @@ Stewardship, Accuracy, Legacy.
           }
         } catch (authErr: any) {
           console.error("Failed to provision new client account:", authErr);
-          alert(`Account creation failed: ${authErr.message || 'Unknown error'}`);
+          if (authErr.code === 'auth/email-already-in-use') {
+             alert(`This email (${req.userEmail}) is already registered in Firebase Auth, but missing from the Clients record. Please accept this request without assigning a password. When the client logs into the portal using their existing password, their account will sync the new request.`);
+          } else {
+             alert(`Account creation failed: ${authErr.message || 'Unknown error'}`);
+          }
           setIsProcessingApproval(false);
           return;
         }
