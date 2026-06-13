@@ -47,6 +47,7 @@ import {
   Shield, 
   ArrowRight, 
   Upload, 
+  Key,
   Activity, 
   Briefcase, 
   FileSpreadsheet,
@@ -69,7 +70,10 @@ import {
   Bell,
   Check,
   Users,
-  LayoutDashboard
+  LayoutDashboard,
+  Eye,
+  EyeOff,
+  Copy
 } from 'lucide-react';
 
 // Pre-defined interfaces
@@ -148,6 +152,16 @@ interface ClientRequest {
   declineReason?: string;
 }
 
+interface ClientLogin {
+  id: string;
+  userId: string;
+  portalName: string;
+  username: string;
+  password?: string;
+  notes?: string;
+  createdAt: number;
+}
+
 interface PortalNotification {
   id: string;
   userId: string;
@@ -156,7 +170,8 @@ interface PortalNotification {
   message: string;
   createdAt: number;
   read: boolean;
-  type: 'request' | 'document' | 'general' | 'chat';
+  type: 'request' | 'document' | 'general' | 'chat' | 'system';
+  relatedClientId?: string;
 }
 
 export default function ClientDashboard() {
@@ -177,6 +192,7 @@ export default function ClientDashboard() {
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
   const [complianceFilings, setComplianceFilings] = useState<ComplianceFiling[]>([]);
   const [clientRequests, setClientRequests] = useState<ClientRequest[]>([]);
+  const [clientLogins, setClientLogins] = useState<ClientLogin[]>([]);
   const [notifications, setNotifications] = useState<PortalNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
@@ -187,7 +203,7 @@ export default function ClientDashboard() {
   const [selectedClientEmail, setSelectedClientEmail] = useState<string>('');
 
   // Active Tab/Filter State
-  const [activeTab, setActiveTab] = useState<'portal-dashboard' | 'applications' | 'documents' | 'compliance' | 'admin' | 'chat' | 'clients'>('applications');
+  const [activeTab, setActiveTab] = useState<'portal-dashboard' | 'applications' | 'documents' | 'compliance' | 'admin' | 'logins' | 'chat' | 'clients'>('applications');
   const [serviceFilter, setServiceFilter] = useState<string>('All');
 
   // Real-time Chat States
@@ -221,6 +237,16 @@ export default function ClientDashboard() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [customUrl, setCustomUrl] = useState('');
+
+  // Form states for Logins
+  const [editingLoginId, setEditingLoginId] = useState<string | null>(null);
+  const [newLoginPortal, setNewLoginPortal] = useState('Income Tax Portal');
+  const [newLoginUsername, setNewLoginUsername] = useState('');
+  const [newLoginPassword, setNewLoginPassword] = useState('');
+  const [newLoginNotes, setNewLoginNotes] = useState('');
+  const [isAddingLogin, setIsAddingLogin] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [visiblePasswordIds, setVisiblePasswordIds] = useState<Set<string>>(new Set());
 
   const [newFilingTitle, setNewFilingTitle] = useState('');
   const [newFilingService, setNewFilingService] = useState('GST');
@@ -379,6 +405,22 @@ export default function ClientDashboard() {
       console.error("Error reading client requests: ", error);
     });
 
+    // Fetch client logins
+    const loginsQuery = (isAdmin && !selectedClientId)
+      ? query(collection(db, 'client_logins'))
+      : query(collection(db, 'client_logins'), where('userId', '==', targetUserId));
+
+    const unsubscribeLogins = onSnapshot(loginsQuery, (snapshot) => {
+      const list: ClientLogin[] = [];
+      snapshot.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as ClientLogin);
+      });
+      list.sort((a, b) => b.createdAt - a.createdAt);
+      setClientLogins(list);
+    }, (error) => {
+      console.error("Error reading client logins: ", error);
+    });
+
     // Real-time notifications listener
     const notifsQuery = isAdmin
       ? query(collection(db, 'notifications'), or(where('userId', '==', 'admin'), where('userId', '==', user.uid)))
@@ -431,6 +473,7 @@ export default function ClientDashboard() {
       unsubscribeFilings();
       unsubscribeUsers();
       unsubscribeRequests();
+      unsubscribeLogins();
       unsubscribeNotifs();
     };
   }, [user, isAdmin, selectedClientId]);
@@ -614,7 +657,8 @@ export default function ClientDashboard() {
           message: truncatedMessage,
           createdAt: Date.now(),
           read: false,
-          type: 'chat'
+          type: 'chat',
+          relatedClientId: user.uid
         });
       } catch (notifErr) {
         console.error("Failed to route notification alert for direct chat message:", notifErr);
@@ -789,7 +833,8 @@ export default function ClientDashboard() {
           message: `${senderName} completed upload of requested document: [${reqDoc.name}]`,
           createdAt: Date.now(),
           read: false,
-          type: 'document'
+          type: 'document',
+          relatedClientId: user.uid
         });
       } catch (notifErr) {
         console.error("Failed to route notification alert for document fulfillment:", notifErr);
@@ -1098,7 +1143,8 @@ export default function ClientDashboard() {
             message: `${displayName || email.split('@')[0]} (${cred.user.email}) just registered directly via the portal.`,
             createdAt: Date.now(),
             read: false,
-            type: 'system'
+            type: 'system',
+            relatedClientId: cred.user.uid
           });
         } catch (nErr) {
           console.error("Failed to notify admin of registration", nErr);
@@ -1491,6 +1537,101 @@ Stewardship, Accuracy, Legacy.
     }
   };
 
+  const handleCreateLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClientId) {
+      alert("Please select a target client first.");
+      return;
+    }
+    if (!newLoginPortal || !newLoginUsername) {
+      alert("Please fill in the portal name and username.");
+      return;
+    }
+    try {
+      setIsAddingLogin(true);
+
+      if (editingLoginId) {
+        await updateDoc(doc(db, 'client_logins', editingLoginId), {
+          portalName: newLoginPortal,
+          username: newLoginUsername,
+          password: newLoginPassword,
+          notes: newLoginNotes,
+        });
+        setFeedback({ message: "Successfully updated the client login.", type: 'success' });
+        setEditingLoginId(null);
+      } else {
+        const newLogin: Omit<ClientLogin, 'id'> = {
+          userId: selectedClientId,
+          portalName: newLoginPortal,
+          username: newLoginUsername,
+          password: newLoginPassword,
+          notes: newLoginNotes,
+          createdAt: Date.now()
+        };
+
+        await addDoc(collection(db, 'client_logins'), newLogin);
+        setFeedback({ message: "Successfully securely registered the client login.", type: 'success' });
+      }
+      
+      setNewLoginPortal('Income Tax Portal');
+      setNewLoginUsername('');
+      setNewLoginPassword('');
+      setNewLoginNotes('');
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setFeedback({ message: "Failed to store login: " + err.message, type: 'error' });
+    } finally {
+      setIsAddingLogin(false);
+    }
+  };
+
+  const handleCancelEditLogin = () => {
+    setEditingLoginId(null);
+    setNewLoginPortal('Income Tax Portal');
+    setNewLoginUsername('');
+    setNewLoginPassword('');
+    setNewLoginNotes('');
+  };
+
+  const getPortalUrl = (portalName: string) => {
+    switch (portalName) {
+      case 'Income Tax Portal': return 'https://eportal.incometax.gov.in/iec/foservices/#/login';
+      case 'GST Portal': return 'https://services.gst.gov.in/services/login';
+      case 'MCA Portal': return 'https://www.mca.gov.in/content/mca/global/en/foportal/fologin.html';
+      case 'EPFO Portal': return 'https://unifiedportal-emp.epfindia.gov.in/epfo/';
+      case 'TRACES Portal': return 'https://www.tdscpc.gov.in/app/login.xhtml';
+      case 'ESI Portal': return 'https://www.esic.in/ESICInsurance1/ESICInsurancePortal/PortalLogin.aspx';
+      default: return '#';
+    }
+  };
+
+  const handlePortalLogin = (login: ClientLogin) => {
+    if (login.password) {
+      navigator.clipboard.writeText(login.password);
+      setFeedback({ message: "Password copied to clipboard for easy login. Opening portal...", type: 'success' });
+    } else if (login.username) {
+      navigator.clipboard.writeText(login.username);
+      setFeedback({ message: "Username copied to clipboard. Opening portal...", type: 'success' });
+    }
+    
+    setTimeout(() => {
+      const url = getPortalUrl(login.portalName);
+      if (url !== '#') {
+        // Broadcast the autofill intent to the browser extension (if installed)
+        window.postMessage({
+          type: 'PORTAL_LOGIN_AUTOFILL',
+          portalName: login.portalName,
+          url: url,
+          username: login.username,
+          password: login.password
+        }, '*');
+
+        window.open(url, '_blank');
+      }
+    }, 1000);
+  };
+
   // Core administrative updater to advance steps and statuses seamlessly
   const handleUpdateAppStatus = async (appId: string, status: Application['status'], nextStep: string) => {
     try {
@@ -1634,7 +1775,8 @@ Stewardship, Accuracy, Legacy.
           message: `${user.displayName || user.email?.split('@')[0] || 'Client'} has submitted proposal: [${requestTitle}]`,
           createdAt: Date.now(),
           read: false,
-          type: 'request'
+          type: 'request',
+          relatedClientId: user.uid
         });
       } catch (nErr) {
         console.error("Failed to push request notification:", nErr);
@@ -1672,6 +1814,44 @@ Stewardship, Accuracy, Legacy.
       await Promise.all(promises);
     } catch (err: any) {
       console.error("Failed to mark all notifications as read: ", err);
+    }
+  };
+
+  const handleNotificationClick = async (notif: PortalNotification) => {
+    if (!notif.read) {
+      try {
+        await updateDoc(doc(db, 'notifications', notif.id), { read: true });
+      } catch (err: any) {
+        console.error("Failed to mark notification as read: ", err);
+      }
+    }
+    
+    setNotificationsOpen(false);
+
+    if (isAdmin && notif.relatedClientId) {
+      setSelectedClientId(notif.relatedClientId);
+      const cli = clients.find(c => c.uid === notif.relatedClientId);
+      if (cli) {
+        setSelectedClientEmail(cli.email);
+      }
+    }
+
+    if (notif.type === 'chat') {
+      setActiveTab('chat');
+    } else if (notif.title?.includes('Document') || notif.type === 'document') {
+      setActiveTab('documents');
+    } else if (notif.title?.includes('Application') || notif.title?.includes('Tracker')) {
+      setActiveTab('applications');
+    } else if (notif.title?.includes('Compliance') || notif.title?.includes('Filing')) {
+      setActiveTab('compliance');
+    } else if (notif.title?.includes('Proposal') || notif.title?.includes('Registered') || notif.type === 'request') {
+      if (isAdmin) {
+        setActiveTab('admin');
+      } else {
+        setActiveTab('applications');
+      }
+    } else {
+      setActiveTab('portal-dashboard');
     }
   };
 
@@ -2553,7 +2733,8 @@ Stewardship, Accuracy, Legacy.
                           return (
                             <div 
                               key={notif.id} 
-                              className={`p-4 transition-colors flex gap-3 group relative ${notif.read ? 'bg-slate-50/40 text-slate-500/80' : 'bg-white'}`}
+                              onClick={() => handleNotificationClick(notif)}
+                              className={`p-4 transition-colors flex gap-3 group relative cursor-pointer hover:bg-slate-50 ${notif.read ? 'bg-slate-50/40 text-slate-500/80' : 'bg-white'}`}
                             >
                               <div className={`h-8 w-8 rounded-xl flex items-center justify-center border shrink-0 ${badgeBg}`}>
                                 {iconEl}
@@ -2757,40 +2938,46 @@ Stewardship, Accuracy, Legacy.
                 </button>
 
                 {isAdmin && (
-                  <button
-                    onClick={() => setActiveTab('admin')}
-                    className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
-                      activeTab === 'admin'
-                        ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
-                        : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Upload className="h-4 w-4 shrink-0" />
-                      <span className="text-xs font-bold uppercase tracking-wider">Deploy data flow</span>
-                    </div>
-                    <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
-                      Filing Panel
-                    </span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setActiveTab('admin')}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                        activeTab === 'admin'
+                          ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
+                          : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Upload className="h-4 w-4 shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider">Deploy data flow</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                        Filing Panel
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('logins')}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                        activeTab === 'logins'
+                          ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
+                          : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Key className="h-4 w-4 shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider">Logins</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                        {clientLogins.length}
+                      </span>
+                    </button>
+                  </>
                 )}
               </>
             )}
 
-            {/* Quick Consultation help box */}
-            <div className="mt-8 bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-100 rounded-2xl p-5 shadow-sm">
-              <h3 className="text-sm font-serif font-bold text-slate-900 flex items-center gap-1.5">
-                <Sparkles className="h-4.5 w-4.5 text-amber-500" />
-                <span>Regulatory updates</span>
-              </h3>
-              <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
-                Central Board of Direct Taxes extended non-corporate auditing submissions. Ensure appropriate Form 10A are signed in the portal on time this financial year.
-              </p>
-              <a href="/#contact" className="inline-flex items-center gap-1 mt-4 text-[10px] font-bold text-primary hover:text-slate-900 uppercase tracking-widest">
-                <span>Book expert desk</span>
-                <ChevronRight className="h-3 w-3" />
-              </a>
-            </div>
+
           </div>
 
           {/* Dynamic Content boards */}
@@ -5012,6 +5199,241 @@ Stewardship, Accuracy, Legacy.
                     </form>
                   </div>
 
+                </div>
+              </div>
+            )}
+
+            {/* LOGINS ADMIN PANEL */}
+            {activeTab === 'logins' && isAdmin && (
+              <div className="space-y-8">
+                <div className="bg-slate-950 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-lg">
+                  <h2 className="text-xl font-serif text-white tracking-tight flex items-center gap-2">
+                    <Key className="h-5 w-5 text-amber-500" />
+                    <span>Deploy Service Logins</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Set up direct profiles. Securely save interactive data blocks related to various government portals of the selected client.
+                  </p>
+                  
+                  <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-xl mt-4 flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+                    <span className="text-xs font-semibold text-slate-100">
+                      Active client focus: <span className="text-amber-300 underline underline-offset-4">{selectedClientEmail || 'No client selected'}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Register New Login Form */}
+                  <div className="bg-white border border-slate-200/60 rounded-3xl p-6 sm:p-8 shadow-sm">
+                    <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+                      <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                        <Key className="h-4 w-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Register Portal Access</h3>
+                    </div>
+
+                    <form onSubmit={handleCreateLogin} className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Government Portal</label>
+                        <CustomSelect
+                          value={newLoginPortal}
+                          onChange={(val) => setNewLoginPortal(val)}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
+                          options={[
+                            "Income Tax Portal",
+                            "GST Portal",
+                            "MCA Portal",
+                            "EPFO Portal",
+                            "TRACES Portal",
+                            "ESI Portal",
+                            "Other"
+                          ]}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Username / ID</label>
+                          <input
+                            type="text"
+                            value={newLoginUsername}
+                            onChange={(e) => setNewLoginUsername(e.target.value)}
+                            placeholder="e.g. PAN or GSTIN"
+                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Password</label>
+                          <div className="relative">
+                            <input
+                              type={showLoginPassword ? "text" : "password"}
+                              value={newLoginPassword}
+                              onChange={(e) => setNewLoginPassword(e.target.value)}
+                              placeholder="Password"
+                              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 pr-10 text-xs text-slate-950 outline-none focus:border-primary font-medium"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowLoginPassword(!showLoginPassword)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                              {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Admin Remarks (optional)</label>
+                        <textarea
+                          value={newLoginNotes}
+                          onChange={(e) => setNewLoginNotes(e.target.value)}
+                          placeholder="Internal use only notes..."
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium min-h-[80px] resize-none"
+                        />
+                      </div>
+
+                      <div className="pt-2 flex flex-col gap-2">
+                        <button
+                          type="submit"
+                          disabled={!selectedClientId || isAddingLogin}
+                          className="w-full bg-slate-900 hover:bg-black disabled:opacity-50 text-white rounded-xl py-3.5 text-[11px] font-bold uppercase tracking-wider transition-all"
+                        >
+                          {isAddingLogin ? (editingLoginId ? 'Updating...' : 'Registering...') : (editingLoginId ? 'Update Authenticator Profile' : 'Save Authenticator Profile')}
+                        </button>
+                        {editingLoginId && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditLogin}
+                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl py-2.5 text-[11px] font-bold uppercase tracking-wider transition-all"
+                          >
+                            Cancel Edit
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* List of active logins */}
+                  <div className="bg-white border border-slate-200/60 rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col">
+                    <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+                      <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <Shield className="h-4 w-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Active Accounts Vault</h3>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+                      {clientLogins.filter(c => isAdmin && !selectedClientId ? true : c.userId === selectedClientId).length === 0 ? (
+                        <div className="py-10 text-center text-slate-500 bg-slate-50 rounded-2xl border border-slate-100">
+                          <p className="text-xs font-semibold">No remote accounts loaded.</p>
+                        </div>
+                      ) : (
+                        clientLogins.filter(c => isAdmin && !selectedClientId ? true : c.userId === selectedClientId).map(login => (
+                          <div key={login.id} className="p-4 rounded-xl border border-slate-100 bg-white hover:border-slate-300 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-bold text-slate-900">{login.portalName}</h4>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingLoginId(login.id);
+                                    setNewLoginPortal(login.portalName);
+                                    setNewLoginUsername(login.username);
+                                    setNewLoginPassword(login.password || '');
+                                    setNewLoginNotes(login.notes || '');
+                                  }}
+                                  className="text-slate-400 hover:text-blue-500"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (confirm('Delete this account info?')) {
+                                      await deleteDoc(doc(db, 'client_logins', login.id));
+                                      if (editingLoginId === login.id) {
+                                        handleCancelEditLogin();
+                                      }
+                                    }
+                                  }}
+                                  className="text-slate-400 hover:text-red-500"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between gap-3 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                              <div className="grid grid-cols-2 gap-3 flex-1">
+                                <div>
+                                  <span className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">UID / PAN</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-bold text-slate-800">{login.username}</span>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(login.username);
+                                        setFeedback({ message: "Username copied to clipboard", type: 'success' });
+                                        setTimeout(() => setFeedback(null), 2000);
+                                      }}
+                                      className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                                      title="Copy Username"
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="block text-[9px] uppercase font-bold text-slate-500 mb-0.5">Credentials</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-medium text-slate-600">
+                                      {!login.password ? '—' : (visiblePasswordIds.has(login.id) ? login.password : '••••••••')}
+                                    </span>
+                                    {login.password && (
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            const nextSet = new Set(visiblePasswordIds);
+                                            if (nextSet.has(login.id)) nextSet.delete(login.id);
+                                            else nextSet.add(login.id);
+                                            setVisiblePasswordIds(nextSet);
+                                          }}
+                                          className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                                          title={visiblePasswordIds.has(login.id) ? "Hide Password" : "Show Password"}
+                                        >
+                                          {visiblePasswordIds.has(login.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(login.password!);
+                                            setFeedback({ message: "Password copied to clipboard", type: 'success' });
+                                            setTimeout(() => setFeedback(null), 2000);
+                                          }}
+                                          className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                                          title="Copy Password"
+                                        >
+                                          <Copy className="h-3 w-3" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handlePortalLogin(login)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-lg shrink-0 transition-colors"
+                              >
+                                <span className="font-bold uppercase tracking-wider text-[9px]">Portal Login</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </button>
+                            </div>
+                            {login.notes && (
+                              <p className="mt-3 text-[10px] text-slate-500 border-t border-slate-100 pt-2">{login.notes}</p>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

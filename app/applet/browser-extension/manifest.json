@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Portal Login Autofill",
+  "version": "1.0",
+  "description": "Autofills credentials from the CA admin dashboard into government portals automatically.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.incometax.gov.in/*",
+    "*://*.gst.gov.in/*",
+    "*://*.mca.gov.in/*",
+    "*://*.epfindia.gov.in/*",
+    "*://*.tdscpc.gov.in/*",
+    "*://*.esic.in/*",
+    "*://*.run.app/*",
+    "http://localhost:*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.run.app/*",
+        "http://localhost:*/*"
+      ],
+      "js": [
+        "app-script.js"
+      ]
+    },
+    {
+      "matches": [
+        "*://*.incometax.gov.in/*",
+        "*://*.gst.gov.in/*",
+        "*://*.mca.gov.in/*",
+        "*://*.epfindia.gov.in/*",
+        "*://*.tdscpc.gov.in/*",
+        "*://*.esic.in/*"
+      ],
+      "js": [
+        "portal-script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
