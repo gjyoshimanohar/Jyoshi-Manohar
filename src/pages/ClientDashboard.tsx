@@ -1692,9 +1692,33 @@ Stewardship, Accuracy, Legacy.
           passwordCreated = true;
           await signOut(secondaryAuth); // Clear the secondary auth state safely
 
-          // Note: In production, trigger an email via Firebase Extensions or Cloud Functions.
-          // Here we simulate the email dispatch console log
-          console.log(`[SIMULATED EMAIL DISPATCH] Sent to ${req.userEmail} with password: ${acceptUserPassword}`);
+          // Send automated email via full-stack Express API proxy (powered by Brevo)
+          try {
+            await fetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: req.userEmail,
+                subject: `Welcome to Manohar Business Consulting - Your Portal Access to ${req.title}`,
+                htmlContent: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                  <h2>Welcome to Manohar Business Consulting</h2>
+                  <p>Dear Client,</p>
+                  <p>Your consultation request for <strong>${req.title}</strong> has been approved. We have created a secure client portal for you to track milestones, invoices, and share documents.</p>
+                  <p><strong>Login Details:</strong><br/>
+                  Email: ${req.userEmail}<br/>
+                  Password: ${acceptUserPassword}</p>
+                  <p>Please log in to your dashboard to get started.</p>
+                  <br/>
+                  <p>Best regards,<br/>CA Jyoshi Manohar<br/>Manohar Business Consulting</p>
+                </div>
+                `
+              })
+            });
+            console.log(`[EMAIL DISPATCH] Sent to ${req.userEmail} successfully.`);
+          } catch (emailErr) {
+            console.error("Failed to dispatcher welcome email:", emailErr);
+          }
         } catch (authErr: any) {
           console.error("Failed to provision new client account:", authErr);
           alert(`Account creation failed: ${authErr.message || 'Unknown error'}`);

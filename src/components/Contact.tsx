@@ -78,9 +78,10 @@ export default function Contact() {
       await new Promise((resolve) => setTimeout(resolve, 1200));
 
       // Save to Firebase
+      const isMatchingKnownUser = auth.currentUser && auth.currentUser.email === email;
       await addDoc(collection(db, "client_requests"), {
-        userId: auth.currentUser ? auth.currentUser.uid : "anonymous",
-        userEmail: (auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : email,
+        userId: isMatchingKnownUser ? auth.currentUser.uid : "anonymous",
+        userEmail: email, // Always use the explicitly provided email in the form
         clientName: `${firstName} ${lastName}`.trim(),
         title: `Consultation request: ${selectedInterest}`,
         type: "engagement",
