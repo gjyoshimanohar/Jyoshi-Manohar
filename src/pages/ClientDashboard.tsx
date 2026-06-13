@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import JSZip from 'jszip';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -173,6 +174,114 @@ interface PortalNotification {
   type: 'request' | 'document' | 'general' | 'chat' | 'system';
   relatedClientId?: string;
 }
+
+// Helper function to assemble and download the autofill browser extension
+const downloadBrowserExtension = async () => {
+  const zip = new JSZip();
+
+  zip.file('manifest.json', JSON.stringify({
+    manifest_version: 3,
+    name: "Portal Login Autofill",
+    version: "1.0",
+    description: "Autofills credentials from the CA admin dashboard into government portals automatically.",
+    permissions: ["storage"],
+    host_permissions: [
+      "*://*.incometax.gov.in/*",
+      "*://*.gst.gov.in/*",
+      "*://*.mca.gov.in/*",
+      "*://*.epfindia.gov.in/*",
+      "*://*.tdscpc.gov.in/*",
+      "*://*.esic.in/*",
+      "*://*.run.app/*",
+      "http://localhost:*/*"
+    ],
+    background: { service_worker: "background.js" },
+    content_scripts: [
+      {
+        matches: ["*://*.run.app/*", "http://localhost:*/*"],
+        js: ["app-script.js"]
+      },
+      {
+        matches: [
+          "*://*.incometax.gov.in/*",
+          "*://*.gst.gov.in/*",
+          "*://*.mca.gov.in/*",
+          "*://*.epfindia.gov.in/*",
+          "*://*.tdscpc.gov.in/*",
+          "*://*.esic.in/*"
+        ],
+        js: ["portal-script.js"],
+        run_at: "document_idle"
+      }
+    ]
+  }, null, 2));
+
+  zip.file('background.js', `
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'STORE_CREDENTIALS') {
+    chrome.storage.local.set({ storedCredentials: request.data }, () => {
+      console.log('Credentials stored for upcoming autofill operation.');
+    });
+  }
+});
+  `.trim());
+
+  zip.file('app-script.js', `
+window.addEventListener('message', function(event) {
+  if (event.source !== window || !event.data || event.data.type !== 'PORTAL_LOGIN_AUTOFILL') return;
+  chrome.runtime.sendMessage({ type: 'STORE_CREDENTIALS', data: event.data });
+});
+  `.trim());
+
+  zip.file('portal-script.js', `
+chrome.storage.local.get(['storedCredentials'], (result) => {
+  const creds = result.storedCredentials;
+  if (creds && window.location.href.includes(new URL(creds.url).hostname)) {
+    setTimeout(() => attemptAutofill(creds), 1500);
+    setTimeout(() => attemptAutofill(creds), 3000);
+    setTimeout(() => attemptAutofill(creds), 5000);
+  }
+});
+
+function attemptAutofill(creds) {
+  const { username, password } = creds;
+  let filled = false;
+  const userInput = document.querySelector('input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i], input[name*="pan" i], input[name*="gstin" i], input[type="text"]:not([readonly])');
+  const passInput = document.querySelector('input[type="password"]');
+
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+
+  if (userInput && username) {
+    if (nativeInputValueSetter) nativeInputValueSetter.call(userInput, username);
+    else userInput.value = username;
+    userInput.dispatchEvent(new Event('input', { bubbles: true }));
+    userInput.dispatchEvent(new Event('change', { bubbles: true }));
+    filled = true;
+  }
+  if (passInput && password) {
+    if (nativeInputValueSetter) nativeInputValueSetter.call(passInput, password);
+    else passInput.value = password;
+    passInput.dispatchEvent(new Event('input', { bubbles: true }));
+    passInput.dispatchEvent(new Event('change', { bubbles: true }));
+    filled = true;
+  }
+  if (filled) {
+    console.log("Credentials autofilled successfully.");
+    setTimeout(() => chrome.storage.local.remove(['storedCredentials']), 6000);
+  }
+}
+  `.trim());
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'autofill-extension.zip';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 export default function ClientDashboard() {
   const [user, setUser] = useState<User | null>(null);
@@ -5318,11 +5427,30 @@ Stewardship, Accuracy, Legacy.
 
                   {/* List of active logins */}
                   <div className="bg-white border border-slate-200/60 rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col">
-                    <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
-                      <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                        <Shield className="h-4 w-4" />
+                    <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                          <Shield className="h-4 w-4" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Active Accounts Vault</h3>
                       </div>
-                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Active Accounts Vault</h3>
+                      <button
+                        onClick={downloadBrowserExtension}
+                        className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-200"
+                        title="Download Autofill Extension for Google Chrome"
+                      >
+                        Download Autofill Extension
+                      </button>
+                    </div>
+
+                    {/* Tip for the extension */}
+                    <div className="mb-4 text-[10px] text-slate-500 bg-blue-50/50 p-3 rounded-xl border border-blue-100 leading-relaxed">
+                      <strong className="text-blue-700 block mb-1">To enable 1-Click Portal Autofill:</strong>
+                      1. Click 'Download Autofill Extension'. Extract the ZIP file.<br/>
+                      2. Go to <code className="bg-blue-100 px-1 rounded text-blue-800">chrome://extensions</code>.<br/>
+                      3. Enable <strong>Developer mode</strong> (top right).<br/>
+                      4. Click <strong>Load unpacked</strong> and select the extracted folder.<br/>
+                      5. Return here and click "Portal Login"!
                     </div>
 
                     <div className="flex-1 overflow-y-auto pr-2 space-y-3">

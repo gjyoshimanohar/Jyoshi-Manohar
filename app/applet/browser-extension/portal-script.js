@@ -3,10 +3,10 @@ chrome.storage.local.get(['storedCredentials'], (result) => {
   const creds = result.storedCredentials;
   
   if (creds && window.location.href.includes(new URL(creds.url).hostname)) {
-    // Wait a moment for the exact login form elements to render
+    // Wait for the exact login form elements to render
     setTimeout(() => attemptAutofill(creds), 1500);
-    // Backup attempts in case of slow rendering or SPA navigation
     setTimeout(() => attemptAutofill(creds), 3000);
+    setTimeout(() => attemptAutofill(creds), 5000); // extra backup for slow portals
   }
 });
 
@@ -20,16 +20,17 @@ function attemptAutofill(creds) {
   // Target password field
   const passInput = document.querySelector('input[type="password"]');
 
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+
   if (userInput && username) {
-    userInput.value = username;
-    // Dispatch events so React/Angular/Vue recognizes the filled value
+    nativeInputValueSetter.call(userInput, username);
     userInput.dispatchEvent(new Event('input', { bubbles: true }));
     userInput.dispatchEvent(new Event('change', { bubbles: true }));
     filled = true;
   }
 
   if (passInput && password) {
-    passInput.value = password;
+    nativeInputValueSetter.call(passInput, password);
     passInput.dispatchEvent(new Event('input', { bubbles: true }));
     passInput.dispatchEvent(new Event('change', { bubbles: true }));
     filled = true;
@@ -37,6 +38,9 @@ function attemptAutofill(creds) {
 
   // If filled successfully on first or retry attempt, clear the credentials
   if (filled) {
-    chrome.storage.local.remove(['storedCredentials']);
+    console.log("Credentials autofilled successfully.");
+    setTimeout(() => {
+        chrome.storage.local.remove(['storedCredentials']);
+    }, 6000);
   }
 }
