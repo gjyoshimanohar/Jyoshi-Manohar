@@ -77,21 +77,19 @@ export default function Contact() {
       // Simulate real processing delay
       await new Promise((resolve) => setTimeout(resolve, 1200));
 
-      // Save to Firebase if signed in
-      if (auth.currentUser) {
-        await addDoc(collection(db, "client_requests"), {
-          userId: auth.currentUser.uid,
-          userEmail: auth.currentUser.email || email,
-          clientName: `${firstName} ${lastName}`.trim(),
-          title: `Consultation request: ${selectedInterest}`,
-          type: "engagement",
-          category: selectedInterest,
-          description: requirementBrief,
-          createdAt: Date.now(),
-          status: "pending",
-          mobile: mobileNumber
-        });
-      }
+      // Save to Firebase
+      await addDoc(collection(db, "client_requests"), {
+        userId: auth.currentUser ? auth.currentUser.uid : "anonymous",
+        userEmail: (auth.currentUser && auth.currentUser.email) ? auth.currentUser.email : email,
+        clientName: `${firstName} ${lastName}`.trim(),
+        title: `Consultation request: ${selectedInterest}`,
+        type: "engagement",
+        category: selectedInterest,
+        description: requirementBrief,
+        createdAt: Date.now(),
+        status: "pending",
+        mobile: mobileNumber
+      });
 
       setSubmitSuccess(true);
     } catch (err) {

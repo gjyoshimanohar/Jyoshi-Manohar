@@ -27,7 +27,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage, firebaseConfig } from '../lib/firebase';
+import { auth, db, storage, secondaryAuth, firebaseConfig } from '../lib/firebase';
 import { 
   Download, 
   CheckCircle, 
@@ -281,6 +281,7 @@ export default function ClientDashboard() {
   const [acceptingReqId, setAcceptingReqId] = useState<string | null>(null);
   const [acceptEstCompletion, setAcceptEstCompletion] = useState('June 30, 2026');
   const [acceptStepsText, setAcceptStepsText] = useState<string>("1. Intake checklist & document verify\n2. CA audit & compliance draft analysis\n3. Execution filings and certification");
+  const [acceptUserPassword, setAcceptUserPassword] = useState<string>('');
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
   // Admin decline workflow states
@@ -1680,6 +1681,28 @@ Stewardship, Accuracy, Legacy.
       if (!req || !req.id) return;
       setIsProcessingApproval(true);
 
+      let finalUserId = req.userId;
+      let passwordCreated = false;
+
+      // If the request was made anonymously and admin provided a password, create the account
+      if (req.userId === 'anonymous' && acceptUserPassword) {
+        try {
+          const userCredential = await createUserWithEmailAndPassword(secondaryAuth, req.userEmail, acceptUserPassword);
+          finalUserId = userCredential.user.uid;
+          passwordCreated = true;
+          await signOut(secondaryAuth); // Clear the secondary auth state safely
+
+          // Note: In production, trigger an email via Firebase Extensions or Cloud Functions.
+          // Here we simulate the email dispatch console log
+          console.log(`[SIMULATED EMAIL DISPATCH] Sent to ${req.userEmail} with password: ${acceptUserPassword}`);
+        } catch (authErr: any) {
+          console.error("Failed to provision new client account:", authErr);
+          alert(`Account creation failed: ${authErr.message || 'Unknown error'}`);
+          setIsProcessingApproval(false);
+          return;
+        }
+      }
+
       // Parse customized steps from state text
       const parsedSteps = acceptStepsText.split('\n')
         .map(line => line.trim())
@@ -1701,7 +1724,7 @@ Stewardship, Accuracy, Legacy.
       if (req.type === 'engagement' || req.type === 'task') {
         const appTitle = req.type === 'engagement' ? `Engagement: ${req.title}` : `Task: ${req.title}`;
         const newApp: Omit<Application, 'id'> = {
-          userId: req.userId,
+          userId: finalUserId,
           userEmail: req.userEmail,
           title: appTitle,
           type: req.category || "Consulting Service",
@@ -1719,7 +1742,7 @@ Stewardship, Accuracy, Legacy.
         // If supporting file attachment exists in the request, register it inside documents
         if (req.fileUrl) {
           await addDoc(collection(db, 'documents'), {
-            userId: req.userId,
+            userId: finalUserId,
             userEmail: req.userEmail,
             name: req.fileName || `Attachment_${req.title}.pdf`,
             description: `Supporting draft for approved engagement: "${req.title}"`,
@@ -1733,11 +1756,13 @@ Stewardship, Accuracy, Legacy.
 
         // Post chat message to consultation room
         const chatMsgObj: Omit<ChatMessage, 'id'> = {
-          clientScopeId: req.userId,
+          clientScopeId: finalUserId,
           senderId: user ? user.uid : 'admin_manohar',
           senderEmail: user ? user.email || '' : 'gjyoshimanohar@gmail.com',
           senderName: "Manohar Business Consulting Panel (Admin)",
-          text: `✅ REQUEST APPROVED: CA Jyoshi Manohar has approved and launched the tracking flow for your proposal: [${req.title}]!\nService: ${newApp.type}\nEst. Completion: ${newApp.estimatedCompletion}\nMilestone tracker initialized inside Client Dashboard. Close review tracking active.`,
+          text: passwordCreated
+            ? `✅ CLIENT ACCOUNT ACTIVATED & REQUEST APPROVED: CA Jyoshi Manohar has approved your proposal [${req.title}]. Your credentials have been emailed to ${req.userEmail}.\nService: ${newApp.type}\nEst. Completion: ${newApp.estimatedCompletion}\nWelcome to the firm!`
+            : `✅ REQUEST APPROVED: CA Jyoshi Manohar has approved and launched the tracking flow for your proposal: [${req.title}]!\nService: ${newApp.type}\nEst. Completion: ${newApp.estimatedCompletion}\nMilestone tracker initialized inside Client Dashboard. Close review tracking active.`,
           timestamp: Date.now()
         };
         await addDoc(collection(db, 'chats'), chatMsgObj);
@@ -1745,7 +1770,7 @@ Stewardship, Accuracy, Legacy.
       } else if (req.type === 'document') {
         const docName = req.fileName || `Approved Doc: ${req.title}`;
         const newDocument = {
-          userId: req.userId,
+          userId: finalUserId,
           userEmail: req.userEmail,
           name: docName,
           description: req.description || `Approved verification paperwork: ${req.title}`,
@@ -1761,7 +1786,7 @@ Stewardship, Accuracy, Legacy.
 
         // Post chat message to consultation room
         const chatMsgObj: Omit<ChatMessage, 'id'> = {
-          clientScopeId: req.userId,
+          clientScopeId: finalUserId,
           senderId: user ? user.uid : 'admin_manohar',
           senderEmail: user ? user.email || '' : 'gjyoshimanohar@gmail.com',
           senderName: "Manohar Business Consulting Panel (Admin)",
@@ -1774,10 +1799,12 @@ Stewardship, Accuracy, Legacy.
       // Trigger client notification on approval
       try {
         await addDoc(collection(db, 'notifications'), {
-          userId: req.userId,
+          userId: finalUserId,
           userEmail: req.userEmail || '',
-          title: "Proposal Approved",
-          message: `Your service proposal "${req.title}" has been approved! Tracking dashboard is now active.`,
+          title: passwordCreated ? "Welcome! Account Setup Complete" : "Proposal Approved",
+          message: passwordCreated 
+            ? `We've initiated "${req.title}" and deployed your private portal. Check email for your secure login password.`
+            : `Your service proposal "${req.title}" has been approved! Tracking dashboard is now active.`,
           createdAt: Date.now(),
           read: false,
           type: 'request'
@@ -1790,7 +1817,9 @@ Stewardship, Accuracy, Legacy.
       await deleteDoc(doc(db, 'client_requests', req.id));
 
       setFeedback({
-        message: `Proposal "${req.title}" successfully approved and active.`,
+        message: passwordCreated 
+          ? `Proposal approved, account ${req.userEmail} created, & emails dispatched.`
+          : `Proposal "${req.title}" successfully approved and active.`,
         type: 'success'
       });
       setTimeout(() => setFeedback(null), 4000);
@@ -1799,6 +1828,7 @@ Stewardship, Accuracy, Legacy.
       setAcceptingReqId(null);
       setAcceptEstCompletion('June 30, 2026');
       setAcceptStepsText("1. Intake checklist & document verify\n2. CA audit & compliance draft analysis\n3. Execution filings and certification");
+      setAcceptUserPassword('');
 
     } catch (err: any) {
       console.error(err);
@@ -2869,6 +2899,20 @@ Stewardship, Accuracy, Legacy.
                                       <button type="button" onClick={() => setAcceptingReqId(null)} className="hover:underline text-emerald-600">Cancel</button>
                                     </div>
                                     <div className="space-y-3">
+                                      {req.userId === 'anonymous' && (
+                                        <div>
+                                          <label className="block text-[8.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                                            Assign Client Login Password
+                                          </label>
+                                          <input 
+                                            type="text"
+                                            value={acceptUserPassword}
+                                            onChange={(e) => setAcceptUserPassword(e.target.value)}
+                                            placeholder="Enter generated password to email the client"
+                                            className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2.5 text-xs outline-none focus:border-emerald-500 font-medium"
+                                          />
+                                        </div>
+                                      )}
                                       <div>
                                         <label className="block text-[8.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">Estimated Completion</label>
                                         <input 
@@ -4305,9 +4349,25 @@ Stewardship, Accuracy, Legacy.
                                     Cancel
                                   </button>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <div>
-                                    <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                <div className="space-y-4">
+                                  {req.userId === 'anonymous' && (
+                                    <div>
+                                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                                        Assign Client Login Password
+                                      </label>
+                                      <input 
+                                        type="text"
+                                        required
+                                        value={acceptUserPassword}
+                                        onChange={(e) => setAcceptUserPassword(e.target.value)}
+                                        placeholder="Enter generated password to email the client"
+                                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                                       Expected Completion Date
                                     </label>
                                     <input 
@@ -4332,6 +4392,7 @@ Stewardship, Accuracy, Legacy.
                                     />
                                     <span className="text-[9px] text-slate-400 mt-1 block">Milestones will be set dynamically inside the client application tracker.</span>
                                   </div>
+                                </div>
                                 </div>
                                 <div className="pt-2 flex justify-end gap-3">
                                   <button

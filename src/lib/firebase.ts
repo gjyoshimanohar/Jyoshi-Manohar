@@ -29,4 +29,8 @@ export const db = firestoreInstance;
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
+// Secondary app setup to create users securely without logging out the primary admin session
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+export const secondaryAuth = getAuth(secondaryApp);
+
 
