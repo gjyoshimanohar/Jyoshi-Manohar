@@ -1684,8 +1684,14 @@ Stewardship, Accuracy, Legacy.
       let finalUserId = req.userId;
       let passwordCreated = false;
 
-      // If the request was made anonymously and admin provided a password, create the account
-      if (req.userId === 'anonymous' && acceptUserPassword) {
+      // Check if this email already exists in our client registry
+      const existingClient = clients.find(c => c.email.toLowerCase() === req.userEmail?.toLowerCase());
+
+      if (existingClient) {
+        // Auto-link to existing user
+        finalUserId = existingClient.uid;
+      } else if (req.userId === 'anonymous' && acceptUserPassword) {
+        // If no existing client and admin provided a password, create the account
         try {
           const userCredential = await createUserWithEmailAndPassword(secondaryAuth, req.userEmail, acceptUserPassword);
           finalUserId = userCredential.user.uid;
@@ -2923,7 +2929,7 @@ Stewardship, Accuracy, Legacy.
                                       <button type="button" onClick={() => setAcceptingReqId(null)} className="hover:underline text-emerald-600">Cancel</button>
                                     </div>
                                     <div className="space-y-3">
-                                      {req.userId === 'anonymous' && (
+                                      {req.userId === 'anonymous' && !clients.some(c => c.email.toLowerCase() === req.userEmail?.toLowerCase()) && (
                                         <div>
                                           <label className="block text-[8.5px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                                             Assign Client Login Password
@@ -2935,6 +2941,12 @@ Stewardship, Accuracy, Legacy.
                                             placeholder="Enter generated password to email the client"
                                             className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg p-2.5 text-xs outline-none focus:border-emerald-500 font-medium"
                                           />
+                                        </div>
+                                      )}
+                                      {req.userId === 'anonymous' && clients.some(c => c.email.toLowerCase() === req.userEmail?.toLowerCase()) && (
+                                        <div className="bg-emerald-50 border border-emerald-100 p-2 rounded text-emerald-700 text-[10px] flex items-center gap-2">
+                                          <CheckCircle className="h-3 w-3" />
+                                          <span>Account exists: {req.userEmail}. Request will be linked automatically.</span>
                                         </div>
                                       )}
                                       <div>
@@ -4374,7 +4386,7 @@ Stewardship, Accuracy, Legacy.
                                   </button>
                                 </div>
                                 <div className="space-y-4">
-                                  {req.userId === 'anonymous' && (
+                                  {req.userId === 'anonymous' && !clients.some(c => c.email.toLowerCase() === req.userEmail?.toLowerCase()) && (
                                     <div>
                                       <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                                         Assign Client Login Password
@@ -4387,6 +4399,12 @@ Stewardship, Accuracy, Legacy.
                                         placeholder="Enter generated password to email the client"
                                         className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-900 font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                                       />
+                                    </div>
+                                  )}
+                                  {req.userId === 'anonymous' && clients.some(c => c.email.toLowerCase() === req.userEmail?.toLowerCase()) && (
+                                    <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-emerald-700 text-xs font-medium flex items-center gap-2">
+                                      <CheckCircle className="h-4 w-4" />
+                                      <span>Account exists: {req.userEmail}. Request will be linked automatically.</span>
                                     </div>
                                   )}
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
