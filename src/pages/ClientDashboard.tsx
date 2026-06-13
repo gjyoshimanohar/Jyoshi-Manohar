@@ -812,6 +812,48 @@ export default function ClientDashboard() {
   // Seeding engine: Auto seed realistic CA dashboard data on first login so users see immediate real-time results
   const ensureDataIsSeeded = async (activeUser: User) => {
     try {
+      // MIGRATION OF PLACEHOLDER RECORDS
+      // If admin approved requests for a user before they registered, migrate those records to their real UID.
+      if (activeUser.email) {
+        const placeholderQuery = query(collection(db, 'users'), where('email', '==', activeUser.email), where('isPendingPlaceholder', '==', true));
+        const placeholderSnaps = await getDocs(placeholderQuery);
+        
+        for (const p of placeholderSnaps.docs) {
+          const pUid = p.data().uid || p.id;
+          
+          // Migrate applications
+          const appQ = query(collection(db, 'applications'), where('userId', '==', pUid));
+          const appSnaps = await getDocs(appQ);
+          for (const a of appSnaps.docs) {
+            await updateDoc(doc(db, 'applications', a.id), { userId: activeUser.uid });
+          }
+          
+          // Migrate documents
+          const docQ = query(collection(db, 'documents'), where('userId', '==', pUid));
+          const docSnaps = await getDocs(docQ);
+          for (const d of docSnaps.docs) {
+            await updateDoc(doc(db, 'documents', d.id), { userId: activeUser.uid });
+          }
+
+          // Migrate chats
+          const chatQ = query(collection(db, 'chats'), where('userId', '==', pUid));
+          const chatSnaps = await getDocs(chatQ);
+          for (const c of chatSnaps.docs) {
+            await updateDoc(doc(db, 'chats', c.id), { userId: activeUser.uid });
+          }
+
+          // Migrate notifications
+          const notifQ = query(collection(db, 'notifications'), where('userId', '==', pUid));
+          const notifSnaps = await getDocs(notifQ);
+          for (const n of notifSnaps.docs) {
+            await updateDoc(doc(db, 'notifications', n.id), { userId: activeUser.uid });
+          }
+
+          // Delete the placeholder user doc from CRM
+          await deleteDoc(doc(db, 'users', p.id));
+        }
+      }
+
       const userRef = doc(db, 'users', activeUser.uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists() && userSnap.data()?.isSeeded) {
@@ -1745,6 +1787,17 @@ Stewardship, Accuracy, Legacy.
           setIsProcessingApproval(false);
           return;
         }
+      } else if (req.userId === 'anonymous') {
+        finalUserId = "pending_" + Date.now();
+        await setDoc(doc(db, 'users', finalUserId), {
+          uid: finalUserId,
+          email: req.userEmail,
+          displayName: req.clientName || 'Pending Registration',
+          kycStatus: 'Pending',
+          services: [],
+          createdAt: Date.now(),
+          isPendingPlaceholder: true
+        });
       }
 
       // Parse customized steps from state text
