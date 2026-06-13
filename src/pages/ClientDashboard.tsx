@@ -182,7 +182,7 @@ const downloadBrowserExtension = async () => {
   zip.file('manifest.json', JSON.stringify({
     manifest_version: 3,
     name: "Portal Login Autofill",
-    version: "1.1",
+    version: "1.2",
     description: "Autofills credentials from the CA admin dashboard into government portals automatically.",
     permissions: ["storage"],
     host_permissions: [
@@ -252,7 +252,8 @@ chrome.storage.local.get(['storedCredentials'], (result) => {
 });
 
 function setInputValue(input, value) {
-  if (!input || !value || input.value === value) return false;
+  // Check if readonly or disabled as an extra safeguard
+  if (!input || !value || input.value === value || input.readOnly || input.disabled) return false;
   
   input.focus();
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -264,8 +265,6 @@ function setInputValue(input, value) {
   
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
-  input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-  input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
   input.blur();
   return true;
 }
@@ -273,23 +272,30 @@ function setInputValue(input, value) {
 function attemptAutofill(creds) {
   const { username, password } = creds;
   
-  // Find visible inputs
-  const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])'))
+  // Find visible inputs EXCLUDING readonly and disabled
+  const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([readonly]):not([disabled])'))
     .filter(i => i.offsetWidth > 0 && i.offsetHeight > 0 && getComputedStyle(i).visibility !== 'hidden');
   
   const textInputs = inputs.filter(i => i.type === 'text' || i.type === 'email' || !i.type);
   const passInputs = inputs.filter(i => i.type === 'password');
   
   // Advanced heuristic for username
-  const userInput = textInputs.find(i => 
+  const matchedUserInput = textInputs.find(i => 
     /user|login|id|email|pan|gst|name/i.test(i.name) || 
     /user|login|id|email|pan|gst|name/i.test(i.id) ||
-    /user|login|id|email|pan|gst/i.test(i.placeholder)
-  ) || textInputs[0];
+    /user|login|id|email|pan|gst|userid/i.test(i.placeholder)
+  );
+  
+  // Only fallback to the first text input if we are confident it's the right one 
+  // (e.g. it's the only text input and there's no password input on this page, or it's accompanied by exactly 1 password field)
+  const userInput = matchedUserInput || ((textInputs.length === 1) ? textInputs[0] : null);
   
   const passInput = passInputs[0];
 
   if (userInput && username) {
+    // If we have both fields on the same page, fill both.
+    // If we are on a step 2 page, the PAN field might be readonly (so it's ignored).
+    // If the heuristics select a wrong text input on step 2, we shouldn't fill it, hence the strict matching.
     setInputValue(userInput, username);
   }
   
@@ -303,7 +309,7 @@ function attemptAutofill(creds) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'autofill-extension-v1.1.zip';
+  a.download = 'autofill-extension-v1.2.zip';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
