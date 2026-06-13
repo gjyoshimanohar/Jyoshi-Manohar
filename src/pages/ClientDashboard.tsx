@@ -24,7 +24,8 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
-  orderBy
+  orderBy,
+  or
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage, secondaryAuth, firebaseConfig } from '../lib/firebase';
@@ -380,7 +381,7 @@ export default function ClientDashboard() {
 
     // Real-time notifications listener
     const notifsQuery = isAdmin
-      ? query(collection(db, 'notifications'), where('userId', '==', 'admin'))
+      ? query(collection(db, 'notifications'), or(where('userId', '==', 'admin'), where('userId', '==', user.uid)))
       : query(collection(db, 'notifications'), where('userId', '==', user.uid));
 
     const unsubscribeNotifs = onSnapshot(notifsQuery, (snapshot) => {
@@ -1089,6 +1090,20 @@ export default function ClientDashboard() {
           createdAt: Date.now()
         }, { merge: true });
         
+        try {
+          await addDoc(collection(db, 'notifications'), {
+            userId: 'admin',
+            userEmail: 'gjyoshimanohar@gmail.com',
+            title: "New Client Registered",
+            message: `${displayName || email.split('@')[0]} (${cred.user.email}) just registered directly via the portal.`,
+            createdAt: Date.now(),
+            read: false,
+            type: 'system'
+          });
+        } catch (nErr) {
+          console.error("Failed to notify admin of registration", nErr);
+        }
+        
         await ensureDataIsSeeded(cred.user);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -1610,6 +1625,20 @@ Stewardship, Accuracy, Legacy.
         timestamp: Date.now()
       };
       await addDoc(collection(db, 'chats'), chatMsgObj);
+
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          userId: 'admin',
+          userEmail: 'gjyoshimanohar@gmail.com',
+          title: "New Client Proposal",
+          message: `${user.displayName || user.email?.split('@')[0] || 'Client'} has submitted proposal: [${requestTitle}]`,
+          createdAt: Date.now(),
+          read: false,
+          type: 'request'
+        });
+      } catch (nErr) {
+        console.error("Failed to push request notification:", nErr);
+      }
 
       setFeedback({
         message: "Your proposal has been registered on the CA Desk awaiting review!",
@@ -2458,6 +2487,7 @@ Stewardship, Accuracy, Legacy.
             {/* Real-time Notifications Bell dropdown */}
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 className="flex items-center justify-center p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-slate-600 hover:text-slate-950 shadow-sm relative cursor-pointer h-9 w-9"
                 title="Notifications Desk"
