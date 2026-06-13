@@ -228,7 +228,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   zip.file('app-script.js', `
 window.addEventListener('message', function(event) {
-  if (event.source !== window || !event.data || event.data.type !== 'PORTAL_LOGIN_AUTOFILL') return;
+  if (!event.data || event.data.type !== 'PORTAL_LOGIN_AUTOFILL') return;
   chrome.runtime.sendMessage({ type: 'STORE_CREDENTIALS', data: event.data });
 });
   `.trim());
@@ -237,37 +237,44 @@ window.addEventListener('message', function(event) {
 chrome.storage.local.get(['storedCredentials'], (result) => {
   const creds = result.storedCredentials;
   if (creds && window.location.href.includes(new URL(creds.url).hostname)) {
-    setTimeout(() => attemptAutofill(creds), 1500);
-    setTimeout(() => attemptAutofill(creds), 3000);
-    setTimeout(() => attemptAutofill(creds), 5000);
+    // Run an interval to continuously attempt autofill for 15 seconds (handles SPAs & 2-step logins)
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attemptAutofill(creds);
+      attempts++;
+      if (attempts > 30) {
+        clearInterval(interval);
+        chrome.storage.local.remove(['storedCredentials']);
+      }
+    }, 500);
   }
 });
 
 function attemptAutofill(creds) {
   const { username, password } = creds;
-  let filled = false;
-  const userInput = document.querySelector('input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i], input[name*="pan" i], input[name*="gstin" i], input[type="text"]:not([readonly])');
+  
+  // Specific selectors for common government portals, falling back to generic
+  const userInput = document.querySelector('input[formcontrolname="userid"], input[name="pan"], input[id="pan"], input[id="userName"], input[id="username"], input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i], input[name*="pan" i], input[name*="gstin" i], input[type="text"]:not([readonly])');
   const passInput = document.querySelector('input[type="password"]');
 
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
 
-  if (userInput && username) {
+  if (userInput && username && userInput.value !== username) {
+    userInput.focus();
     if (nativeInputValueSetter) nativeInputValueSetter.call(userInput, username);
     else userInput.value = username;
     userInput.dispatchEvent(new Event('input', { bubbles: true }));
     userInput.dispatchEvent(new Event('change', { bubbles: true }));
-    filled = true;
+    userInput.blur();
   }
-  if (passInput && password) {
+  
+  if (passInput && password && passInput.value !== password) {
+    passInput.focus();
     if (nativeInputValueSetter) nativeInputValueSetter.call(passInput, password);
     else passInput.value = password;
     passInput.dispatchEvent(new Event('input', { bubbles: true }));
     passInput.dispatchEvent(new Event('change', { bubbles: true }));
-    filled = true;
-  }
-  if (filled) {
-    console.log("Credentials autofilled successfully.");
-    setTimeout(() => chrome.storage.local.remove(['storedCredentials']), 6000);
+    passInput.blur();
   }
 }
   `.trim());
@@ -1716,29 +1723,30 @@ Stewardship, Accuracy, Legacy.
   };
 
   const handlePortalLogin = (login: ClientLogin) => {
+    const url = getPortalUrl(login.portalName);
+    
+    if (url !== '#') {
+      // Broadcast the autofill intent to the browser extension (if installed)
+      window.postMessage({
+        type: 'PORTAL_LOGIN_AUTOFILL',
+        portalName: login.portalName,
+        url: url,
+        username: login.username,
+        password: login.password
+      }, '*');
+
+      window.open(url, '_blank');
+    }
+
     if (login.password) {
       navigator.clipboard.writeText(login.password);
-      setFeedback({ message: "Password copied to clipboard for easy login. Opening portal...", type: 'success' });
+      setFeedback({ message: "Password copied to clipboard. Opening portal...", type: 'success' });
     } else if (login.username) {
       navigator.clipboard.writeText(login.username);
       setFeedback({ message: "Username copied to clipboard. Opening portal...", type: 'success' });
     }
     
-    setTimeout(() => {
-      const url = getPortalUrl(login.portalName);
-      if (url !== '#') {
-        // Broadcast the autofill intent to the browser extension (if installed)
-        window.postMessage({
-          type: 'PORTAL_LOGIN_AUTOFILL',
-          portalName: login.portalName,
-          url: url,
-          username: login.username,
-          password: login.password
-        }, '*');
-
-        window.open(url, '_blank');
-      }
-    }, 1000);
+    setTimeout(() => setFeedback(null), 3000);
   };
 
   // Core administrative updater to advance steps and statuses seamlessly
