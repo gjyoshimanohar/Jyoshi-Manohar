@@ -2115,13 +2115,8 @@ export default function WorkspaceApp() {
  onDragLeave={() => {
  // Only cancel drag-over if moving to another element
  }}
- onDrop={async (e) => {
+ onDrop={(e) => {
  e.preventDefault();
- const id = e.dataTransfer.getData("text/plain");
- if (id) {
- await handleMoveTodoToSection(id, sectionName);
- }
- setDraggingOverSection(null);
  }}
  className={`w-[290px] min-h-[480px] bg-transparent rounded-2xl p-2.5 flex flex-col transition-all shrink-0 ${
  isDraggingOver ? 'bg-blue-50/40 border-2 border-dashed border-blue-400/50' : 'border border-transparent'
@@ -2249,7 +2244,7 @@ export default function WorkspaceApp() {
  </div>
 
  {/* INNER TASK CARDS CONTAINER */}
- <div className="space-y-3 flex-1 overflow-y-auto max-h-[460px] pr-1" style={{ scrollbarWidth: 'none' }}>
+ <div className="space-y-1 flex-1 overflow-y-auto max-h-[460px] pr-1 pb-24" style={{ scrollbarWidth: 'none' }}>
  {/* Quick task adder inline top of column */}
  {activeAddingSection === sectionName && (
  <div className="bg-white border border-gray-150 rounded-2xl p-2.5 mb-3 shadow-md animate-in fade-in zoom-in-95 duration-100">
@@ -2316,7 +2311,36 @@ export default function WorkspaceApp() {
  )}
 
  {/* ACTIVE PENDING TASKS */}
- {inactiveTasks.map((todo) => {
+ {[
+ { level: 1, label: 'P1 Urgent', borderLeft: 'border-l-[3px] border-red-500 bg-red-50/60', text: 'text-red-700' },
+ { level: 2, label: 'P2 High', borderLeft: 'border-l-[3px] border-orange-400 bg-orange-50/60', text: 'text-orange-700' },
+ { level: 3, label: 'P3 Medium', borderLeft: 'border-l-[3px] border-blue-400 bg-blue-50/60', text: 'text-blue-700' },
+ { level: 4, label: 'P4 Standard', borderLeft: 'border-l-[3px] border-gray-200 bg-gray-50/60', text: 'text-gray-600' }
+ ].map(prio => {
+ const prioTasks = inactiveTasks.filter(t => (t.priority || 4) === prio.level);
+ 
+ return (
+ <div 
+ key={prio.level} 
+ className="mb-4 min-h-[50px] flex flex-col relative group/swim"
+ onDragOver={(e) => e.preventDefault()}
+ onDragEnter={() => setDraggingOverSection(sectionName + '-' + prio.level)}
+ onDrop={async (e) => {
+ e.preventDefault();
+ const id = e.dataTransfer.getData("text/plain");
+ if (id) {
+ setTodos(prev => prev.map(t => t.id === id ? { ...t, sectionName: sectionName === "Not Sectioned" ? null : sectionName, priority: prio.level } : t));
+ await handleMoveTodoToSection(id, sectionName);
+ await todoService.updateTodo(id, { priority: prio.level });
+ }
+ setDraggingOverSection(null);
+ }}
+ >
+ <div className={`text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 w-max mb-1.5 rounded-sm ${prio.borderLeft} ${prio.text}`}>
+ {prio.label}
+ </div>
+ <div className={`space-y-3 flex-1 p-1 -mx-1 min-h-[10px] rounded-xl transition-all duration-200 ${draggingOverSection === sectionName + '-' + prio.level ? 'bg-blue-50/60 border-2 border-dashed border-blue-300' : 'border-2 border-transparent'}`}>
+ {prioTasks.map((todo) => {
  // Priority specific border and hover styles to replicate circular checkboxes perfectly
  let borderPrio = "border-gray-300 hover:border-primary";
  let checkColor = "text-primary";
@@ -2406,6 +2430,11 @@ export default function WorkspaceApp() {
  )}
  </motion.div>
  );
+ })}
+ {prioTasks.length === 0 && <div className="text-transparent py-2 select-none pointer-events-none"></div>}
+ </div>
+ </div>
+ )
  })}
 
  {inactiveTasks.length === 0 && (
