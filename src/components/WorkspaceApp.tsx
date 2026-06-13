@@ -101,6 +101,57 @@ const renderHighlightedTitleForInput = (title: string, repeatInterval?: string |
   );
 };
 
+function parseMarkdown(text: string): string {
+  if (!text) return '';
+  // 1. Escape HTML to prevent XSS
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  // 2. Bold: **text** or __text__
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+  // 3. Italics: *text* or _text_
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+
+  // 4. Links: [anchor](url)
+  html = html.replace(/\[(.*?)\]\(((?:https?:\/\/|www\.|\/)[^\s)]+)\)/g, (match, anchor, url) => {
+    const href = url.startsWith('www.') ? `https://${url}` : url;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-semibold" onclick="event.stopPropagation()">${anchor}</a>`;
+  });
+
+  // 5. Lists (unordered and ordered)
+  const lines = html.split('\n');
+  const processedLines = lines.map(line => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      const content = trimmed.substring(2);
+      return `<li class="ml-4 list-disc text-gray-750 my-1">${content}</li>`;
+    }
+    const orderedMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+    if (orderedMatch) {
+      const content = orderedMatch[2];
+      return `<li class="ml-4 list-decimal text-gray-750 my-1">${content}</li>`;
+    }
+    return line;
+  });
+
+  html = processedLines.join('\n');
+
+  // 6. Code: `code`
+  html = html.replace(/`(.*?)`/g, '<code class="bg-gray-100 text-rose-600 px-1.5 py-0.5 rounded font-mono text-xs">$1</code>');
+
+  // 7. Line breaks
+  html = html.replace(/\n/g, '<br />');
+
+  return html;
+}
+
 export default function WorkspaceApp() {
  const [todos, setTodos] = useState<Todo[]>([]);
  const [projects, setProjects] = useState<Project[]>([]);
@@ -325,6 +376,7 @@ export default function WorkspaceApp() {
  const [showDetailPriorityPicker, setShowDetailPriorityPicker] = useState(false);
  const [showDetailRepeatPicker, setShowDetailRepeatPicker] = useState(false);
  const [showDetailBlockingPicker, setShowDetailBlockingPicker] = useState(false);
+ const [isNotesPreviewMode, setIsNotesPreviewMode] = useState(false);
 
  // Collapsible Checked Category State (Replicates visual checked list expander)
  const [isCompletedSectionExpanded, setIsCompletedSectionExpanded] = useState(true);
@@ -1857,6 +1909,75 @@ export default function WorkspaceApp() {
  </div>
  ) : (
  <div className="w-full">
+    {(() => {
+      const totalViewCount = allActiveViewTodos.length;
+      const completedViewCount = allActiveViewTodos.filter(t => t.completed).length;
+      const completionPercent = totalViewCount > 0 ? Math.round((completedViewCount / totalViewCount) * 100) : 0;
+      
+      const circleRadius = 22;
+      const circleCircumference = 2 * Math.PI * circleRadius;
+      const circleDashoffset = circleCircumference - (completionPercent / 100) * circleCircumference;
+
+      return (
+        <div id="progress-tracking-banner" className="bg-[#1a2b58]/5 border border-[#1a2b58]/10 rounded-2xl p-4.5 mb-6 flex items-center justify-between shadow-xs animate-in fade-in duration-300">
+          <div className="flex flex-col text-left">
+            <span className="text-xs uppercase tracking-widest text-[#1a2b58]/80 font-bold mb-1">
+              {viewMode === 'project' 
+                ? `${projects.find(p => p.id === selectedProjectId)?.name || 'Project'} Progress`
+                : `${getViewTitle()} Progress`
+              }
+            </span>
+            <p className="text-gray-500 text-xs font-semibold leading-relaxed">
+              {totalViewCount > 0
+                ? `${completedViewCount} of ${totalViewCount} tasks completed (${completionPercent}%)`
+                : "No tasks created in this view yet"
+              }
+            </p>
+            {totalViewCount > 0 && (
+              <span className="text-[10px] text-[#1a2b58]/70 mt-1 font-mono uppercase tracking-wider font-semibold">
+                {completionPercent === 100 
+                  ? "🎉 All targets hit! Phenomenal work!" 
+                  : completionPercent >= 75 
+                  ? "🎯 Almost there, keep pushing!" 
+                  : completionPercent >= 50 
+                  ? "⚡ Halfway mark cleared!" 
+                  : "🚀 Build momentum and start finishing!"}
+              </span>
+            )}
+          </div>
+          
+          <div className="relative flex items-center justify-center w-14 h-14 shrink-0">
+            <svg className="w-14 h-14 transform -rotate-90">
+              <circle
+                cx="28"
+                cy="28"
+                r={circleRadius}
+                className="text-gray-200/70"
+                strokeWidth="4.5"
+                stroke="currentColor"
+                fill="transparent"
+              />
+              <circle
+                cx="28"
+                cy="28"
+                r={circleRadius}
+                className="text-[#1a2b58] transition-all duration-500 ease-in-out"
+                strokeWidth="4.5"
+                strokeDasharray={circleCircumference}
+                strokeDashoffset={circleDashoffset}
+                strokeLinecap="round"
+                stroke="currentColor"
+                fill="transparent"
+              />
+            </svg>
+            <span className="absolute text-xs font-bold font-mono text-[#1a2b58]">
+              {completionPercent}%
+            </span>
+          </div>
+        </div>
+      );
+    })()}
+
  {false ? (
  <div className="w-full">
  {/* ELEGANT TAGS/LABELS FILTER BAR FOR ORGANIZATIONAL FILTERING */}
@@ -3418,13 +3539,39 @@ export default function WorkspaceApp() {
  {/* Notes / Descriptions and subtasks checklist inside Drawer */}
  <div className="mt-5 space-y-5">
  <div className="flex flex-col text-left">
- <label className="text-xs text-gray-400 uppercase tracking-widest mb-2">Notes</label>
+ <div className="flex items-center justify-between mb-2">
+ <label className="text-xs text-gray-400 uppercase tracking-widest">Notes</label>
+ <div className="flex items-center space-x-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+ <button
+ type="button"
+ onClick={() => setIsNotesPreviewMode(false)}
+ className={`px-2.5 py-1 text-[10px] uppercase font-bold tracking-wider rounded-md transition cursor-pointer ${!isNotesPreviewMode ? 'bg-white text-gray-800 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
+ >
+ Edit
+ </button>
+ <button
+ type="button"
+ onClick={() => setIsNotesPreviewMode(true)}
+ className={`px-2.5 py-1 text-[10px] uppercase font-bold tracking-wider rounded-md transition cursor-pointer ${isNotesPreviewMode ? 'bg-white text-gray-800 shadow-xs' : 'text-gray-500 hover:text-gray-800'}`}
+ >
+ Preview
+ </button>
+ </div>
+ </div>
+
+ {isNotesPreviewMode ? (
+ <div 
+ className="text-xs w-full bg-gray-50 border border-gray-200 p-3 rounded-xl min-h-[90px] max-h-[250px] overflow-y-auto leading-relaxed select-text text-gray-800"
+ dangerouslySetInnerHTML={{ __html: parseMarkdown(todo.description || '') || '<em class="text-gray-400 font-sans">No notes written. Use markdown formatting like **bold**, *lists*, and [links](url)!</em>' }}
+ />
+ ) : (
  <textarea
  placeholder="Add detailed parameters or Markdown logs..."
  className="text-xs w-full bg-gray-50/50 hover:bg-gray-50 border focus:bg-white focus:border-primary p-3 rounded-xl min-h-[90px] outline-none transition"
  value={todo.description || ''}
  onChange={(e) => todoService.updateTodo(todo.id, { description: e.target.value })}
  />
+ )}
  </div>
 
 

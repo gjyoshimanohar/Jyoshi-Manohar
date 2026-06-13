@@ -36,7 +36,7 @@ export default function Home() {
  
  {/* About Section */}
  <section id="about" className="bg-[#FDFDFD] overflow-hidden py-10 lg:py-16">
- <div className="max-w-4xl mx-auto px-6 lg:px-12">
+ <div className="max-w-7xl mx-auto px-6 lg:px-12">
  <div className="flex flex-col justify-start">
  <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm flex w-max">
  <span>The Strategic Partner</span>
