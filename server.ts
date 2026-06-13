@@ -27,8 +27,8 @@ app.post("/api/send-email", async (req, res) => {
     }
 
     // Default sender if none provided
-    const defaultSenderEmail = process.env.BREVO_SENDER_EMAIL || "admin@jyoshimanohar.com";
-    const sender = senderEmail ? { name: senderName || "Manohar Business Consulting", email: senderEmail } : { name: "Manohar Business Consulting", email: defaultSenderEmail };
+    const defaultSenderEmail = process.env.BREVO_SENDER_EMAIL || "connect@jyoshimanohar.com";
+    const sender = senderEmail ? { name: senderName || "Jyoshi Manohar", email: senderEmail } : { name: "Jyoshi Manohar", email: defaultSenderEmail };
 
     const response = await axios.post(
       "https://api.brevo.com/v3/smtp/email",

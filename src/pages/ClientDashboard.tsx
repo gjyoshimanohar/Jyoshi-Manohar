@@ -1752,7 +1752,7 @@ Stewardship, Accuracy, Legacy.
 
           // Send automated email via full-stack Express API proxy (powered by Brevo)
           try {
-            await fetch('/api/send-email', {
+            const emailRes = await fetch('/api/send-email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -1773,9 +1773,17 @@ Stewardship, Accuracy, Legacy.
                 `
               })
             });
-            console.log(`[EMAIL DISPATCH] Sent to ${req.userEmail} successfully.`);
+            const emailData = await emailRes.json();
+            
+            if (!emailRes.ok) {
+              console.error("Email API failed:", emailData);
+              alert(`Account created, but failed to send the email: ${emailData.error || 'Server error'}. Please check your Brevo API key configuration in Settings.`);
+            } else {
+              console.log(`[EMAIL DISPATCH] Sent to ${req.userEmail} successfully.`);
+            }
           } catch (emailErr) {
-            console.error("Failed to dispatcher welcome email:", emailErr);
+            console.error("Failed to dispatch welcome email:", emailErr);
+            alert("Failed to communicate with the email server. Please check your connection.");
           }
         } catch (authErr: any) {
           console.error("Failed to provision new client account:", authErr);
