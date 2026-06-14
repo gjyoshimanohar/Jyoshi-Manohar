@@ -36,6 +36,7 @@ import {
   Clock, 
   AlertTriangle, 
   FileText, 
+  Vault, 
   Plus, 
   Trash2, 
   User as UserIcon, 
@@ -3096,7 +3097,7 @@ Stewardship, Accuracy, Legacy.
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <FileText className="h-4 w-4 shrink-0" />
+                    <Vault className="h-4 w-4 shrink-0" />
                     {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Document vaults</span>}
                   </div>
                   {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'documents' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
@@ -3144,34 +3145,34 @@ Stewardship, Accuracy, Legacy.
                       onClick={() => setActiveTab('admin')}
                       className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                         activeTab === 'admin'
-                          ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
-                          : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
+                          ? 'bg-primary text-white border-primary shadow-md'
+                          : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <Upload className="h-4 w-4 shrink-0" />
-                        {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Deploy data flow</span>}
+                        {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Operations Console</span>}
                       </div>
-                      <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
-                        Filing Panel
-                      </span>
+                      {isSidebarOpen && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'admin' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                        Admin
+                      </span>}
                     </button>
 
                     <button
                       onClick={() => setActiveTab('logins')}
                       className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                         activeTab === 'logins'
-                          ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
-                          : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
+                          ? 'bg-primary text-white border-primary shadow-md'
+                          : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <Key className="h-4 w-4 shrink-0" />
-                        {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Logins</span>}
+                        {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Access Credentials</span>}
                       </div>
-                      <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
+                      {isSidebarOpen && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'logins' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
                         {clientLogins.length}
-                      </span>
+                      </span>}
                     </button>
                   </>
                 )}
@@ -4730,7 +4731,7 @@ Stewardship, Accuracy, Legacy.
                 <div className="bg-slate-950 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-lg">
                   <h2 className="text-xl font-serif text-white tracking-tight flex items-center gap-2">
                     <Shield className="h-5 w-5 text-amber-500" />
-                    <span>Deploy Service Registry Flow</span>
+                    <span>Operations Console</span>
                   </h2>
                   <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
                     Set up direct profiles. Securely push interactive data blocks, certified PDF vouchers, or GSTR compliance dates to the selected client's command interface in real-time.
@@ -5411,7 +5412,7 @@ Stewardship, Accuracy, Legacy.
                 <div className="bg-slate-950 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-lg">
                   <h2 className="text-xl font-serif text-white tracking-tight flex items-center gap-2">
                     <Key className="h-5 w-5 text-amber-500" />
-                    <span>Deploy Service Logins</span>
+                    <span>Access Credentials Manager</span>
                   </h2>
                   <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
                     Set up direct profiles. Securely save interactive data blocks related to various government portals of the selected client.
