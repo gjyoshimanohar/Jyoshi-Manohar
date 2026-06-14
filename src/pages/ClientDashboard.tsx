@@ -36,7 +36,7 @@ import {
   Clock, 
   AlertTriangle, 
   FileText, 
-  Vault, 
+  FolderLock,
   Plus, 
   Trash2, 
   User as UserIcon, 
@@ -3097,7 +3097,7 @@ Stewardship, Accuracy, Legacy.
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Vault className="h-4 w-4 shrink-0" />
+                    <FolderLock className="h-4 w-4 shrink-0" />
                     {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Document vaults</span>}
                   </div>
                   {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'documents' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
