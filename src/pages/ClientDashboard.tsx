@@ -58,6 +58,7 @@ import {
   LogOut,
   Sparkles,
   Search,
+  Menu,
   ExternalLink,
   MessageSquare,
   Send,
@@ -347,6 +348,7 @@ export default function ClientDashboard() {
   // Active Tab/Filter State
   const [activeTab, setActiveTab] = useState<'portal-dashboard' | 'applications' | 'documents' | 'compliance' | 'admin' | 'logins' | 'chat' | 'clients'>('applications');
   const [serviceFilter, setServiceFilter] = useState<string>('All');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Real-time Chat States
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -2788,7 +2790,7 @@ Stewardship, Accuracy, Legacy.
   // SIGNED IN VIEW
   return (
     <main className="min-h-screen pt-28 pb-20 bg-slate-50/50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         
         {/* Banner Notification feedback messages */}
         <AnimatePresence>
@@ -2811,17 +2813,19 @@ Stewardship, Accuracy, Legacy.
 
         {/* Dashboard Title Ribbon */}
         <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary text-[10px] uppercase font-bold tracking-widest rounded-full w-max border border-primary/10">
-              <Shield className="h-3 w-3" />
-              <span>Secure CA Terminal</span>
+          <div className="flex items-start gap-4">
+            <div>
+              <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary text-[10px] uppercase font-bold tracking-widest rounded-full w-max border border-primary/10">
+                <Shield className="h-3 w-3" />
+                <span>Secure CA Terminal</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-serif text-slate-900 tracking-tight font-medium mt-2">
+                Welcome, {isAdmin ? "Jyoshi Manohar" : (user.displayName || user.email?.split('@')[0])}
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Active Session Token: <span className="font-mono text-[11px] font-bold bg-slate-100 px-1 rounded text-primary">{user.uid.substring(0, 8).toUpperCase()}</span> • Enterprise Class Encryption Enabled
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-serif text-slate-900 tracking-tight font-medium mt-2">
-              Welcome, {isAdmin ? "Jyoshi Manohar" : (user.displayName || user.email?.split('@')[0])}
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Active Session Token: <span className="font-mono text-[11px] font-bold bg-slate-100 px-1 rounded text-primary">{user.uid.substring(0, 8).toUpperCase()}</span> • Enterprise Class Encryption Enabled
-            </p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
@@ -2972,17 +2976,30 @@ Stewardship, Accuracy, Legacy.
         </div>
 
         {/* Grid and Tabs layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className={`flex flex-col lg:flex-row gap-8 transition-all duration-300 items-start`}>
           
           {/* Navigation drawer rail (Desktop) */}
-          <div className="lg:col-span-1 space-y-3">
-            {isAdmin && (
-              <div className="mb-4">
-                <button
+          <div className={`w-full ${isSidebarOpen ? 'lg:w-[300px]' : 'lg:w-fit'} shrink-0 flex flex-col gap-3 transition-all duration-300`}>
+            {/* Toggle Button Always Visible */}
+            <div className="flex justify-start mb-1 h-10 w-full shrink-0">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:text-primary hover:bg-primary/5 transition-all outline-none cursor-pointer shadow-sm hover:shadow shrink-0"
+                title="Toggle Sidebar"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sidebar Contents */}
+            <div className="space-y-3 transition-all duration-300 w-full">
+              {isAdmin && (
+                <div className="mb-4">
+                  <button
                   type="button"
                   id="portal-dashboard-nav-btn"
                   onClick={() => setActiveTab('portal-dashboard')}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                  className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                     activeTab === 'portal-dashboard'
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
@@ -2990,18 +3007,18 @@ Stewardship, Accuracy, Legacy.
                 >
                   <div className="flex items-center gap-3">
                     <LayoutDashboard className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Portal Dashboard</span>
+                    {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Portal Dashboard</span>}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'portal-dashboard' ? 'bg-white/15 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                  {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'portal-dashboard' ? 'bg-white/15 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
                     Active
-                  </span>
+                  </span>)}
                 </button>
 
                 <button
                   type="button"
                   id="clients-master-nav-btn"
                   onClick={() => setActiveTab('clients')}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                  className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                     activeTab === 'clients'
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
@@ -3009,28 +3026,43 @@ Stewardship, Accuracy, Legacy.
                 >
                   <div className="flex items-center gap-3">
                     <Users className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Clients master</span>
+                    {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Clients master</span>}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'clients' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                  {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'clients' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
                     {clients.length}
-                  </span>
+                  </span>)}
                 </button>
                 {selectedClientEmail && (
-                  <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-medium text-slate-700 flex items-center justify-between border border-slate-200 rounded-lg">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                  <div className={`py-1.5 bg-slate-50 text-[10px] font-medium text-slate-700 flex items-center justify-between border border-slate-200 rounded-lg ${isSidebarOpen ? 'px-3' : 'px-1.5 justify-center'}`}>
+                    <div className="flex items-center gap-1.5 min-w-0" title={`Focusing on: ${selectedClientEmail}`}>
                       <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span className="truncate">Focus: {selectedClientEmail}</span>
+                      {isSidebarOpen && <span className="truncate">Focus: {selectedClientEmail}</span>}
                     </div>
-                    <button 
-                      onClick={() => {
-                        setSelectedClientId('');
-                        setSelectedClientEmail('');
-                        setActiveTab('clients');
-                      }} 
-                      className="text-[9px] text-slate-500 hover:text-slate-800 underline font-semibold ml-1 cursor-pointer shrink-0"
-                    >
-                      Clear
-                    </button>
+                    {isSidebarOpen && (
+                      <button 
+                        onClick={() => {
+                          setSelectedClientId('');
+                          setSelectedClientEmail('');
+                          setActiveTab('clients');
+                        }} 
+                        className="text-[9px] text-slate-500 hover:text-slate-800 underline font-semibold ml-1 cursor-pointer shrink-0"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    {!isSidebarOpen && (
+                      <button 
+                        onClick={() => {
+                          setSelectedClientId('');
+                          setSelectedClientEmail('');
+                          setActiveTab('clients');
+                        }} 
+                        className="text-[9px] text-slate-500 hover:text-red-600 font-semibold cursor-pointer shrink-0 ml-1"
+                        title="Clear Focus"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -3040,7 +3072,7 @@ Stewardship, Accuracy, Legacy.
               <>
                 <button
                   onClick={() => setActiveTab('applications')}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                  className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                     activeTab === 'applications'
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
@@ -3048,16 +3080,16 @@ Stewardship, Accuracy, Legacy.
                 >
                   <div className="flex items-center gap-3">
                     <Briefcase className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Application tracker</span>
+                    {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Application tracker</span>}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'applications' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                  {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'applications' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
                     {applications.length}
-                  </span>
+                  </span>)}
                 </button>
 
                 <button
                   onClick={() => setActiveTab('documents')}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                  className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                     activeTab === 'documents'
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
@@ -3065,16 +3097,16 @@ Stewardship, Accuracy, Legacy.
                 >
                   <div className="flex items-center gap-3">
                     <FileText className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Document vaults</span>
+                    {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Document vaults</span>}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'documents' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                  {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'documents' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
                     {documents.length}
-                  </span>
+                  </span>)}
                 </button>
 
                 <button
                   onClick={() => setActiveTab('compliance')}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                  className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                     activeTab === 'compliance'
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
@@ -3082,16 +3114,16 @@ Stewardship, Accuracy, Legacy.
                 >
                   <div className="flex items-center gap-3">
                     <Calendar className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Compliance track</span>
+                    {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Compliance track</span>}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'compliance' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                  {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'compliance' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
                     {complianceFilings.length}
-                  </span>
+                  </span>)}
                 </button>
 
                 <button
                   onClick={() => setActiveTab('chat')}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                  className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                     activeTab === 'chat'
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
@@ -3099,18 +3131,18 @@ Stewardship, Accuracy, Legacy.
                 >
                   <div className="flex items-center gap-3">
                     <MessageSquare className="h-4 w-4 shrink-0" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Consultation Chat</span>
+                    {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Consultation Chat</span>}
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'chat' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                  {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'chat' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-800'}`}>
                     {chatMessages.length}
-                  </span>
+                  </span>)}
                 </button>
 
                 {isAdmin && (
                   <>
                     <button
                       onClick={() => setActiveTab('admin')}
-                      className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                      className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                         activeTab === 'admin'
                           ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
                           : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
@@ -3118,7 +3150,7 @@ Stewardship, Accuracy, Legacy.
                     >
                       <div className="flex items-center gap-3">
                         <Upload className="h-4 w-4 shrink-0" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Deploy data flow</span>
+                        {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Deploy data flow</span>}
                       </div>
                       <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
                         Filing Panel
@@ -3127,7 +3159,7 @@ Stewardship, Accuracy, Legacy.
 
                     <button
                       onClick={() => setActiveTab('logins')}
-                      className={`w-full flex items-center justify-between p-4 rounded-xl text-left transition-all border ${
+                      className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
                         activeTab === 'logins'
                           ? 'bg-slate-950 text-white border-slate-950 shadow-md animate-pulse'
                           : 'bg-white text-rose-700 hover:bg-rose-50/50 border-rose-100'
@@ -3135,7 +3167,7 @@ Stewardship, Accuracy, Legacy.
                     >
                       <div className="flex items-center gap-3">
                         <Key className="h-4 w-4 shrink-0" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Logins</span>
+                        {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Logins</span>}
                       </div>
                       <span className="text-[10px] font-mono font-bold bg-rose-100 text-rose-800 px-2 py-0.5 rounded-full">
                         {clientLogins.length}
@@ -3147,10 +3179,11 @@ Stewardship, Accuracy, Legacy.
             )}
 
 
+            </div>
           </div>
 
           {/* Dynamic Content boards */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className={`flex-1 space-y-6 transition-all duration-300 w-full min-w-0`}>
             
             {/* Real-time Loader Indicator */}
             {dataLoading && (
@@ -4361,10 +4394,10 @@ Stewardship, Accuracy, Legacy.
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <div className={`grid grid-cols-1 ${(!isAdmin || !isSidebarOpen) ? 'lg:grid-cols-1' : 'lg:grid-cols-4'} gap-6`}>
                     {/* If Admin, show Client Selection Sidebar on left */}
                     {isAdmin && (
-                      <div className="lg:col-span-1 border-r border-slate-100 pr-0 lg:pr-6 space-y-4">
+                      <div className={`${isSidebarOpen ? 'lg:col-span-1 block' : 'hidden'} border-r border-slate-100 pr-0 lg:pr-6 space-y-4`}>
                         <h3 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
                           <UserIcon className="h-3 w-3" />
                           <span>Active Threads ({clients.length})</span>
@@ -4406,7 +4439,7 @@ Stewardship, Accuracy, Legacy.
                     )}
 
                     {/* Message board container */}
-                    <div className={`${isAdmin ? 'lg:col-span-3' : 'lg:col-span-4'} flex flex-col min-h-[450px]`}>
+                    <div className={`${(isAdmin && isSidebarOpen) ? 'lg:col-span-3' : 'lg:col-span-1'} flex flex-col min-h-[450px]`}>
                       
                       {/* Active Consultation Header */}
                       <div className="bg-slate-50 rounded-2xl p-4 mb-4 border border-slate-100/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
