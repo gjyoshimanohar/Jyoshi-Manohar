@@ -3001,7 +3001,7 @@ Stewardship, Accuracy, Legacy.
                      { value: "", label: "None selected" },
                      ...clients.map(c => ({ value: c.uid, label: c.displayName || c.email }))
                    ]}
-                   className={`bg-transparent ${selectedClientId ? 'text-amber-300' : 'text-slate-300'} font-semibold outline-none border-none py-1 px-2 rounded-lg cursor-pointer hover:bg-white/10 transition-colors w-40 min-w-[150px]`}
+                   className={`bg-transparent ${selectedClientId ? 'text-amber-300' : 'text-slate-300'} font-semibold outline-none border-none py-1 px-2 rounded-lg cursor-pointer transition-colors w-40 min-w-[150px]`}
                  />
                  {selectedClientId && (
                    <button 
