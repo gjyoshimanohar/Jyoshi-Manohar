@@ -302,6 +302,8 @@ export default function WorkspaceApp() {
  const [viewMode, setViewMode] = useState<ViewMode>('today');
  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+ const [isProgressBannerExpanded, setIsProgressBannerExpanded] = useState(false);
+ const [dailyTaskGoal, setDailyTaskGoal] = useState<number>(5);
  const [searchQuery, setSearchQuery] = useState('');
  const [isAddingProject, setIsAddingProject] = useState(false);
  const [newProjectName, setNewProjectName] = useState('');
@@ -1792,7 +1794,17 @@ export default function WorkspaceApp() {
  <span className="text-xs font-medium ml-1 hidden sm:inline uppercase">{sortOrder}</span>
  </button>
 
- {/* Sync trigger mini button */}
+ 
+        {/* Progress trigger mini button */}
+        <button 
+          onClick={() => { setIsProgressBannerExpanded(!isProgressBannerExpanded); setIsHeaderMenuOpen(false); setShowSmartTips(false); }}
+          className={`p-1.5 border hover:bg-gray-50 text-gray-650 rounded-lg shadow-sm transition-all ${isProgressBannerExpanded ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'border-gray-200 bg-white'}`}
+          title="View Progress Popup"
+        >
+          <Target className="w-4 h-4" />
+        </button>
+
+{/* Sync trigger mini button */}
  <button 
  onClick={handleTriggerSync}
  className="p-1.5 border border-gray-200 hover:bg-gray-50 text-gray-650 rounded-lg shadow-sm bg-white transition-all"
@@ -1885,7 +1897,152 @@ export default function WorkspaceApp() {
  </div>
  )}
 
- {/* WORKSPACE SECTIONS RENDER ROUTERS */}
+ 
+  {/* Progress Tracker popup overlay */}
+  {isProgressBannerExpanded && (
+    <div className="w-full max-w-[900px] px-6 mt-1 flex justify-end absolute right-0 z-50">
+      <div className="w-full max-w-[360px] bg-white border border-[#1a2b58]/10 rounded-2xl shadow-2xl p-4.5 text-left animate-in fade-in slide-in-from-top-3 duration-200">
+        {(() => {
+          const totalViewCount = allActiveViewTodos.length;
+          const completedViewCount = allActiveViewTodos.filter(t => t.completed).length;
+          const completionPercent = totalViewCount > 0 ? Math.round((completedViewCount / totalViewCount) * 100) : 0;
+          
+          const circleRadius = 22;
+          const circleCircumference = 2 * Math.PI * circleRadius;
+          const circleDashoffset = circleCircumference - (completionPercent / 100) * circleCircumference;
+
+          const pendingViewCount = totalViewCount - completedViewCount;
+
+          const projColor = (viewMode === 'project' ? projects.find(p => p.id === selectedProjectId)?.color : null) || '#1a2b58';
+
+          return (
+            <>
+              <style>{`
+                .dynamic-progress-text {
+                  color: var(--banner-accent);
+                }
+                .dynamic-progress-text-80 {
+                  color: color-mix(in srgb, var(--banner-accent) 80%, transparent);
+                }
+                .dynamic-progress-text-70 {
+                  color: color-mix(in srgb, var(--banner-accent) 70%, transparent);
+                }
+                .dynamic-progress-divider {
+                  background-color: color-mix(in srgb, var(--banner-accent) 10%, transparent);
+                }
+              `}</style>
+              <div style={{ '--banner-accent': projColor } as React.CSSProperties}>
+                <div className="flex items-center justify-between mb-3 border-b border-gray-50 pb-2">
+                  <h4 className="text-xs uppercase tracking-widest dynamic-progress-text-80 font-bold flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5" />
+                    {viewMode === 'project' 
+                      ? `${projects.find(p => p.id === selectedProjectId)?.name || 'Project'} Progress`
+                      : `${getViewTitle()} Progress`
+                    }
+                  </h4>
+                  <button className="text-gray-400 hover:text-gray-600 cursor-pointer" onClick={() => setIsProgressBannerExpanded(false)}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                
+                <div className="flex flex-col gap-4">
+                  <p className="text-gray-500 text-xs font-semibold leading-relaxed">
+                    {totalViewCount > 0
+                      ? `${completedViewCount} of ${totalViewCount} tasks completed (${completionPercent}%)`
+                      : "No tasks created in this view yet"
+                    }
+                  </p>
+                  
+                  <div className="flex items-center justify-between">
+                    {totalViewCount > 0 && (
+                      <span className="text-[10px] dynamic-progress-text-70 font-mono uppercase tracking-wider font-semibold max-w-[65%]">
+                        {completionPercent === 100 
+                          ? "🎉 All targets hit! Phenomenal work!" 
+                          : completionPercent >= 75 
+                          ? "🎯 Almost there, keep pushing!" 
+                          : completionPercent >= 50 
+                          ? "⚡ Halfway mark cleared!" 
+                          : "🚀 Build momentum and start finishing!"}
+                      </span>
+                    )}
+                    
+                    <div className="relative flex items-center justify-center w-14 h-14 shrink-0 transition-transform duration-300">
+                      <svg className="w-14 h-14 transform -rotate-90">
+                        <circle
+                          cx="28"
+                          cy="28"
+                          r={circleRadius}
+                          className="text-gray-200/70"
+                          strokeWidth="4.5"
+                          stroke="currentColor"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="28"
+                          cy="28"
+                          r={circleRadius}
+                          className="dynamic-progress-text transition-all duration-500 ease-in-out"
+                          strokeWidth="4.5"
+                          strokeDasharray={circleCircumference}
+                          strokeDashoffset={circleDashoffset}
+                          strokeLinecap="round"
+                          stroke="currentColor"
+                          fill="transparent"
+                        />
+                      </svg>
+                      <span className="absolute text-xs font-bold font-mono dynamic-progress-text">
+                        {completionPercent}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {totalViewCount > 0 && (
+                  <div className="mt-3">
+                    <div className="flex flex-col gap-2.5">
+                      <div className="h-px w-full dynamic-progress-divider mb-1"></div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-6">
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-[#10B981]/10 flex items-center justify-center border border-[#10B981]/20">
+                              <Check className="w-2.5 h-2.5 text-[#10B981]" />
+                            </div>
+                            <span className="text-xs font-medium text-gray-700">Completed</span>
+                            <span className="text-xs font-bold font-mono text-[#10B981] ml-1">{completedViewCount}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center">
+                              <Clock className="w-2.5 h-2.5 text-blue-500" />
+                            </div>
+                            <span className="text-xs font-medium text-gray-700">Remaining</span>
+                            <span className="text-xs font-bold font-mono text-blue-600 ml-1">{pendingViewCount}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Visual Distribution Bar */}
+                      <div className="h-2 w-full bg-blue-100/50 rounded-full mt-1 flex overflow-hidden">
+                        <div 
+                          className="h-full bg-[#10B981] transition-all duration-1000 ease-out" 
+                          style={{ width: `${completionPercent}%` }}
+                        ></div>
+                        <div 
+                          className="h-full bg-blue-100/30 transition-all duration-1000 ease-out" 
+                          style={{ width: `${100 - completionPercent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        })()}
+      </div>
+    </div>
+  )}
+
+{/* WORKSPACE SECTIONS RENDER ROUTERS */}
  <div className="w-full max-w-[900px] px-6 py-6 flex-1">
  {/* 1. SECTOR: UNIFIED FLAT TIKTIK MAIN LISTVIEW */}
  {activeAppTab === 'tasks' && (
@@ -1909,118 +2066,7 @@ export default function WorkspaceApp() {
  </div>
  ) : (
  <div className="w-full">
-    {(() => {
-      const totalViewCount = allActiveViewTodos.length;
-      const completedViewCount = allActiveViewTodos.filter(t => t.completed).length;
-      const completionPercent = totalViewCount > 0 ? Math.round((completedViewCount / totalViewCount) * 100) : 0;
-      
-      const circleRadius = 22;
-      const circleCircumference = 2 * Math.PI * circleRadius;
-      const circleDashoffset = circleCircumference - (completionPercent / 100) * circleCircumference;
-
-      const pendingViewCount = totalViewCount - completedViewCount;
-
-      return (
-        <div id="progress-tracking-banner" className="group bg-[#1a2b58]/5 border border-[#1a2b58]/10 rounded-2xl p-4.5 mb-6 flex flex-col shadow-xs animate-in fade-in duration-300 transition-all hover:bg-[#1a2b58]/[0.07] hover:shadow-sm cursor-default overflow-hidden">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col text-left">
-              <span className="text-xs uppercase tracking-widest text-[#1a2b58]/80 font-bold mb-1 flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5" />
-                {viewMode === 'project' 
-                  ? `${projects.find(p => p.id === selectedProjectId)?.name || 'Project'} Progress`
-                  : `${getViewTitle()} Progress`
-                }
-              </span>
-              <p className="text-gray-500 text-xs font-semibold leading-relaxed">
-                {totalViewCount > 0
-                  ? `${completedViewCount} of ${totalViewCount} tasks completed (${completionPercent}%)`
-                  : "No tasks created in this view yet"
-                }
-              </p>
-              {totalViewCount > 0 && (
-                <span className="text-[10px] text-[#1a2b58]/70 mt-1 font-mono uppercase tracking-wider font-semibold">
-                  {completionPercent === 100 
-                    ? "🎉 All targets hit! Phenomenal work!" 
-                    : completionPercent >= 75 
-                    ? "🎯 Almost there, keep pushing!" 
-                    : completionPercent >= 50 
-                    ? "⚡ Halfway mark cleared!" 
-                    : "🚀 Build momentum and start finishing!"}
-                </span>
-              )}
-            </div>
-            
-            <div className="relative flex items-center justify-center w-14 h-14 shrink-0 transition-transform duration-300 group-hover:scale-110">
-              <svg className="w-14 h-14 transform -rotate-90">
-                <circle
-                  cx="28"
-                  cy="28"
-                  r={circleRadius}
-                  className="text-gray-200/70"
-                  strokeWidth="4.5"
-                  stroke="currentColor"
-                  fill="transparent"
-                />
-                <circle
-                  cx="28"
-                  cy="28"
-                  r={circleRadius}
-                  className="text-[#1a2b58] transition-all duration-500 ease-in-out"
-                  strokeWidth="4.5"
-                  strokeDasharray={circleCircumference}
-                  strokeDashoffset={circleDashoffset}
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="transparent"
-                />
-              </svg>
-              <span className="absolute text-xs font-bold font-mono text-[#1a2b58]">
-                {completionPercent}%
-              </span>
-            </div>
-          </div>
-
-          {/* Hover Expandable Area */}
-          {totalViewCount > 0 && (
-            <div className="grid overflow-hidden transition-all duration-300 ease-in-out grid-rows-[0fr] opacity-0 group-hover:grid-rows-[1fr] group-hover:opacity-100 mt-0 group-hover:mt-3">
-              <div className="min-h-0 flex flex-col gap-2.5">
-                <div className="h-px w-full bg-[#1a2b58]/10 mb-1"></div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-[#10B981]/10 flex items-center justify-center border border-[#10B981]/20">
-                        <Check className="w-2.5 h-2.5 text-[#10B981]" />
-                      </div>
-                      <span className="text-xs font-medium text-gray-700">Completed</span>
-                      <span className="text-xs font-bold font-mono text-[#10B981] ml-1">{completedViewCount}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center">
-                        <Clock className="w-2.5 h-2.5 text-blue-500" />
-                      </div>
-                      <span className="text-xs font-medium text-gray-700">Remaining</span>
-                      <span className="text-xs font-bold font-mono text-blue-600 ml-1">{pendingViewCount}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Visual Distribution Bar */}
-                <div className="h-2 w-full bg-blue-100/50 rounded-full mt-1 flex overflow-hidden">
-                  <div 
-                    className="h-full bg-[#10B981] transition-all duration-1000 ease-out" 
-                    style={{ width: `${completionPercent}%` }}
-                  ></div>
-                  <div 
-                    className="h-full bg-[#1a2b58]/20 transition-all duration-1000 ease-out" 
-                    style={{ width: `${100 - completionPercent}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    })()}
+    
 
  {false ? (
  <div className="w-full">

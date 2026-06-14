@@ -389,6 +389,7 @@ export default function ClientDashboard() {
   const [newLoginUsername, setNewLoginUsername] = useState('');
   const [newLoginPassword, setNewLoginPassword] = useState('');
   const [newLoginNotes, setNewLoginNotes] = useState('');
+  const [showAddLoginModal, setShowAddLoginModal] = useState(false);
   const [isAddingLogin, setIsAddingLogin] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [visiblePasswordIds, setVisiblePasswordIds] = useState<Set<string>>(new Set());
@@ -1722,6 +1723,7 @@ Stewardship, Accuracy, Legacy.
       setNewLoginUsername('');
       setNewLoginPassword('');
       setNewLoginNotes('');
+      setShowAddLoginModal(false);
       setTimeout(() => setFeedback(null), 4000);
     } catch (err: any) {
       console.error(err);
@@ -1737,6 +1739,7 @@ Stewardship, Accuracy, Legacy.
     setNewLoginUsername('');
     setNewLoginPassword('');
     setNewLoginNotes('');
+    setShowAddLoginModal(false);
   };
 
   const getPortalUrl = (portalName: string) => {
@@ -2820,10 +2823,30 @@ Stewardship, Accuracy, Legacy.
                 <Shield className="h-3 w-3" />
                 <span>Secure CA Terminal</span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-serif text-slate-900 tracking-tight font-medium mt-2">
-                Welcome, {isAdmin ? "Jyoshi Manohar" : (user.displayName || user.email?.split('@')[0])}
+              <h1 className="text-2xl sm:text-3xl font-serif text-slate-900 tracking-tight font-medium mt-2 flex items-center gap-4 flex-wrap">
+                <span>Welcome, {isAdmin ? "Jyoshi Manohar" : (user.displayName || user.email?.split('@')[0])}</span>
+                {isAdmin && selectedClientEmail && (
+                  <div className="flex items-center gap-2 bg-slate-900 text-slate-100 px-3 py-1.5 rounded-xl text-sm font-sans tracking-normal shadow-md animate-in fade-in slide-in-from-left-2 duration-300 border border-slate-800">
+                     <span className="relative flex h-2 w-2">
+                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                       <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                     </span>
+                     <span className="font-semibold px-1">Active client focus: <span className="text-amber-300 underline underline-offset-4">{clients.find(c => c.uid === selectedClientId)?.displayName || selectedClientEmail}</span></span>
+                     <button 
+                       onClick={() => {
+                         setSelectedClientId('');
+                         setSelectedClientEmail('');
+                         setActiveTab('clients');
+                       }}
+                       className="ml-2 p-1 bg-white/10 hover:bg-red-500/80 rounded-lg transition-colors cursor-pointer text-slate-100"
+                       title="Clear Focus"
+                     >
+                       <X className="w-3 h-3" />
+                     </button>
+                  </div>
+                )}
               </h1>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-slate-500 mt-1.5">
                 Active Session Token: <span className="font-mono text-[11px] font-bold bg-slate-100 px-1 rounded text-primary">{user.uid.substring(0, 8).toUpperCase()}</span> • Enterprise Class Encryption Enabled
               </p>
             </div>
@@ -3033,39 +3056,25 @@ Stewardship, Accuracy, Legacy.
                     {clients.length}
                   </span>)}
                 </button>
-                {selectedClientEmail && (
-                  <div className={`py-1.5 bg-slate-50 text-[10px] font-medium text-slate-700 flex items-center justify-between border border-slate-200 rounded-lg ${isSidebarOpen ? 'px-3' : 'px-1.5 justify-center'}`}>
-                    <div className="flex items-center gap-1.5 min-w-0" title={`Focusing on: ${selectedClientEmail}`}>
-                      <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse"></span>
-                      {isSidebarOpen && <span className="truncate">Focus: {selectedClientEmail}</span>}
-                    </div>
-                    {isSidebarOpen && (
-                      <button 
-                        onClick={() => {
-                          setSelectedClientId('');
-                          setSelectedClientEmail('');
-                          setActiveTab('clients');
-                        }} 
-                        className="text-[9px] text-slate-500 hover:text-slate-800 underline font-semibold ml-1 cursor-pointer shrink-0"
-                      >
-                        Clear
-                      </button>
-                    )}
-                    {!isSidebarOpen && (
-                      <button 
-                        onClick={() => {
-                          setSelectedClientId('');
-                          setSelectedClientEmail('');
-                          setActiveTab('clients');
-                        }} 
-                        className="text-[9px] text-slate-500 hover:text-red-600 font-semibold cursor-pointer shrink-0 ml-1"
-                        title="Clear Focus"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
+
+                <button
+                  type="button"
+                  id="client-requests-nav-btn"
+                  onClick={() => setActiveTab('requests')}
+                  className={`w-full flex items-center ${isSidebarOpen ? 'justify-between p-4' : 'justify-center p-3'} rounded-xl text-left transition-all border ${
+                    activeTab === 'requests'
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'bg-white text-slate-700 hover:text-slate-950 hover:bg-slate-50 border-slate-100'
+                  } mb-2 cursor-pointer`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-4 w-4 shrink-0" />
+                    {isSidebarOpen && <span className="text-xs font-bold uppercase tracking-wider">Client Requests</span>}
                   </div>
-                )}
+                  {isSidebarOpen && (<span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === 'requests' ? 'bg-white/15 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                    {clientRequests.filter(r => r.status === 'pending').length}
+                  </span>)}
+                </button>
               </div>
             )}
 
@@ -3194,123 +3203,28 @@ Stewardship, Accuracy, Legacy.
               </div>
             )}
 
-            {/* CENTRAL EXECUTIVE PORTAL DASHBOARD (ADMIN-ONLY) */}
-            {activeTab === 'portal-dashboard' && isAdmin && (
+            
+            {/* CLIENT REQUESTS TAB */}
+            {activeTab === 'requests' && isAdmin && (
               <div className="space-y-6">
-                
-                {/* Header card */}
-                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
-                  <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -z-1" />
-                  <div className="flex items-start gap-4">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <LayoutDashboard className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-serif font-semibold text-slate-900 tracking-tight">Executive Portal Analytics</h2>
-                      <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-                        Control center overview of registered client workspaces, statutory filings, documents vault, and active consultation requests.
-                      </p>
-                    </div>
+                <div className="flex items-start gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                  <div className="absolute right-0 top-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl -z-1" />
+                  <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                    <Clock className="h-6 w-6 text-amber-600" />
                   </div>
                   <div>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 uppercase tracking-widest">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Portal Desk Live
-                    </span>
-                  </div>
-                </div>
-
-                {/* KPI Metrics bento grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* KPI 1 */}
-                  <div 
-                    onClick={() => setActiveTab('clients')}
-                    className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs hover:border-slate-350 hover:shadow-md transition-all cursor-pointer text-left relative overflow-hidden group"
-                  >
-                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
-                      <Users className="h-16 w-16" />
-                    </div>
-                    <div className="flex items-center gap-3 text-slate-400 mb-3">
-                      <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                        <Users className="h-4 w-4" />
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Clients</span>
-                    </div>
-                    <p className="text-3xl font-serif font-semibold text-slate-900">{clients.length}</p>
-                    <p className="text-[10px] text-slate-500 mt-2 truncate">
-                      {clients.filter(c => c.kycStatus === 'Approved').length} KYC Approved • {clients.filter(c => c.kycStatus === 'Pending' || !c.kycStatus).length} Pending
-                    </p>
-                  </div>
-
-                  {/* KPI 2 */}
-                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
-                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
-                      <Bell className="h-16 w-16" />
-                    </div>
-                    <div className="flex items-center gap-3 text-slate-400 mb-3">
-                      <div className="p-2 bg-slate-50 rounded-lg text-amber-600 bg-amber-50">
-                        <Bell className="h-4 w-4" />
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Pending Proposals</span>
-                    </div>
-                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
-                      {clientRequests.filter(r => r.status === 'pending').length}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
-                      Requires immediate CA verification & deployment
-                    </p>
-                  </div>
-
-                  {/* KPI 3 */}
-                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
-                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
-                      <Briefcase className="h-16 w-16" />
-                    </div>
-                    <div className="flex items-center gap-3 text-slate-400 mb-3">
-                      <div className="p-2 bg-slate-50 rounded-lg text-rose-600 bg-rose-50">
-                        <Briefcase className="h-4 w-4" />
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Service Trackers</span>
-                    </div>
-                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
-                      {applications.length}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
-                      Active service tracker workflows in real-time
-                    </p>
-                  </div>
-
-                  {/* KPI 4 */}
-                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
-                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
-                      <Calendar className="h-16 w-16" />
-                    </div>
-                    <div className="flex items-center gap-3 text-slate-400 mb-3">
-                      <div className="p-2 bg-slate-50 rounded-lg text-emerald-600 bg-emerald-50">
-                        <Calendar className="h-4 w-4" />
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Compliance Filings</span>
-                    </div>
-                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
-                      {complianceFilings.length}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
-                      Upcoming, in-progress or filed compliance records
+                    <h2 className="text-xl font-serif font-semibold text-slate-900 tracking-tight">Client Proposals Inbox</h2>
+                    <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                      Review, approve, and spawn automated client workspace milestones from incoming proposals.
                     </p>
                   </div>
                 </div>
-
-                {/* Main Body Columns */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  
-                  {/* Left Column: Client requests (2 columns wide) */}
-                  <div className="lg:col-span-2 space-y-6">
-                    
-                    {/* Awaiting Review list */}
-                    <div className="bg-white border border-slate-150 rounded-3xl p-6 sm:p-8 shadow-sm text-left">
-                      <div className="border-b border-slate-100 pb-3 mb-5 flex justify-between items-center">
+                
+{/* Awaiting Review list */}
+                    <div className="bg-white border border-slate-150 rounded-2xl p-3 sm:p-4 shadow-sm text-left">
+                      <div className="border-b border-slate-100 pb-2 mb-3 flex justify-between items-center">
                         <div>
-                          <h3 className="text-base font-serif font-semibold text-slate-900 flex items-center gap-1.5">
+                          <h3 className="text-sm font-serif font-semibold text-slate-900 flex items-center gap-1.5">
                             <Clock className="h-4 w-4 text-amber-500 animate-pulse" />
                             <span>Client Proposals Inbox Queues ({clientRequests.filter(r => r.status === 'pending').length})</span>
                           </h3>
@@ -3319,10 +3233,10 @@ Stewardship, Accuracy, Legacy.
                       </div>
 
                       {clientRequests.filter(r => r.status === 'pending').length === 0 ? (
-                        <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                          <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2.5" />
+                        <div className="py-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-1.5" />
                           <p className="text-xs font-semibold text-slate-700">Proposal Queue All Clear</p>
-                          <p className="text-[10px] text-slate-500 mt-1 max-w-sm mx-auto">No pending consulting, task or upload proposals are awaiting CA review state at this moment.</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5 max-w-sm mx-auto">No pending proposals awaiting review.</p>
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -3526,6 +3440,122 @@ Stewardship, Accuracy, Legacy.
                       )}
                     </div>
 
+                    
+              </div>
+            )}
+            
+{/* CENTRAL EXECUTIVE PORTAL DASHBOARD (ADMIN-ONLY) */}
+            {activeTab === 'portal-dashboard' && isAdmin && (
+              <div className="space-y-6">
+                
+                {/* Header card */}
+                <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
+                  <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -z-1" />
+                  <div className="flex items-start gap-4">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <LayoutDashboard className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-serif font-semibold text-slate-900 tracking-tight">Executive Portal Analytics</h2>
+                      <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                        Control center overview of registered client workspaces, statutory filings, documents vault, and active consultation requests.
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-100 uppercase tracking-widest">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Portal Desk Live
+                    </span>
+                  </div>
+                </div>
+
+                {/* KPI Metrics bento grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* KPI 1 */}
+                  <div 
+                    onClick={() => setActiveTab('clients')}
+                    className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs hover:border-slate-350 hover:shadow-md transition-all cursor-pointer text-left relative overflow-hidden group"
+                  >
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Users className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-all">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Clients</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900">{clients.length}</p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate">
+                      {clients.filter(c => c.kycStatus === 'Approved').length} KYC Approved • {clients.filter(c => c.kycStatus === 'Pending' || !c.kycStatus).length} Pending
+                    </p>
+                  </div>
+
+                  {/* KPI 2 */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Bell className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg text-amber-600 bg-amber-50">
+                        <Bell className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Pending Proposals</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
+                      {clientRequests.filter(r => r.status === 'pending').length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      Requires immediate CA verification & deployment
+                    </p>
+                  </div>
+
+                  {/* KPI 3 */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Briefcase className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg text-rose-600 bg-rose-50">
+                        <Briefcase className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Service Trackers</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
+                      {applications.length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      Active service tracker workflows in real-time
+                    </p>
+                  </div>
+
+                  {/* KPI 4 */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs text-left relative overflow-hidden">
+                    <div className="absolute -right-2 -bottom-2 opacity-5 text-slate-900">
+                      <Calendar className="h-16 w-16" />
+                    </div>
+                    <div className="flex items-center gap-3 text-slate-400 mb-3">
+                      <div className="p-2 bg-slate-50 rounded-lg text-emerald-600 bg-emerald-50">
+                        <Calendar className="h-4 w-4" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Compliance Filings</span>
+                    </div>
+                    <p className="text-3xl font-serif font-semibold text-slate-900 font-mono">
+                      {complianceFilings.length}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      Upcoming, in-progress or filed compliance records
+                    </p>
+                  </div>
+                </div>
+
+                {/* Main Body Columns */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Left Column: Client requests (2 columns wide) */}
+                  <div className="lg:col-span-2 space-y-6">
+                    
                     {/* Quick Interactive Client Directory */}
                     <div className="bg-white border border-slate-150 rounded-3xl p-6 sm:p-8 shadow-sm text-left">
                       <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-5">
@@ -4737,12 +4767,6 @@ Stewardship, Accuracy, Legacy.
                     Set up direct profiles. Securely push interactive data blocks, certified PDF vouchers, or GSTR compliance dates to the selected client's command interface in real-time.
                   </p>
                   
-                  <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-xl mt-4 flex items-center gap-3">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-                    <span className="text-xs font-semibold text-slate-100">
-                      Active client focus: <span className="text-amber-300 underline underline-offset-4">{selectedClientEmail || 'No client selected'}</span>
-                    </span>
-                  </div>
                 </div>
 
                 {/* Section: Pending Client Requests (Admin Review Panel) */}
@@ -5418,107 +5442,9 @@ Stewardship, Accuracy, Legacy.
                     Set up direct profiles. Securely save interactive data blocks related to various government portals of the selected client.
                   </p>
                   
-                  <div className="bg-slate-900 border border-slate-800/60 p-4 rounded-xl mt-4 flex items-center gap-3">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-                    <span className="text-xs font-semibold text-slate-100">
-                      Active client focus: <span className="text-amber-300 underline underline-offset-4">{selectedClientEmail || 'No client selected'}</span>
-                    </span>
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Register New Login Form */}
-                  <div className="bg-white border border-slate-200/60 rounded-3xl p-6 sm:p-8 shadow-sm">
-                    <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
-                      <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                        <Key className="h-4 w-4" />
-                      </div>
-                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Register Portal Access</h3>
-                    </div>
-
-                    <form onSubmit={handleCreateLogin} className="space-y-4">
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Government Portal</label>
-                        <CustomSelect
-                          value={newLoginPortal}
-                          onChange={(val) => setNewLoginPortal(val)}
-                          className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
-                          options={[
-                            "Income Tax Portal",
-                            "GST Portal",
-                            "MCA Portal",
-                            "EPFO Portal",
-                            "TRACES Portal",
-                            "ESI Portal",
-                            "Other"
-                          ]}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Username / ID</label>
-                          <input
-                            type="text"
-                            value={newLoginUsername}
-                            onChange={(e) => setNewLoginUsername(e.target.value)}
-                            placeholder="e.g. PAN or GSTIN"
-                            className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Password</label>
-                          <div className="relative">
-                            <input
-                              type={showLoginPassword ? "text" : "password"}
-                              value={newLoginPassword}
-                              onChange={(e) => setNewLoginPassword(e.target.value)}
-                              placeholder="Password"
-                              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 pr-10 text-xs text-slate-950 outline-none focus:border-primary font-medium"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowLoginPassword(!showLoginPassword)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                            >
-                              {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Admin Remarks (optional)</label>
-                        <textarea
-                          value={newLoginNotes}
-                          onChange={(e) => setNewLoginNotes(e.target.value)}
-                          placeholder="Internal use only notes..."
-                          className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium min-h-[80px] resize-none"
-                        />
-                      </div>
-
-                      <div className="pt-2 flex flex-col gap-2">
-                        <button
-                          type="submit"
-                          disabled={!selectedClientId || isAddingLogin}
-                          className="w-full bg-slate-900 hover:bg-black disabled:opacity-50 text-white rounded-xl py-3.5 text-[11px] font-bold uppercase tracking-wider transition-all"
-                        >
-                          {isAddingLogin ? (editingLoginId ? 'Updating...' : 'Registering...') : (editingLoginId ? 'Update Authenticator Profile' : 'Save Authenticator Profile')}
-                        </button>
-                        {editingLoginId && (
-                          <button
-                            type="button"
-                            onClick={handleCancelEditLogin}
-                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl py-2.5 text-[11px] font-bold uppercase tracking-wider transition-all"
-                          >
-                            Cancel Edit
-                          </button>
-                        )}
-                      </div>
-                    </form>
-                  </div>
-
+                
                   {/* List of active logins */}
                   <div className="bg-white border border-slate-200/60 rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col">
                     <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-100">
@@ -5528,13 +5454,29 @@ Stewardship, Accuracy, Legacy.
                         </div>
                         <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Active Accounts Vault</h3>
                       </div>
-                      <button
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingLoginId(null);
+                            setNewLoginPortal('Income Tax Portal');
+                            setNewLoginUsername('');
+                            setNewLoginPassword('');
+                            setNewLoginNotes('');
+                            setShowAddLoginModal(true);
+                          }}
+                          className="text-[10px] bg-slate-900 hover:bg-black text-white font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add
+                        </button>
+                        <button
                         onClick={downloadBrowserExtension}
                         className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-200"
                         title="Download Autofill Extension for Google Chrome"
                       >
                         Download Autofill Extension
-                      </button>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Tip for the extension */}
@@ -5565,6 +5507,7 @@ Stewardship, Accuracy, Legacy.
                                     setNewLoginUsername(login.username);
                                     setNewLoginPassword(login.password || '');
                                     setNewLoginNotes(login.notes || '');
+                                    setShowAddLoginModal(true);
                                   }}
                                   className="text-slate-400 hover:text-blue-500"
                                 >
@@ -5652,7 +5595,6 @@ Stewardship, Accuracy, Legacy.
                       )}
                     </div>
                   </div>
-                </div>
               </div>
             )}
 
@@ -5859,6 +5801,122 @@ Stewardship, Accuracy, Legacy.
         </div>
 
       </div>
+
+      
+      {/* Add New Login Modal */}
+      <AnimatePresence>
+        {showAddLoginModal && (
+          <div id="add-login-modal-overlay" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: "spring", duration: 0.5, bounce: 0 }}
+              className="bg-white rounded-[2rem] shadow-2xl p-6 sm:p-8 w-full max-w-md max-h-[90vh] overflow-y-auto relative"
+            >
+              <button
+                onClick={() => setShowAddLoginModal(false)}
+                className="absolute right-6 top-6 p-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-full transition-colors"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+{/* Register New Login Form */}
+              <div className="bg-white rounded-3xl">
+                <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-100">
+                  <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Key className="h-4 w-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Register Portal Access</h3>
+                </div>
+
+                <form onSubmit={handleCreateLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Government Portal</label>
+                    <CustomSelect
+                      value={newLoginPortal}
+                      onChange={(val) => setNewLoginPortal(val)}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 font-medium"
+                      options={[
+                        "Income Tax Portal",
+                        "GST Portal",
+                        "MCA Portal",
+                        "EPFO Portal",
+                        "TRACES Portal",
+                        "ESI Portal",
+                        "Other"
+                      ]}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Username / ID</label>
+                      <input
+                        type="text"
+                        value={newLoginUsername}
+                        onChange={(e) => setNewLoginUsername(e.target.value)}
+                        placeholder="e.g. PAN or GSTIN"
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Password</label>
+                      <div className="relative">
+                        <input
+                          type={showLoginPassword ? "text" : "password"}
+                          value={newLoginPassword}
+                          onChange={(e) => setNewLoginPassword(e.target.value)}
+                          placeholder="Password"
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 pr-10 text-xs text-slate-950 outline-none focus:border-primary font-medium"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword(!showLoginPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Admin Remarks (optional)</label>
+                    <textarea
+                      value={newLoginNotes}
+                      onChange={(e) => setNewLoginNotes(e.target.value)}
+                      placeholder="Internal use only notes..."
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-xs text-slate-950 outline-none focus:border-primary font-medium min-h-[80px] resize-none"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex flex-col gap-2">
+                    <button
+                      type="submit"
+                      disabled={!selectedClientId || isAddingLogin}
+                      className="w-full bg-slate-900 hover:bg-black disabled:opacity-50 text-white rounded-xl py-3.5 text-[11px] font-bold uppercase tracking-wider transition-all"
+                    >
+                      {isAddingLogin ? (editingLoginId ? 'Updating...' : 'Registering...') : (editingLoginId ? 'Update Authenticator Profile' : 'Save Authenticator Profile')}
+                    </button>
+                    {editingLoginId && (
+                      <button
+                        type="button"
+                        onClick={handleCancelEditLogin}
+                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl py-2.5 text-[11px] font-bold uppercase tracking-wider transition-all"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Add New Client Dialog Modal */}
       <AnimatePresence>
