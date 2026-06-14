@@ -1918,62 +1918,106 @@ export default function WorkspaceApp() {
       const circleCircumference = 2 * Math.PI * circleRadius;
       const circleDashoffset = circleCircumference - (completionPercent / 100) * circleCircumference;
 
+      const pendingViewCount = totalViewCount - completedViewCount;
+
       return (
-        <div id="progress-tracking-banner" className="bg-[#1a2b58]/5 border border-[#1a2b58]/10 rounded-2xl p-4.5 mb-6 flex items-center justify-between shadow-xs animate-in fade-in duration-300">
-          <div className="flex flex-col text-left">
-            <span className="text-xs uppercase tracking-widest text-[#1a2b58]/80 font-bold mb-1">
-              {viewMode === 'project' 
-                ? `${projects.find(p => p.id === selectedProjectId)?.name || 'Project'} Progress`
-                : `${getViewTitle()} Progress`
-              }
-            </span>
-            <p className="text-gray-500 text-xs font-semibold leading-relaxed">
-              {totalViewCount > 0
-                ? `${completedViewCount} of ${totalViewCount} tasks completed (${completionPercent}%)`
-                : "No tasks created in this view yet"
-              }
-            </p>
-            {totalViewCount > 0 && (
-              <span className="text-[10px] text-[#1a2b58]/70 mt-1 font-mono uppercase tracking-wider font-semibold">
-                {completionPercent === 100 
-                  ? "🎉 All targets hit! Phenomenal work!" 
-                  : completionPercent >= 75 
-                  ? "🎯 Almost there, keep pushing!" 
-                  : completionPercent >= 50 
-                  ? "⚡ Halfway mark cleared!" 
-                  : "🚀 Build momentum and start finishing!"}
+        <div id="progress-tracking-banner" className="group bg-[#1a2b58]/5 border border-[#1a2b58]/10 rounded-2xl p-4.5 mb-6 flex flex-col shadow-xs animate-in fade-in duration-300 transition-all hover:bg-[#1a2b58]/[0.07] hover:shadow-sm cursor-default overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col text-left">
+              <span className="text-xs uppercase tracking-widest text-[#1a2b58]/80 font-bold mb-1 flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5" />
+                {viewMode === 'project' 
+                  ? `${projects.find(p => p.id === selectedProjectId)?.name || 'Project'} Progress`
+                  : `${getViewTitle()} Progress`
+                }
               </span>
-            )}
+              <p className="text-gray-500 text-xs font-semibold leading-relaxed">
+                {totalViewCount > 0
+                  ? `${completedViewCount} of ${totalViewCount} tasks completed (${completionPercent}%)`
+                  : "No tasks created in this view yet"
+                }
+              </p>
+              {totalViewCount > 0 && (
+                <span className="text-[10px] text-[#1a2b58]/70 mt-1 font-mono uppercase tracking-wider font-semibold">
+                  {completionPercent === 100 
+                    ? "🎉 All targets hit! Phenomenal work!" 
+                    : completionPercent >= 75 
+                    ? "🎯 Almost there, keep pushing!" 
+                    : completionPercent >= 50 
+                    ? "⚡ Halfway mark cleared!" 
+                    : "🚀 Build momentum and start finishing!"}
+                </span>
+              )}
+            </div>
+            
+            <div className="relative flex items-center justify-center w-14 h-14 shrink-0 transition-transform duration-300 group-hover:scale-110">
+              <svg className="w-14 h-14 transform -rotate-90">
+                <circle
+                  cx="28"
+                  cy="28"
+                  r={circleRadius}
+                  className="text-gray-200/70"
+                  strokeWidth="4.5"
+                  stroke="currentColor"
+                  fill="transparent"
+                />
+                <circle
+                  cx="28"
+                  cy="28"
+                  r={circleRadius}
+                  className="text-[#1a2b58] transition-all duration-500 ease-in-out"
+                  strokeWidth="4.5"
+                  strokeDasharray={circleCircumference}
+                  strokeDashoffset={circleDashoffset}
+                  strokeLinecap="round"
+                  stroke="currentColor"
+                  fill="transparent"
+                />
+              </svg>
+              <span className="absolute text-xs font-bold font-mono text-[#1a2b58]">
+                {completionPercent}%
+              </span>
+            </div>
           </div>
-          
-          <div className="relative flex items-center justify-center w-14 h-14 shrink-0">
-            <svg className="w-14 h-14 transform -rotate-90">
-              <circle
-                cx="28"
-                cy="28"
-                r={circleRadius}
-                className="text-gray-200/70"
-                strokeWidth="4.5"
-                stroke="currentColor"
-                fill="transparent"
-              />
-              <circle
-                cx="28"
-                cy="28"
-                r={circleRadius}
-                className="text-[#1a2b58] transition-all duration-500 ease-in-out"
-                strokeWidth="4.5"
-                strokeDasharray={circleCircumference}
-                strokeDashoffset={circleDashoffset}
-                strokeLinecap="round"
-                stroke="currentColor"
-                fill="transparent"
-              />
-            </svg>
-            <span className="absolute text-xs font-bold font-mono text-[#1a2b58]">
-              {completionPercent}%
-            </span>
-          </div>
+
+          {/* Hover Expandable Area */}
+          {totalViewCount > 0 && (
+            <div className="grid overflow-hidden transition-all duration-300 ease-in-out grid-rows-[0fr] opacity-0 group-hover:grid-rows-[1fr] group-hover:opacity-100 mt-0 group-hover:mt-3">
+              <div className="min-h-0 flex flex-col gap-2.5">
+                <div className="h-px w-full bg-[#1a2b58]/10 mb-1"></div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-[#10B981]/10 flex items-center justify-center border border-[#10B981]/20">
+                        <Check className="w-2.5 h-2.5 text-[#10B981]" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-700">Completed</span>
+                      <span className="text-xs font-bold font-mono text-[#10B981] ml-1">{completedViewCount}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center">
+                        <Clock className="w-2.5 h-2.5 text-blue-500" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-700">Remaining</span>
+                      <span className="text-xs font-bold font-mono text-blue-600 ml-1">{pendingViewCount}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Visual Distribution Bar */}
+                <div className="h-2 w-full bg-blue-100/50 rounded-full mt-1 flex overflow-hidden">
+                  <div 
+                    className="h-full bg-[#10B981] transition-all duration-1000 ease-out" 
+                    style={{ width: `${completionPercent}%` }}
+                  ></div>
+                  <div 
+                    className="h-full bg-[#1a2b58]/20 transition-all duration-1000 ease-out" 
+                    style={{ width: `${100 - completionPercent}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     })()}

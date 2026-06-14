@@ -182,7 +182,7 @@ const downloadBrowserExtension = async () => {
   zip.file('manifest.json', JSON.stringify({
     manifest_version: 3,
     name: "Portal Login Autofill",
-    version: "1.2",
+    version: "1.3",
     description: "Autofills credentials from the CA admin dashboard into government portals automatically.",
     permissions: ["storage"],
     host_permissions: [
@@ -276,13 +276,15 @@ function attemptAutofill(creds) {
   const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([readonly]):not([disabled])'))
     .filter(i => i.offsetWidth > 0 && i.offsetHeight > 0 && getComputedStyle(i).visibility !== 'hidden');
   
-  const textInputs = inputs.filter(i => i.type === 'text' || i.type === 'email' || !i.type);
-  const passInputs = inputs.filter(i => i.type === 'password');
+  const isPasswordField = (i) => i.type === 'password' || /pass|pwd/i.test(i.name) || /pass|pwd/i.test(i.id) || /pass|pwd/i.test(i.placeholder);
+  
+  const textInputs = inputs.filter(i => (i.type === 'text' || i.type === 'email' || !i.type || i.type === 'number') && !isPasswordField(i));
+  const passInputs = inputs.filter(i => isPasswordField(i));
   
   // Advanced heuristic for username
   const matchedUserInput = textInputs.find(i => 
-    /user|login|id|email|pan|gst|name/i.test(i.name) || 
-    /user|login|id|email|pan|gst|name/i.test(i.id) ||
+    /user|login|id|email|pan|gst|name|userid/i.test(i.name) || 
+    /user|login|id|email|pan|gst|name|userid/i.test(i.id) ||
     /user|login|id|email|pan|gst|userid/i.test(i.placeholder)
   );
   
@@ -292,15 +294,13 @@ function attemptAutofill(creds) {
   
   const passInput = passInputs[0];
 
-  if (userInput && username) {
-    // If we have both fields on the same page, fill both.
-    // If we are on a step 2 page, the PAN field might be readonly (so it's ignored).
-    // If the heuristics select a wrong text input on step 2, we shouldn't fill it, hence the strict matching.
-    setInputValue(userInput, username);
-  }
-  
   if (passInput && password) {
     setInputValue(passInput, password);
+  }
+
+  // Only fill user input if it hasn't been accidentally filled with the password (which would indicate a wrong selection)
+  if (userInput && username && userInput !== passInput && userInput.value !== password) {
+    setInputValue(userInput, username);
   }
 }
   `.trim());
@@ -309,7 +309,7 @@ function attemptAutofill(creds) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'autofill-extension-v1.2.zip';
+  a.download = 'autofill-extension-v1.3.zip';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1766,17 +1766,42 @@ Stewardship, Accuracy, Legacy.
     }
 
     if (login.password) {
-      navigator.clipboard.writeText(login.password);
-      setFeedback({ message: "Password copied to clipboard. Opening portal...", type: 'success' });
+      copyToClipboard(login.password, "Password copied to clipboard. Opening portal...");
     } else if (login.username) {
-      navigator.clipboard.writeText(login.username);
-      setFeedback({ message: "Username copied to clipboard. Opening portal...", type: 'success' });
+      copyToClipboard(login.username, "Username copied to clipboard. Opening portal...");
     }
-    
-    setTimeout(() => setFeedback(null), 3000);
   };
 
   // Core administrative updater to advance steps and statuses seamlessly
+  const copyToClipboard = async (text: string, successMessage: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        setFeedback({ message: successMessage, type: 'success' });
+      } else {
+        throw new Error('Clipboard API not available');
+      }
+    } catch (error) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      // move out of viewport
+      textArea.style.position = "absolute";
+      textArea.style.left = "-999999px";
+      document.body.prepend(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setFeedback({ message: successMessage, type: 'success' });
+      } catch (err) {
+        console.error('Fallback copy failed', err);
+        setFeedback({ message: "Failed to copy to clipboard", type: 'error' });
+      } finally {
+        textArea.remove();
+      }
+    }
+    setTimeout(() => setFeedback(null), 3000);
+  };
+
   const handleUpdateAppStatus = async (appId: string, status: Application['status'], nextStep: string) => {
     try {
       await updateDoc(doc(db, 'applications', appId), {
@@ -5534,9 +5559,7 @@ Stewardship, Accuracy, Legacy.
                                     <span className="font-mono font-bold text-slate-800">{login.username}</span>
                                     <button
                                       onClick={() => {
-                                        navigator.clipboard.writeText(login.username);
-                                        setFeedback({ message: "Username copied to clipboard", type: 'success' });
-                                        setTimeout(() => setFeedback(null), 2000);
+                                        copyToClipboard(login.username, "Username copied to clipboard");
                                       }}
                                       className="text-slate-400 hover:text-slate-600 focus:outline-none"
                                       title="Copy Username"
@@ -5567,9 +5590,7 @@ Stewardship, Accuracy, Legacy.
                                         </button>
                                         <button
                                           onClick={() => {
-                                            navigator.clipboard.writeText(login.password!);
-                                            setFeedback({ message: "Password copied to clipboard", type: 'success' });
-                                            setTimeout(() => setFeedback(null), 2000);
+                                            copyToClipboard(login.password!, "Password copied to clipboard");
                                           }}
                                           className="text-slate-400 hover:text-slate-600 focus:outline-none"
                                           title="Copy Password"
