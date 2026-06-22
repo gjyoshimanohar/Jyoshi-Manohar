@@ -49,7 +49,7 @@ export default function BlogList() {
  <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm flex w-max">
  <span>Financial Intelligence</span>
  </div>
- <h1 className="text-5xl md:text-[100px] leading-[0.95] text-primary uppercase font-bold tracking-tighter mb-8">THE LEDGER</h1>
+ <h1 className="text-5xl md:text-[100px] leading-[0.95] text-primary uppercase font-bold tracking-tighter mb-8"><span className="text-3xl md:text-6xl align-baseline mr-1 md:mr-2">THE</span>LEDGER</h1>
  <p className="space-y-6 text-base lg:text-base text-black font-medium leading-relaxed text-left max-w-2xl">
  In-depth analysis on the evolving world of finance, tax, and corporate policy.
  </p>

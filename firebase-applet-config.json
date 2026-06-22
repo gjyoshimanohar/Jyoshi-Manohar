@@ -1,10 +1,10 @@
 {
-  "projectId": "jyoshimanohar-com",
-  "appId": "1:255732479780:web:56f47693a88099b112e5b1",
-  "apiKey": "AIzaSyDU6bogpUM069m-o8I-bDwYKs1moeyaicY",
-  "authDomain": "jyoshimanohar-com.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
-  "storageBucket": "jyoshimanohar-com.firebasestorage.app",
-  "messagingSenderId": "255732479780",
+  "projectId": "lithe-automata-w5xj8",
+  "appId": "1:112241490576:web:3aef58542075f358ac7615",
+  "apiKey": "AIzaSyAuXPBJLbJ7re3-vJsyKNijgGa-4b4jMmI",
+  "authDomain": "lithe-automata-w5xj8.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-2f7b1efd-6c38-4be9-9912-792e1614fe83",
+  "storageBucket": "lithe-automata-w5xj8.firebasestorage.app",
+  "messagingSenderId": "112241490576",
   "measurementId": ""
 }

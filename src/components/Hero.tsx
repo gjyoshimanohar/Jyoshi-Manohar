@@ -15,8 +15,8 @@ export default function Hero() {
  transition={{ duration: 0.6 }}
  >
  <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-[10px] sm:text-xs md:text-sm whitespace-nowrap px-4 py-2 rounded-full mb-8 shadow-sm">
- <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0"></span>
- <span>Startup Consultant, Semi-Qualified Chartered Accountant</span>
+ <span className="w-1.5 h-1.5 rounded-full bg-secondary flex-shrink-0"></span>
+ <span className="text-secondary">Startup Consultant, Semi-Qualified Chartered Accountant</span>
  </p>
  <h1 className="text-6xl lg:text-[112px] text-primary leading-[0.9] tracking-tighter mb-8 uppercase">
  Financial<br />
