@@ -17,14 +17,13 @@ jobs:
           node-version: "22"
           cache: npm
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm install --legacy-peer-deps
       - name: Build project
         run: npm run build
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-      - name: Write GCP Credentials
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM }}' > gcp-key.json
-      - name: Deploy to Firebase
-        run: npx firebase deploy --only hosting --project jyoshimanohar-com
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM }}'
+          projectId: jyoshimanohar-com
+          channelId: live
