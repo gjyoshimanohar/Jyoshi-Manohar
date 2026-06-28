@@ -10,18 +10,14 @@ const app = initializeApp(firebaseConfig);
 let firestoreInstance;
 try {
   // Try initializing with long-polling since sandbox environments often block WebSockets/gRPC
-  const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "(default)" 
-    ? firebaseConfig.firestoreDatabaseId 
-    : undefined;
+  const dbId = undefined;
   firestoreInstance = initializeFirestore(app, {
     experimentalForceLongPolling: true,
   }, dbId);
 } catch (e) {
   console.warn("initializeFirestore failed, falling back to getFirestore:", e);
   // Fall back to standard initialization which might already have been initialized
-  const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "(default)" 
-    ? firebaseConfig.firestoreDatabaseId 
-    : undefined;
+  const dbId = undefined;
   firestoreInstance = getFirestore(app, dbId);
 }
 
