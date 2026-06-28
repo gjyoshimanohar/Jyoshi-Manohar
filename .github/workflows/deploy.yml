@@ -20,6 +20,8 @@ jobs:
         run: npm install --legacy-peer-deps
       - name: Build project
         run: npm run build
+      - name: Ensure unique deployment hash
+        run: date +%s > dist/build-time.txt
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
