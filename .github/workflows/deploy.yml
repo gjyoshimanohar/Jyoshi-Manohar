@@ -20,12 +20,10 @@ jobs:
         run: npm install --legacy-peer-deps
       - name: Build project
         run: npm run build
-      - name: Ensure unique deployment hash
-        run: echo "<!-- Build $(date) -->" >> dist/index.html
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM }}'
-          projectId: jyoshimanohar-com
-          channelId: live
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > gcp-key.json
+          npx firebase-tools deploy --only hosting --project jyoshimanohar-com --non-interactive --force
