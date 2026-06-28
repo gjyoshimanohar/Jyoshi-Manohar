@@ -25,5 +25,19 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM }}
         run: |
+          set +e
           echo "$FIREBASE_SERVICE_ACCOUNT" > gcp-key.json
-          npx firebase-tools deploy --only hosting --project jyoshimanohar-com --non-interactive --force
+          date +%s > dist/deploy-timestamp.txt
+          echo "<!-- Build $(date) -->" >> dist/index.html
+          npx firebase-tools deploy --only hosting --project jyoshimanohar-com --non-interactive --force > deploy-log.txt 2>&1
+          EXIT_CODE=$?
+          cat deploy-log.txt
+          if [ $EXIT_CODE -ne 0 ]; then
+            if grep -q "is the current active version" deploy-log.txt; then
+              echo "Deploy skipped (already active version)."
+              exit 0
+            else
+              echo "Deploy failed."
+              exit $EXIT_CODE
+            fi
+          fi
