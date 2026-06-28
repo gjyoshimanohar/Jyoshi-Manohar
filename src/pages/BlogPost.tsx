@@ -7,6 +7,8 @@ import { BlogPost as IBlogPost } from '../types';
 import { ArrowLeft, Clock, Calendar, Share2, Linkedin, Twitter, Loader2 } from 'lucide-react';
 import React from 'react';
 
+import 'suneditor/dist/css/suneditor.min.css';
+
 export default function BlogPost() {
  const { slug } = useParams();
  const navigate = useNavigate();
@@ -148,7 +150,8 @@ export default function BlogPost() {
  className="prose prose-lg lg:prose-xl prose-slate max-w-none prose-headings: prose-headings:capitalize prose-headings:tracking-tighter prose-a:text-secondary mb-24"
  >
  <div 
- className="markdown-body leading-[1.8] text-black editor-content text-justify"
+ className="markdown-body leading-[1.8] text-black editor-content sun-editor-editable"
+ style={{ backgroundColor: 'transparent', border: 'none', padding: 0 }}
  dangerouslySetInnerHTML={{ __html: post.content || '<p><em>Content could not be loaded or is empty.</em></p>' }}
  />
  </motion.div>

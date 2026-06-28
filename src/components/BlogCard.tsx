@@ -38,7 +38,7 @@ export default function BlogCard({ post, index }: BlogCardProps) {
  {post.title}
  </h3>
  <p className="relative z-10 text-base text-black/70 font-medium leading-relaxed text-justify line-clamp-3 transition-colors duration-500 group-hover:text-black/90">
- {post.excerpt}
+ {post.excerpt || (post.content ? post.content.replace(/<[^>]*>?/gm, '').substring(0, 160) + '...' : '')}
  </p>
  </div>
  

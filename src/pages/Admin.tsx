@@ -428,7 +428,9 @@ export default function Admin() {
  <span className="text-xs font-medium text-black uppercase tracking-widest">{post.date}</span>
  </div>
  <h3 className="text-xl text-primary tracking-tight">{post.title}</h3>
- <p className="font-medium text-base text-black mt-2 line-clamp-1">{post.excerpt}</p>
+ <p className="font-medium text-base text-black mt-2 line-clamp-1">
+   {post.excerpt || (post.content ? post.content.replace(/<[^>]*>?/gm, '').substring(0, 160) + '...' : '')}
+ </p>
  </div>
  <div className="flex items-center space-x-4">
  <button
