@@ -29,6 +29,7 @@ export interface Todo {
 	description?: string;
 	completed: boolean;
 	createdAt: number;
+ isPinned?: boolean;
 	dueDate?: number | null;
 	deadline?: number | null;
 	priority?: number; // 1, 2, 3, 4
@@ -66,5 +67,6 @@ export interface Project {
  folderId?: string | null;
  viewType?: 'list' | 'kanban' | 'timeline';
  sections?: string[];
- createdAt: number;
+  createdAt: number;
+  isPinned?: boolean;
 }

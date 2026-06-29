@@ -159,6 +159,29 @@ export default function WorkspaceApp() {
  const [loading, setLoading] = useState(true);
  const [bootstrapping, setBootstrapping] = useState(false);
 
+  
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => 
+      prev.includes(folderId) ? prev.filter(id => id !== folderId) : [...prev, folderId]
+    );
+  };
+  
+  const handleDragStart = (e: React.DragEvent, projectId: string) => {
+    e.dataTransfer.setData('projectId', projectId);
+  };
+  
+  const handleDropToFolder = async (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault();
+    const projectId = e.dataTransfer.getData('projectId');
+    if (projectId) {
+      await todoService.updateProject(projectId, { folderId });
+    }
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
   const handleExportTasksCSV = () => {
     const headers = ['Task ID', 'Title', 'Description', 'Status', 'Priority', 'Project ID', 'Project Name', 'Tags', 'Created At', 'Due Date', 'Deleted At'];
     
@@ -305,11 +328,14 @@ export default function WorkspaceApp() {
  const [isProgressBannerExpanded, setIsProgressBannerExpanded] = useState(false);
  const [dailyTaskGoal, setDailyTaskGoal] = useState<number>(5);
  const [searchQuery, setSearchQuery] = useState('');
- const [isAddingProject, setIsAddingProject] = useState(false);
+ const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [editingProjectIdInModal, setEditingProjectIdInModal] = useState<string | null>(null);
+  const [activeProjectMenu, setActiveProjectMenu] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<string[]>([]);
  const [newProjectName, setNewProjectName] = useState('');
  const [newProjectIcon, setNewProjectIcon] = useState('');
 
- const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+ const [activeEmojiPicker, setActiveEmojiPicker] = useState<string | null>(null);
  const [listColor, setListColor] = useState('#1a2b58');
  const [listViewType, setListViewType] = useState<'list' | 'kanban' | 'timeline'>('list');
  const [listFolderId, setListFolderId] = useState<string>('none');
@@ -1168,7 +1194,7 @@ export default function WorkspaceApp() {
 
  // Render project individual listings in direct sidebars
  const renderProjectItem = (project: Project) => (
- <div key={project.id} className="group relative flex items-center justify-between pl-2">
+ <div key={project.id} draggable onDragStart={(e) => handleDragStart(e, project.id)} className="group relative flex items-center justify-between pl-2 cursor-grab active:cursor-grabbing">
  {editingProjectId === project.id ? (
  <form onSubmit={(e) => handleSaveEditProject(project.id, e)} className="flex items-center space-x-2 w-full p-1 bg-white border border-gray-100 rounded shadow-sm z-10">
  <input
@@ -1188,6 +1214,19 @@ export default function WorkspaceApp() {
  ) : (
  <div className="flex items-center justify-between w-full group">
  <button
+ onDragOver={(e) => {
+   if (e.dataTransfer.types.includes("text/plain")) {
+     e.preventDefault();
+   }
+ }}
+ onDrop={async (e) => {
+   const taskId = e.dataTransfer.getData("text/plain");
+   if (taskId) {
+     e.preventDefault();
+     setTodos(prev => prev.map(t => t.id === taskId ? { ...t, projectId: project.id, sectionName: null } : t));
+     await todoService.updateTodo(taskId, { projectId: project.id, sectionName: null });
+   }
+ }}
  onClick={() => { 
  setViewMode('project'); 
  setSelectedProjectId(project.id); 
@@ -1214,21 +1253,23 @@ export default function WorkspaceApp() {
  </button>
 
  {/* Over-Hover options trigger */}
- <div className="absolute right-1 hidden group-hover:flex items-center bg-[#fafafa] pl-1.5">
+ <div className="absolute right-1 hidden group-hover:flex items-center bg-[#fafafa] pl-1.5 relative">
  <span 
- onClick={(e) => handleStartEditProject(project, e)} 
+ onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(activeProjectMenu === project.id ? null : project.id); }} 
  className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-600 mr-0.5 cursor-pointer"
- title="Rename project"
+ title="Options"
  >
  <MoreHorizontal className="w-3 h-3" />
  </span>
- <span 
- onClick={(e) => handleDeleteProject(project.id, e)} 
- className="p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500 cursor-pointer"
- title="Delete project"
- >
- <Trash2 className="w-3 h-3" />
- </span>
+ {activeProjectMenu === project.id && (
+  <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-gray-100 z-50 py-1 text-xs">
+   <div className="fixed inset-0 z-[-1]" onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); }}></div>
+   <button onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); setEditingProjectIdInModal(project.id); setNewProjectName(project.name); setListColor(project.color || '#1a2b58'); setListFolderId(project.folderId || 'none'); setListViewType(project.viewType || 'list'); setIsProjectModalOpen(true); }} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700">Edit</button>
+   <button onClick={async (e) => { e.stopPropagation(); setActiveProjectMenu(null); await todoService.updateProject(project.id, { isPinned: !project.isPinned }); }} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700">{project.isPinned ? 'Unpin' : 'Pin'}</button>
+   <button onClick={async (e) => { e.stopPropagation(); setActiveProjectMenu(null); await todoService.createProject(project.name + ' (Copy)', project.color, project.userId, project.icon, project.folderId, project.viewType, project.sections); }} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700">Duplicate</button>
+   <button onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); handleDeleteProject(project.id, e); }} className="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-600">Delete</button>
+  </div>
+ )}
  </div>
  </div>
  )}
@@ -1240,25 +1281,53 @@ export default function WorkspaceApp() {
  {folders.map(folder => (
  <div key={folder.id} className="mb-2.5 bg-gray-50/50 rounded-xl p-1.5 relative border border-gray-100/40">
  {editingFolderId === folder.id ? (
- <form onSubmit={(e) => handleSaveEditFolder(folder.id, e)} className="flex items-center space-x-2 p-1 bg-white border border-gray-100 rounded-lg shadow-sm">
+ <form onSubmit={(e) => handleSaveEditFolder(folder.id, e)} className="flex items-center space-x-1 p-1 bg-white border border-gray-100 rounded-lg shadow-sm">
+ <div className="relative flex-1">
  <input
  type="text"
  autoFocus
  value={editFolderName}
  onChange={(e) => setEditFolderName(e.target.value)}
- className="text-xs px-2 py-1 border focus:border-primary focus:ring-1 focus:ring-primary rounded w-full outline-none text-black font-semibold"
+ className="text-xs px-2 pr-7 py-1 border focus:border-primary focus:ring-1 focus:ring-primary rounded w-full outline-none text-black font-semibold"
  />
- <button type="submit" disabled={!editFolderName.trim()} className="text-white bg-primary p-1 rounded-md">
+ <button
+ type="button"
+ onClick={() => setActiveEmojiPicker(activeEmojiPicker === `edit-folder-${folder.id}` ? null : `edit-folder-${folder.id}`)}
+ className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 rounded-full"
+ >
+ <Smile className="w-3.5 h-3.5" />
+ </button>
+ <AnimatePresence>
+ {activeEmojiPicker === `edit-folder-${folder.id}` && (
+ <motion.div
+ initial={{ opacity: 0, scale: 0.95 }}
+ animate={{ opacity: 1, scale: 1 }}
+ exit={{ opacity: 0, scale: 0.95 }}
+ className="absolute left-0 top-full mt-2 z-[150] shadow-2xl"
+ >
+ <EmojiPicker
+ onEmojiClick={(emojiData) => {
+ setEditFolderName(prev => emojiData.emoji + " " + prev);
+                                          setActiveEmojiPicker(null);
+                                          }}
+                                          width={220}
+ height={350}
+ />
+ </motion.div>
+ )}
+ </AnimatePresence>
+ </div>
+ <button type="submit" disabled={!editFolderName.trim()} className="text-white bg-primary p-1 rounded-md shrink-0">
  <Check className="w-3.5 h-3.5" />
  </button>
- <button type="button" onClick={() => { setEditingFolderId(null); }} className="text-gray-400 hover:bg-gray-100 p-1 rounded-md">
+ <button type="button" onClick={() => { setEditingFolderId(null); setActiveEmojiPicker(null); }} className="text-gray-400 hover:bg-gray-100 p-1 rounded-md shrink-0">
  <X className="w-3.5 h-3.5" />
  </button>
  </form>
  ) : (
- <div className="flex items-center justify-between p-1 rounded group">
- <div className="flex items-center space-x-1 w-full">
- <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+ <div className="flex items-center justify-between p-1 rounded group" onDrop={(e) => handleDropToFolder(e, folder.id)} onDragOver={handleDragOver}>
+ <div className="flex items-center space-x-1 w-full cursor-pointer" onClick={() => toggleFolder(folder.id)}>
+ <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${expandedFolders.includes(folder.id) ? '' : '-rotate-90'}`} />
  <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
  <span className="text-xs text-gray-700 font-medium truncate max-w-[120px]">{folder.name}</span>
  {getFolderPendingCount(folder.id) > 0 && (
@@ -1286,19 +1355,23 @@ export default function WorkspaceApp() {
  </div>
  )}
  {/* Subproject listings inside Folder */}
+  {expandedFolders.includes(folder.id) && (
  <div className="pl-3.5 border-l border-gray-200 ml-3.5 mt-1 space-y-0.5">
  {projects.filter(p => p.folderId === folder.id).map(renderProjectItem)}
  {projects.filter(p => p.folderId === folder.id).length === 0 && (
  <div className="text-xs text-gray-400 pl-1 py-1 italic">Empty folders list</div>
  )}
  </div>
+ )}
  </div>
  ))}
  
- {/* Direct Lists that are not nested inside Folders */}
+ <div onDrop={(e) => handleDropToFolder(e, null)} onDragOver={handleDragOver} className="min-h-[20px]">
+  {/* Direct Lists that are not nested inside Folders */}
  {projects.filter(p => !p.folderId).map(renderProjectItem)}
  
- {projects.length === 0 && folders.length === 0 && !isAddingProject && (
+ </div>
+  {projects.length === 0 && folders.length === 0 && !isProjectModalOpen && (
  <div className="text-xs text-center text-gray-400 italic py-2">No lists created</div>
  )}
  </div>
@@ -1563,6 +1636,14 @@ export default function WorkspaceApp() {
  <div className="mb-2">
  <div className="flex items-center justify-between px-2 text-gray-400 text-xs uppercase tracking-widest mb-2 group">
  <span>Projects</span>
+							<button onClick={() => { 
+    setEditingProjectIdInModal(null);
+    setNewProjectName('');
+    setListColor('#1a2b58');
+    setListViewType('list');
+    setListFolderId('none');
+    setIsProjectModalOpen(true);
+  }} className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-gray-700 transition-colors hidden group-hover:block" title="Add Project"><Plus className="w-3.5 h-3.5" /></button>
  </div>
  
  {/* Adding Folder inline card */}
@@ -1587,25 +1668,25 @@ export default function WorkspaceApp() {
  />
  <button
  type="button"
- onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+ onClick={() => setActiveEmojiPicker(activeEmojiPicker === "folder" ? null : "folder")}
  className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 rounded-full"
  >
  <Smile className="w-3.5 h-3.5" />
- </button>
- <AnimatePresence>
- {showEmojiPicker && (
+                      </button>
+                      <AnimatePresence>
+                        {activeEmojiPicker === "folder" && (
  <motion.div
  initial={{ opacity: 0, scale: 0.95 }}
  animate={{ opacity: 1, scale: 1 }}
  exit={{ opacity: 0, scale: 0.95 }}
- className="absolute left-0 top-full mt-2 z-50 shadow-2xl"
+ className="absolute left-0 top-full mt-2 z-[150] shadow-2xl"
  >
  <EmojiPicker
  onEmojiClick={(emojiData) => {
- setNewFolderName(prev => prev + emojiData.emoji);
- setShowEmojiPicker(false);
- }}
- width={280}
+ setNewFolderName(prev => emojiData.emoji + " " + prev);
+                                          setActiveEmojiPicker(null);
+                                          }}
+                                          width={220}
  height={350}
  />
  </motion.div>
@@ -2700,23 +2781,23 @@ export default function WorkspaceApp() {
  />
  <button
  type="button"
- onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+ onClick={() => setActiveEmojiPicker(activeEmojiPicker === "task" ? null : "task")}
  className="absolute right-0 top-0 text-gray-400 hover:text-gray-600 rounded-full"
  >
  <Smile className="w-4 h-4" />
- </button>
- <AnimatePresence>
- {showEmojiPicker && (
+                        </button>
+                        <AnimatePresence>
+                          {activeEmojiPicker === "task" && (
  <motion.div
  initial={{ opacity: 0, scale: 0.95 }}
  animate={{ opacity: 1, scale: 1 }}
  exit={{ opacity: 0, scale: 0.95 }}
- className="absolute right-0 top-6 z-50 shadow-2xl"
+ className="absolute right-0 top-6 z-[150] shadow-2xl"
  >
  <EmojiPicker
  onEmojiClick={(emojiData) => {
  setNewTaskTitle(prev => prev + emojiData.emoji);
- setShowEmojiPicker(false);
+                                  setActiveEmojiPicker(null);
  }}
  width={280}
  height={350}
@@ -2880,7 +2961,80 @@ export default function WorkspaceApp() {
  </div>
  )}
 
- {/* GROUP A: "Countdown" collapsible section (only shown if countdown tasks exist and not in trash/completed view) */}
+ 
+          {/* UPCOMING DEADLINES OVERVIEW DASHBOARD */}
+          {viewMode === 'today' && (
+            <div className="mb-6 bg-gradient-to-br from-[#1a2b58]/5 to-transparent border border-[#1a2b58]/10 rounded-2xl p-4 relative overflow-hidden">
+              <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] text-[#1a2b58] pointer-events-none">
+                <Target className="w-40 h-40" />
+              </div>
+              <h3 className="text-sm font-semibold text-[#1a2b58] mb-3 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-orange-500" />
+                Upcoming Deadlines (Next 48 Hours)
+              </h3>
+              {(() => {
+                const now = Date.now();
+                const upcomingDeadlines = todos.filter(t => 
+                  !t.completed && 
+                  !t.deletedAt && 
+                  t.dueDate && 
+                  t.dueDate > now - 12 * 60 * 60 * 1000 && 
+                  t.dueDate <= now + 48 * 60 * 60 * 1000
+                ).sort((a, b) => a.dueDate! - b.dueDate!);
+                
+                if (upcomingDeadlines.length === 0) {
+                  return <p className="text-xs text-gray-500 italic">No pressing deadlines in the next 48 hours.</p>;
+                }
+                
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 relative z-10">
+                    {upcomingDeadlines.slice(0, 6).map(task => {
+                      const proj = projects.find(p => p.id === task.projectId);
+                      const isOverdue = task.dueDate! < now;
+                      const hoursLeft = Math.max(0, Math.floor((task.dueDate! - now) / (1000 * 60 * 60)));
+                      
+                      return (
+                        <div key={task.id} className="bg-white/80 backdrop-blur border border-white/50 p-3 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between min-h-[72px]" onClick={() => setSelectedTodoId(task.id)}>
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <span className="text-xs font-semibold text-gray-900 truncate leading-tight" title={task.title}>{task.title}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${isOverdue ? 'bg-red-100 text-red-600' : hoursLeft < 24 ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                              {isOverdue ? 'Overdue' : hoursLeft === 0 ? '< 1h' : `${hoursLeft}h`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-medium">
+                            {proj ? (
+                              <>
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: proj.color || '#9ca3af' }} />
+                                <span className="truncate max-w-[80px]" title={proj.name}>{proj.name}</span>
+                                <span className="text-gray-300">•</span>
+                              </>
+                            ) : (
+                              <>
+                                <Inbox className="w-3 h-3 shrink-0 text-gray-400" />
+                                <span>Inbox</span>
+                                <span className="text-gray-300">•</span>
+                              </>
+                            )}
+                            <span className="truncate flex items-center gap-1">
+                              <CalendarIcon className="w-3 h-3 opacity-70" />
+                              {format(new Date(task.dueDate!), "MMM d, h:mm a")}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {upcomingDeadlines.length > 6 && (
+                      <div className="flex items-center justify-center p-3 rounded-xl border border-dashed border-[#1a2b58]/20 bg-white/30 text-xs font-semibold text-[#1a2b58]/70 hover:text-[#1a2b58] cursor-pointer hover:bg-white/60 transition-colors h-full min-h-[72px]" onClick={() => setViewMode('upcoming')}>
+                        +{upcomingDeadlines.length - 6} more deadlines
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* GROUP A: "Countdown" collapsible section (only shown if countdown tasks exist and not in trash/completed view) */}
  {allActiveViewTodos.filter(t => !t.completed && t.tags && t.tags.includes('Countdown')).length > 0 && viewMode !== 'trash' && viewMode !== 'completed' && (
  <div className="mb-6">
  <button
@@ -3435,23 +3589,23 @@ export default function WorkspaceApp() {
  />
  <button
  type="button"
- onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+ onClick={() => setActiveEmojiPicker(activeEmojiPicker === `todo-${todo.id}` ? null : `todo-${todo.id}`)}
  className="absolute right-0 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
  >
  <Smile className="w-4 h-4" />
- </button>
- <AnimatePresence>
- {showEmojiPicker && (
+                                </button>
+                                <AnimatePresence>
+                                  {activeEmojiPicker === `todo-${todo.id}` && (
  <motion.div
  initial={{ opacity: 0, scale: 0.95 }}
  animate={{ opacity: 1, scale: 1 }}
  exit={{ opacity: 0, scale: 0.95 }}
- className="absolute right-0 top-full mt-2 z-50 shadow-2xl"
+ className="absolute right-0 top-full mt-2 z-[150] shadow-2xl"
  >
  <EmojiPicker
  onEmojiClick={(emojiData) => {
  todoService.updateTodo(todo.id, { title: todo.title + emojiData.emoji });
- setShowEmojiPicker(false);
+                                          setActiveEmojiPicker(null);
  }}
  width={280}
  height={350}
@@ -3770,28 +3924,28 @@ export default function WorkspaceApp() {
 
  {/* Add List Modal (Visual replica of TickTick) */}
  <AnimatePresence>
- {isAddingProject && (
+ {isProjectModalOpen && (
  <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
  <motion.div
  initial={{ opacity: 0, scale: 0.95 }}
  animate={{ opacity: 1, scale: 1 }}
  exit={{ opacity: 0, scale: 0.95 }}
- className="bg-white rounded-3xl shadow-2xl border border-gray-150 max-w-[850px] w-full flex flex-col md:flex-row overflow-hidden text-left"
+ className="bg-white rounded-[24px] shadow-2xl border border-gray-150 max-w-md w-full flex flex-col overflow-visible text-left"
  >
  {/* Left Panel: Inputs Form */}
- <div className="flex-1 p-6 md:p-8 flex flex-col justify-between">
+ <div className="p-6 md:p-8 flex flex-col">
  <div>
  {/* Header Title */}
  <div className="flex items-center justify-between mb-6">
- <h3 className="text-lg text-gray-800">Add List</h3>
+ <h3 className="text-lg text-gray-800">{editingProjectIdInModal ? "Edit List" : "Add List"}</h3>
  {/* Mobile-only close button */}
  <button
  type="button"
  onClick={() => {
- setIsAddingProject(false);
-
- setNewProjectName('');
- }}
+    setIsProjectModalOpen(false);
+    setEditingProjectIdInModal(null);
+    setNewProjectName('');
+  }}
  className="md:hidden text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-150"
  >
  <X className="w-5 h-5" />
@@ -3816,23 +3970,23 @@ export default function WorkspaceApp() {
  />
  <button
  type="button"
- onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+ onClick={() => setActiveEmojiPicker(activeEmojiPicker === "project" ? null : "project")}
  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
  >
  <Smile className="w-4 h-4" />
- </button>
- <AnimatePresence>
- {showEmojiPicker && (
+                          </button>
+                          <AnimatePresence>
+                            {activeEmojiPicker === "project" && (
  <motion.div
  initial={{ opacity: 0, scale: 0.95 }}
  animate={{ opacity: 1, scale: 1 }}
  exit={{ opacity: 0, scale: 0.95 }}
- className="absolute right-0 top-full mt-2 z-50 shadow-2xl"
+ className="absolute right-0 top-full mt-2 z-[150] shadow-2xl"
  >
  <EmojiPicker
  onEmojiClick={(emojiData) => {
- setNewProjectName(prev => prev + emojiData.emoji);
- setShowEmojiPicker(false);
+ setNewProjectName(prev => emojiData.emoji + " " + prev);
+                                  setActiveEmojiPicker(null);
  }}
  width={280}
  height={350}
@@ -3926,7 +4080,7 @@ export default function WorkspaceApp() {
  <span className="text-xs font-medium text-gray-500 w-24 shrink-0">Folder</span>
  {!isCreatingFolderInModal ? (
  <div className="flex-1 max-w-[280px]">
- <div className="relative flex-1 max-w-[280px] group">
+ <div className="relative flex-1 max-w-[280px] group z-[60]">
  <CustomSelect
  value={listFolderId}
  onChange={(val) => {
@@ -3972,23 +4126,23 @@ export default function WorkspaceApp() {
  />
  <button
  type="button"
- onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+ onClick={() => setActiveEmojiPicker(activeEmojiPicker === "modal-folder" ? null : "modal-folder")}
  className="absolute right-[90px] xl:right-24 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
  >
  <Smile className="w-3.5 h-3.5" />
- </button>
- <AnimatePresence>
- {showEmojiPicker && (
+                              </button>
+                              <AnimatePresence>
+                                {activeEmojiPicker === "modal-folder" && (
  <motion.div
  initial={{ opacity: 0, scale: 0.95 }}
  animate={{ opacity: 1, scale: 1 }}
  exit={{ opacity: 0, scale: 0.95 }}
- className="absolute left-0 top-full mt-2 z-50 shadow-2xl"
+ className="absolute left-0 top-full mt-2 z-[150] shadow-2xl"
  >
  <EmojiPicker
  onEmojiClick={(emojiData) => {
- setNewFolderNameInModal(prev => prev + emojiData.emoji);
- setShowEmojiPicker(false);
+ setNewFolderNameInModal(prev => emojiData.emoji + " " + prev);
+                                      setActiveEmojiPicker(null);
  }}
  width={280}
  height={350}
@@ -4026,7 +4180,7 @@ export default function WorkspaceApp() {
  {/* List Type row */}
  <div className="flex items-center space-x-4">
  <span className="text-xs font-medium text-gray-500 w-24 shrink-0">List Type</span>
- <div className="relative flex-1 max-w-[280px] group">
+ <div className="relative flex-1 max-w-[280px] group z-[50]">
  <CustomSelect
  value={listType}
  onChange={(val) => setListType(val as 'task' | 'note')}
@@ -4042,7 +4196,7 @@ export default function WorkspaceApp() {
  {/* Show in Smart List row */}
  <div className="flex items-center space-x-4">
  <span className="text-xs font-medium text-gray-500 w-24 shrink-0">Show in Smart List</span>
- <div className="relative flex-1 max-w-[280px] group">
+ <div className="relative flex-1 max-w-[280px] group z-[40]">
  <CustomSelect
  value={listSmartOption}
  onChange={(val) => setListSmartOption(val as 'all' | 'none')}
@@ -4061,10 +4215,10 @@ export default function WorkspaceApp() {
  <button
  type="button"
  onClick={() => {
- setIsAddingProject(false);
-
- setNewProjectName('');
- }}
+    setIsProjectModalOpen(false);
+    setEditingProjectIdInModal(null);
+    setNewProjectName('');
+  }}
  className="px-6 py-2 border border-gray-250 hover:bg-gray-50 text-gray-600 rounded-xl text-xs shadow-sm transition-all"
  >
  Cancel
@@ -4073,23 +4227,32 @@ export default function WorkspaceApp() {
  type="button"
  disabled={!newProjectName.trim()}
  onClick={async () => {
- if (newProjectName.trim() && auth.currentUser) {
- const targetFolder = listFolderId === 'none' ? null : listFolderId;
- const sections = [];
- await todoService.createProject(
- newProjectName.trim(), 
- listColor, 
- auth.currentUser.uid, 
- 'Hash', // Use standard bullet or Hash or List icon as key
- targetFolder,
- listViewType,
- sections
- );
- setNewProjectName('');
-
- setIsAddingProject(false);
- }
- }}
+    if (newProjectName.trim() && auth.currentUser) {
+      const targetFolder = listFolderId === 'none' ? null : listFolderId;
+      const sections = [];
+      if (editingProjectIdInModal) {
+        await todoService.updateProject(editingProjectIdInModal, {
+          name: newProjectName.trim(),
+          color: listColor,
+          folderId: targetFolder,
+          viewType: listViewType as any
+        });
+      } else {
+        await todoService.createProject(
+          newProjectName.trim(), 
+          listColor, 
+          auth.currentUser.uid, 
+          'Hash', 
+          targetFolder,
+          listViewType as any,
+          sections
+        );
+      }
+      setNewProjectName('');
+      setEditingProjectIdInModal(null);
+      setIsProjectModalOpen(false);
+    }
+  }}
  className="px-6 py-2 text-white bg-primary hover:bg-primary hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none rounded-xl text-xs shadow-md shadow-primary/10 transition-all cursor-pointer"
  >
  Add
@@ -4097,106 +4260,10 @@ export default function WorkspaceApp() {
  </div>
  </div>
 
- {/* Right Panel: Stunning Interactive Mock Preview */}
- <div className="w-[350px] bg-[#f4f6fc] p-6 hidden md:flex flex-col relative justify-center border-l border-gray-100 select-none">
- {/* Desktop close X icon top-right */}
- <button
- type="button"
- onClick={() => {
- setIsAddingProject(false);
-
- setNewProjectName('');
- }}
- className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-white transition-colors"
- >
- <X className="w-5 h-5" />
- </button>
-
- {/* Simulated App Screen Preview Container */}
- <div className="bg-white rounded-2xl w-full p-5 shadow-xl border border-blue-50/20 text-left min-h-[360px] flex flex-col justify-between">
- <div>
- {/* Simulated Header Line */}
- <div className="flex items-center justify-between pb-3 border-b border-gray-100 mb-4 animate-pulse">
- <div className="flex items-center space-x-2">
- {/* Dynamic Bullet with selected project color */}
- <div 
- className="w-3.5 h-3.5 rounded-full shrink-0 transition-all duration-300"
- style={{ background: listColor }}
- />
- <span className="text-sm text-gray-800 tracking-tight block max-w-[150px] truncate animate-fade-in">
- {newProjectName.trim() || 'Name'}
- </span>
- </div>
- {/* Dummy options list indicators */}
- <div className="flex items-center space-x-1">
- <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
- <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
- <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
- </div>
- </div>
-
- {/* Subtitle group 1 mockup */}
- <div className="mb-4">
- <div className="flex items-center space-x-1.5 text-xs font-medium text-gray-300 uppercase tracking-widest mb-2.5">
- <span>Countdown</span>
- <span className="text-xs bg-gray-100 font-medium px-1 rounded">1</span>
- </div>
- <div className="flex items-center justify-between py-2 border-b border-gray-50/60 pl-1">
- <div className="flex items-center space-x-2">
- <div className="w-4 h-4 rounded-full border border-gray-200 bg-gray-50 flex items-center justify-center">
- <div className="w-1.5 h-1.5 rounded-full animate-ping" style={{ background: listColor }} />
- </div>
- <div className="h-2 bg-gray-250 rounded w-28" />
- </div>
- {/* Live indicator today */}
- <span 
- className="text-xs font-medium px-1.5 py-0.2 rounded-full"
- style={{ background: `${listColor}1a`, color: listColor }}
- >
- Today
- </span>
- </div>
- </div>
-
- {/* Subtitle group 2 mockup */}
- <div>
- <div className="flex items-center space-x-1.5 text-xs font-medium text-gray-300 uppercase tracking-widest mb-2.5">
- <span>Active tasks</span>
- <span className="text-xs bg-gray-100 font-medium px-1 rounded">2</span>
- </div>
- 
- {/* Dummy item row 1 */}
- <div className="flex items-center space-x-2 py-2 border-b border-gray-50/60 pl-1">
- <div 
- className="w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center transition-all duration-300 shrink-0" 
- style={{ borderColor: listColor }}
- >
- <div className="w-2 h-2 rounded-full transition-all duration-300" style={{ background: listColor }} />
- </div>
- <div className="h-2 bg-gray-200 rounded w-24" />
- </div>
-
- {/* Dummy item row 2 */}
- <div className="flex items-center space-x-2 py-2 border-b border-gray-50/60 pl-1">
- <div 
- className="w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center transition-all duration-300 shrink-0" 
- style={{ borderColor: listColor }}
- />
- <div className="h-2 bg-gray-100 rounded w-40" />
- </div>
- </div>
- </div>
-
- {/* Bottom mockup info text */}
- <div className="text-xs text-gray-400 font-medium text-center border-t border-gray-50 pt-2.5 italic">
- {listType === 'task' ? '☑ Task list type layout' : '❏ Note list type layout'} showing in {listViewType === 'list' ? 'sequential list' : listViewType === 'kanban' ? 'columns board' : 'gantt charts'} format.
- </div>
- </div>
- </div>
- </motion.div>
- </div>
- )}
- </AnimatePresence>
+           </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
 
  {/* Confirm Dialog */}
  <AnimatePresence>
