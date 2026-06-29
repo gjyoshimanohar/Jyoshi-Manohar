@@ -8,9 +8,10 @@ import {
  Flame, HelpCircle, RefreshCw, Bell, Award, Sparkles, FolderOpen,
  Milestone, BookOpen, Smile, Play, Volume2, ShieldCheck, Target,
  GraduationCap, ArrowUpDown, Hourglass, Lightbulb, Minimize2, Maximize2,
- Settings, FileSpreadsheet, Download, Lock
+ Settings, FileSpreadsheet, Download, Lock, ListTodo, LayoutGrid
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
+import { FileText } from 'lucide-react';
 import { Todo, Project, Folder as FolderType } from '../types';
 import { auth } from '../lib/firebase';
 import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears } from 'date-fns';
@@ -389,12 +390,15 @@ export default function WorkspaceApp() {
  const [isAddingTask, setIsAddingTask] = useState(false);
  const [newTaskTitle, setNewTaskTitle] = useState('');
  const [newTaskDesc, setNewTaskDesc] = useState('');
+ const [newTaskSubtasks, setNewTaskSubtasks] = useState<string[]>([]);
  const [newTaskProject, setNewTaskProject] = useState<string>('inbox');
  const [newTaskPriority, setNewTaskPriority] = useState<number>(4);
  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>(undefined);
  const [newTaskDeadline, setNewTaskDeadline] = useState<Date | undefined>(undefined);
  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [newTaskRepeatInterval, setNewTaskRepeatInterval] = useState<'daily' | 'weekly' | 'monthly' | null>(null);
+ const [showNotesField, setShowNotesField] = useState(false);
+ const [showSubtasksField, setShowSubtasksField] = useState(false);
+  const [newTaskRepeatInterval, setNewTaskRepeatInterval] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null>(null);
   const [showRepeatPicker, setShowRepeatPicker] = useState(false);
  const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
  const [showProjectPicker, setShowProjectPicker] = useState(false);
@@ -424,6 +428,7 @@ export default function WorkspaceApp() {
  const [activeAddingSection, setActiveAddingSection] = useState<string | null>(null);
  const [newTaskTitleInline, setNewTaskTitleInline] = useState('');
  const [newTaskDescInline, setNewTaskDescInline] = useState('');
+ const [newTaskSubtasksInline, setNewTaskSubtasksInline] = useState<string[]>([]);
  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
  const [draggingOverSection, setDraggingOverSection] = useState<string | null>(null);
 
@@ -753,6 +758,7 @@ export default function WorkspaceApp() {
  await todoService.createTodo({
  title: cleanedTitle,
  description: newTaskDesc.trim(),
+ subtasks: newTaskSubtasks.length > 0 ? newTaskSubtasks.map(t => ({ id: Math.random().toString(), title: t, completed: false })) : undefined,
  userId: auth.currentUser.uid,
  completed: false,
  projectId: targetProjectId,
@@ -770,11 +776,14 @@ export default function WorkspaceApp() {
  // Reset task creator state values
  setNewTaskTitle('');
  setNewTaskDesc('');
+ setNewTaskSubtasks([]);
  setNewTaskPriority(4);
       setNewTaskRepeatInterval(null);
  setNewTaskDueDate(undefined);
  setShowDatePicker(false);
  setShowPriorityPicker(false);
+ setShowNotesField(false);
+ setShowSubtasksField(false);
  };
 
  const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
@@ -869,7 +878,19 @@ export default function WorkspaceApp() {
  nextDate = addMonths(nextDate, 1);
  }
 
- if (auth.currentUser) {
+ const nextDueDateTimestamp = startOfDay(nextDate).getTime();
+
+ // Avoid duplicate repeating tasks if tomorrow/future repeat task is already scheduled
+ const isAlreadyScheduled = todos.some(t => 
+ !t.completed && 
+ !t.deletedAt && 
+ t.title.trim().toLowerCase() === todo.title.trim().toLowerCase() && 
+ t.projectId === todo.projectId && 
+ t.repeatInterval === todo.repeatInterval && 
+ t.dueDate && startOfDay(new Date(t.dueDate)).getTime() === nextDueDateTimestamp
+ );
+
+ if (!isAlreadyScheduled && auth.currentUser) {
  await todoService.createTodo({
  title: todo.title,
  description: todo.description,
@@ -877,7 +898,7 @@ export default function WorkspaceApp() {
  completed: false,
  projectId: todo.projectId,
  priority: todo.priority || 4,
- dueDate: startOfDay(nextDate).getTime(),
+ dueDate: nextDueDateTimestamp,
  deadline: todo.deadline,
  tags: todo.tags,
  sectionName: todo.sectionName,
@@ -949,7 +970,7 @@ export default function WorkspaceApp() {
  }
  };
 
- const handleAddTaskToSection = async (sectionName: string, titleStr: string, tagsStr: string = '', descStr: string = '') => {
+ const handleAddTaskToSection = async (sectionName: string, titleStr: string, tagsStr: string = '', descStr: string = '', subtasksArr: string[] = []) => {
  if (!titleStr.trim() || !auth.currentUser || !selectedProjectId) return;
  
  const tagsArray = tagsStr.trim()
@@ -959,6 +980,7 @@ export default function WorkspaceApp() {
  await todoService.createTodo({
  title: titleStr.trim(),
  description: descStr.trim() || undefined,
+ subtasks: subtasksArr.length > 0 ? subtasksArr.map(t => ({ id: Math.random().toString(), title: t, completed: false })) : undefined,
  userId: auth.currentUser.uid,
  completed: false,
  projectId: selectedProjectId,
@@ -1145,6 +1167,10 @@ export default function WorkspaceApp() {
  return (a.priority || 4) - (b.priority || 4);
  }
  });
+
+ const currentViewType = (viewMode === 'project' && selectedProjectId)
+   ? (projects.find(p => p.id === selectedProjectId)?.viewType || 'list')
+   : listViewType;
 
  const getViewTitle = () => {
  switch (viewMode) {
@@ -1884,36 +1910,7 @@ export default function WorkspaceApp() {
  )}
  </div>
 
- {/* mini pomo button */}
- <div className="relative shrink-0 select-none">
- <button 
- onClick={() => setIsTimerOpen(!isTimerOpen)}
- className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${timerRunning ? 'border-red-500 bg-red-50 text-red-600' : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-600'}`}
- >
- <Clock className="w-3.5 h-3.5" />
- <span className="font-mono">
- {String(Math.floor(timeRemaining / 60)).padStart(2, '0')}:{String(timeRemaining % 60).padStart(2, '0')}
- </span>
- </button>
- {isTimerOpen && (
- <div className="absolute top-10 right-0 w-60 bg-white rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border-none p-4.5 z-50">
- <h4 className="text-xs font-medium text-gray-800 mb-2 border-b pb-1.5 uppercase tracking-wider block">Task Timer</h4>
- <div className="flex justify-center mb-4 mt-2">
- <span className="text-3xl font-light font-mono text-gray-800 tabular-nums">
- {String(Math.floor(timeRemaining / 60)).padStart(2, '0')}:{String(timeRemaining % 60).padStart(2, '0')}
- </span>
- </div>
- <div className="grid grid-cols-2 gap-2">
- <button onClick={() => setTimerRunning(!timerRunning)} className="py-1 px-2.5 rounded text-xs font-medium bg-primary text-white">
- {timerRunning ? 'Pause' : 'Start'}
- </button>
- <button onClick={() => { setTimerRunning(false); setTimeRemaining(25 * 60); }} className="py-1 px-2.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
- Reset
- </button>
- </div>
- </div>
- )}
- </div>
+
  </>
  )}
 
@@ -1942,14 +1939,47 @@ export default function WorkspaceApp() {
  </button>
 
  
-        {/* Progress trigger mini button */}
-        <button 
-          onClick={() => { setIsProgressBannerExpanded(!isProgressBannerExpanded); setIsHeaderMenuOpen(false); setShowSmartTips(false); }}
-          className={`p-1.5 border hover:bg-gray-50 text-gray-650 rounded-lg shadow-sm transition-all ${isProgressBannerExpanded ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'border-gray-200 bg-white'}`}
-          title="View Progress Popup"
-        >
-          <Target className="w-4 h-4" />
-        </button>
+        {/* View options switcher (replacing Progress trigger button) */}
+        {activeAppTab === 'tasks' && (
+          <div className="flex items-center bg-gray-100/80 border border-gray-200 rounded-lg p-0.5 shadow-sm">
+            <button
+              onClick={async () => {
+                if (viewMode === 'project' && selectedProjectId) {
+                  await todoService.updateProject(selectedProjectId, { viewType: 'list' });
+                } else {
+                  setListViewType('list');
+                }
+              }}
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                currentViewType === 'list'
+                  ? 'bg-white border border-gray-200/50 text-[#1a2b58] shadow-sm'
+                  : 'border border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+              title="Sequential List View"
+            >
+              <ListTodo className="w-3.5 h-3.5" />
+              <span>List</span>
+            </button>
+            <button
+              onClick={async () => {
+                if (viewMode === 'project' && selectedProjectId) {
+                  await todoService.updateProject(selectedProjectId, { viewType: 'kanban' });
+                } else {
+                  setListViewType('kanban');
+                }
+              }}
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                currentViewType === 'kanban'
+                  ? 'bg-white border border-gray-200/50 text-[#1a2b58] shadow-sm'
+                  : 'border border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+              title="Kanban Board View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Kanban</span>
+            </button>
+          </div>
+        )}
 
 {/* Sync trigger mini button */}
  <button 
@@ -1973,6 +2003,13 @@ export default function WorkspaceApp() {
  {isHeaderMenuOpen && (
  <div className="absolute top-8 right-0 w-52 bg-white border-none rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 z-50 text-left scale-95 origin-top-right transition-transform animate-in fade-in duration-100">
  <div className="text-xs uppercase tracking-wider text-gray-400 px-2 py-1 border-b mb-1">List operations</div>
+ <button 
+ onClick={() => { setIsProgressBannerExpanded(!isProgressBannerExpanded); setIsHeaderMenuOpen(false); }}
+ className="w-full text-left text-xs p-2 text-gray-700 hover:bg-gray-50 flex items-center rounded-lg"
+ >
+ <Target className="w-3.5 h-3.5 mr-2 text-gray-500" />
+ {isProgressBannerExpanded ? 'Hide progress tracker' : 'Show progress tracker'}
+ </button>
  <button 
  onClick={() => { handleTriggerSync(); setIsHeaderMenuOpen(false); }}
  className="w-full text-left text-xs p-2 text-gray-700 hover:bg-gray-50 flex items-center rounded-lg"
@@ -2215,11 +2252,11 @@ export default function WorkspaceApp() {
  <div className="w-full">
     
 
- {(viewMode === 'project' && projects.find(p => p.id === selectedProjectId)?.viewType === 'kanban') ? (
+ {currentViewType === 'kanban' ? (
  <div className="w-full">
  {/* ELEGANT TAGS/LABELS FILTER BAR FOR ORGANIZATIONAL FILTERING */}
  {(() => {
- const projectTodos = todos.filter(t => t.projectId === selectedProjectId && !t.deletedAt);
+ const projectTodos = allActiveViewTodos.filter(t => !t.deletedAt);
  const uniqueProjectTags = Array.from(new Set(projectTodos.flatMap(t => t.tags || [])));
  
  if (uniqueProjectTags.length === 0) return null;
@@ -2492,10 +2529,11 @@ export default function WorkspaceApp() {
  onChange={(e) => setNewTaskTitleInline(e.target.value)}
  onKeyDown={async (e) => {
  if (e.key === 'Enter' && newTaskTitleInline.trim()) {
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline, newTaskSubtasksInline);
  setNewTaskTitleInline('');
  setNewTaskTagsInline('');
  setNewTaskDescInline('');
+ setNewTaskSubtasksInline([]);
  setActiveAddingSection(null);
  } else if (e.key === 'Escape') {
  setActiveAddingSection(null);
@@ -2512,10 +2550,11 @@ export default function WorkspaceApp() {
  onKeyDown={async (e) => {
  if (e.key === 'Enter' && !e.shiftKey && newTaskTitleInline.trim()) {
  e.preventDefault();
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline, newTaskSubtasksInline);
  setNewTaskTitleInline('');
  setNewTaskTagsInline('');
  setNewTaskDescInline('');
+ setNewTaskSubtasksInline([]);
  setActiveAddingSection(null);
  } else if (e.key === 'Escape') {
  setActiveAddingSection(null);
@@ -2523,6 +2562,34 @@ export default function WorkspaceApp() {
  }}
  className="w-full text-xs font-medium border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400 mt-1.5 resize-none"
  />
+ {newTaskSubtasksInline.length > 0 && (
+ <div className="mt-1 space-y-1">
+ {newTaskSubtasksInline.map((st, i) => (
+ <div key={i} className="flex items-center gap-1.5 text-xs text-gray-600 bg-gray-50/50 p-1 rounded-md px-2 border border-gray-100">
+ <div className="w-3 h-3 border border-gray-300 rounded-sm shrink-0" />
+ <span className="flex-1 truncate">{st}</span>
+ <button type="button" onClick={() => setNewTaskSubtasksInline(prev => prev.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-red-500 transition-colors">
+ <X className="w-3 h-3" />
+ </button>
+ </div>
+ ))}
+ </div>
+ )}
+ <div className="flex items-center gap-1.5 mt-1 border border-gray-100 bg-gray-50/50 rounded-lg p-2 focus-within:border-blue-400 transition-colors">
+ <Plus className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+ <input
+ type="text"
+ placeholder="Add subtask... (Press Enter)"
+ className="text-xs font-medium bg-transparent outline-none text-black placeholder:text-gray-400 w-full"
+ onKeyDown={(e) => {
+ if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+ e.preventDefault();
+ setNewTaskSubtasksInline([...newTaskSubtasksInline, e.currentTarget.value.trim()]);
+ e.currentTarget.value = '';
+ }
+ }}
+ />
+ </div>
  <input
  type="text"
  placeholder="Labels / Sub-categories (comma-sep)"
@@ -2530,10 +2597,11 @@ export default function WorkspaceApp() {
  onChange={(e) => setNewTaskTagsInline(e.target.value)}
  onKeyDown={async (e) => {
  if (e.key === 'Enter' && newTaskTitleInline.trim()) {
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline, newTaskSubtasksInline);
  setNewTaskTitleInline('');
  setNewTaskTagsInline('');
  setNewTaskDescInline('');
+ setNewTaskSubtasksInline([]);
  setActiveAddingSection(null);
  } else if (e.key === 'Escape') {
  setActiveAddingSection(null);
@@ -2547,6 +2615,7 @@ export default function WorkspaceApp() {
  setActiveAddingSection(null);
  setNewTaskTagsInline('');
  setNewTaskDescInline('');
+ setNewTaskSubtasksInline([]);
  }}
  className="text-xs text-gray-500 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg font-medium"
  >
@@ -2555,10 +2624,11 @@ export default function WorkspaceApp() {
  <button
  onClick={async () => {
  if (newTaskTitleInline.trim()) {
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline, newTaskSubtasksInline);
  setNewTaskTitleInline('');
  setNewTaskTagsInline('');
  setNewTaskDescInline('');
+ setNewTaskSubtasksInline([]);
  setActiveAddingSection(null);
  }
  }}
@@ -2596,10 +2666,16 @@ export default function WorkspaceApp() {
  setDraggingOverSection(null);
  }}
  >
- <div className={`text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 w-max mb-1.5 rounded-sm ${prio.borderLeft} ${prio.text}`}>
- {prio.label}
+ <div className={`flex items-center justify-between px-2.5 py-1.5 w-full mb-2 rounded-md border ${prio.borderLeft} bg-white shadow-sm ${prio.text}`}>
+ <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-widest">
+ <span className={`w-1.5 h-1.5 rounded-full ${prio.text.replace('text-', 'bg-')}`} />
+ <span>{prio.label}</span>
  </div>
- <div className={`space-y-3 flex-1 p-1 -mx-1 min-h-[10px] rounded-xl transition-all duration-200 ${draggingOverSection === sectionName + '-' + prio.level ? 'bg-blue-50/60 border-2 border-dashed border-blue-300' : 'border-2 border-transparent'}`}>
+ <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-500 border border-gray-100">
+ {prioTasks.length}
+ </span>
+ </div>
+ <div className={`space-y-2.5 flex-1 p-2 -mx-1 min-h-[40px] rounded-xl transition-all duration-200 ${draggingOverSection === sectionName + '-' + prio.level ? 'bg-blue-50 border-2 border-dashed border-blue-300' : 'bg-gray-50/30 border border-gray-100'}`}>
  {prioTasks.map((todo) => {
  // Priority specific border and hover styles to replicate circular checkboxes perfectly
  let borderPrio = "border-gray-300 hover:border-primary";
@@ -2620,7 +2696,7 @@ export default function WorkspaceApp() {
  key={todo.id}
  layoutId={todo.id}
  draggable
- onDragStart={(e) => {
+ onDragStart={(e: any) => {
  e.dataTransfer.setData("text/plain", todo.id);
  }}
  className={`bg-white rounded-2xl border border-gray-100 p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all cursor-grab active:cursor-grabbing text-left flex flex-col gap-1.5 group select-none relative duration-100 ${
@@ -2651,6 +2727,27 @@ export default function WorkspaceApp() {
  <p className="text-base text-gray-400 font-medium leading-relaxed mt-0.5 line-clamp-2">
  {todo.description}
  </p>
+ )}
+ {todo.subtasks && todo.subtasks.length > 0 && (
+ <div className="mt-2 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+ {todo.subtasks.map(subtask => (
+ <div key={subtask.id} className="flex items-center gap-1.5 group/subtask">
+ <button
+ type="button"
+ onClick={() => {
+ const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
+ todoService.updateTodo(todo.id, { subtasks: next });
+ }}
+ className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
+ >
+ {subtask.completed && <Check className="w-2.5 h-2.5" />}
+ </button>
+ <span className={`text-[11px] flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+ {subtask.title}
+ </span>
+ </div>
+ ))}
+ </div>
  )}
  </div>
 
@@ -2691,7 +2788,11 @@ export default function WorkspaceApp() {
  </motion.div>
  );
  })}
- {prioTasks.length === 0 && <div className="text-transparent py-2 select-none pointer-events-none"></div>}
+ {prioTasks.length === 0 && (
+ <div className="h-full flex items-center justify-center text-[10px] text-gray-300 font-medium py-3 select-none pointer-events-none opacity-0 group-hover/swim:opacity-100 transition-opacity">
+ Drop to {prio.label.split(' ')[0]}
+ </div>
+ )}
  </div>
  </div>
  )
@@ -2894,19 +2995,6 @@ export default function WorkspaceApp() {
  </motion.div>
  )}
  </AnimatePresence>
- <textarea
- rows={2}
- placeholder="Add detailed notes or description (optional)"
- value={newTaskDesc}
- onChange={(e) => setNewTaskDesc(e.target.value)}
- onKeyDown={(e) => {
- if (e.key === 'Enter' && !e.shiftKey && newTaskTitle.trim()) {
- e.preventDefault();
- handleUnifiedQuickAdd(newTaskTitle);
- }
- }}
- className="w-full text-xs bg-transparent outline-none text-gray-500 placeholder:text-gray-400 font-medium resize-none mt-1"
- />
  </div>
  </div>
 
@@ -3035,6 +3123,30 @@ export default function WorkspaceApp() {
  )}
  </AnimatePresence>
  </div>
+
+ {/* 4. Notes Selector */}
+ <div className="relative">
+ <button
+ type="button"
+ onClick={() => { setShowNotesField(!showNotesField); setShowRepeatPicker(false); setShowPriorityPicker(false); setShowDatePicker(false); }}
+ className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${showNotesField || newTaskDesc ? 'bg-primary/5 text-primary border-primary/20 hover:bg-primary/10' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+ >
+ <FileText className={`w-3.5 h-3.5 shrink-0 ${showNotesField || newTaskDesc ? 'text-primary' : 'text-gray-400'}`} />
+ <span>Notes</span>
+ </button>
+ </div>
+
+ {/* 5. Subtasks Selector */}
+ <div className="relative">
+ <button
+ type="button"
+ onClick={() => { setShowSubtasksField(!showSubtasksField); setShowRepeatPicker(false); setShowPriorityPicker(false); setShowDatePicker(false); }}
+ className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${showSubtasksField || newTaskSubtasks.length > 0 ? 'bg-primary/5 text-primary border-primary/20 hover:bg-primary/10' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+ >
+ <ListTodo className={`w-3.5 h-3.5 shrink-0 ${showSubtasksField || newTaskSubtasks.length > 0 ? 'text-primary' : 'text-gray-400'}`} />
+ <span>Subtasks</span>
+ </button>
+ </div>
  </div>
 
  {/* Submit Button */}
@@ -3047,6 +3159,70 @@ export default function WorkspaceApp() {
  <Plus className="w-3.5 h-3.5" />
  <span>Add Task</span>
  </button>
+
+ {/* Collapsible Notes Section */}
+ {(showNotesField || newTaskDesc) && (
+ <div className="w-full mt-3 bg-gray-50/60 border border-gray-100 rounded-xl p-3.5 space-y-2 transition-all text-left animate-in fade-in slide-in-from-top-1 duration-150">
+ <div className="flex items-center gap-1.5 text-gray-400 font-semibold text-[10px] uppercase tracking-widest">
+ <FileText className="w-3.5 h-3.5 text-primary" />
+ <span>Notes</span>
+ </div>
+ 
+ <textarea
+ rows={2}
+ placeholder="Add detailed notes or description (optional)"
+ value={newTaskDesc}
+ onChange={(e) => setNewTaskDesc(e.target.value)}
+ onKeyDown={(e) => {
+ if (e.key === 'Enter' && !e.shiftKey && newTaskTitle.trim()) {
+ e.preventDefault();
+ handleUnifiedQuickAdd(newTaskTitle);
+ }
+ }}
+ className="w-full text-xs bg-white border border-gray-100 rounded-lg p-2 outline-none text-gray-700 placeholder:text-gray-400 font-medium resize-none shadow-[0_1px_2px_rgba(0,0,0,0.01)] focus:border-primary/30"
+ />
+ </div>
+ )}
+
+ {/* Collapsible Subtasks Section */}
+ {(showSubtasksField || newTaskSubtasks.length > 0) && (
+ <div className="w-full mt-3 bg-gray-50/60 border border-gray-100 rounded-xl p-3.5 space-y-3 transition-all text-left animate-in fade-in slide-in-from-top-1 duration-150">
+ <div className="flex items-center gap-1.5 text-gray-400 font-semibold text-[10px] uppercase tracking-widest">
+ <ListTodo className="w-3.5 h-3.5 text-primary" />
+ <span>Subtasks</span>
+ </div>
+ 
+ {newTaskSubtasks.length > 0 && (
+ <div className="space-y-1.5 max-h-36 overflow-y-auto">
+ {newTaskSubtasks.map((st, i) => (
+ <div key={i} className="flex items-center gap-2 text-xs text-gray-700 bg-white p-1.5 rounded-lg px-2.5 border border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.01)]">
+ <div className="w-3.5 h-3.5 border border-gray-300 rounded shrink-0" />
+ <span className="flex-1 truncate">{st}</span>
+ <button type="button" onClick={() => setNewTaskSubtasks(prev => prev.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-red-500 transition-colors">
+ <X className="w-3.5 h-3.5" />
+ </button>
+ </div>
+ ))}
+ </div>
+ )}
+ 
+ <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-2.5 py-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.01)]">
+ <Plus className="w-4 h-4 text-gray-400 shrink-0" />
+ <input
+ type="text"
+ placeholder="Add subtask... (Press Enter)"
+ className="text-xs bg-transparent outline-none text-gray-700 placeholder:text-gray-400 font-medium w-full"
+ onKeyDown={(e) => {
+ if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+ e.preventDefault();
+ setNewTaskSubtasks([...newTaskSubtasks, e.currentTarget.value.trim()]);
+ e.currentTarget.value = '';
+ }
+ }}
+ />
+ </div>
+ </div>
+ )}
  </div>
  </div>
  )}
@@ -3109,7 +3285,7 @@ export default function WorkspaceApp() {
                               )}
                               <span className="truncate flex items-center gap-1">
                                 <CalendarIcon className="w-3 h-3 opacity-70" />
-                                {format(new Date(task.dueDate!), "MMM d, h:mm a")}
+                                {formatCardDate(task.dueDate)}
                               </span>
                             </div>
                           </div>
@@ -3306,6 +3482,27 @@ export default function WorkspaceApp() {
  </span>
  {todo.description && (
  <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
+ )}
+ {todo.subtasks && todo.subtasks.length > 0 && (
+ <div className="mt-1.5 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+ {todo.subtasks.map(subtask => (
+ <div key={subtask.id} className="flex items-center gap-2 group/subtask">
+ <button
+ type="button"
+ onClick={() => {
+ const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
+ todoService.updateTodo(todo.id, { subtasks: next });
+ }}
+ className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
+ >
+ {subtask.completed && <Check className="w-2.5 h-2.5" />}
+ </button>
+ <span className={`text-xs flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+ {subtask.title}
+ </span>
+ </div>
+ ))}
+ </div>
  )}
  </div>
  </div>

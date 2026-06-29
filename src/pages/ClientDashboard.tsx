@@ -403,6 +403,7 @@ export default function ClientDashboard() {
     | "logins"
     | "chat"
     | "clients"
+    | "requests"
   >("applications");
   const [serviceFilter, setServiceFilter] = useState<string>("All");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
