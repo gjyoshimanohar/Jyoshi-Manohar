@@ -14,6 +14,7 @@ export interface BlogPost {
  date: string;
  category: string;
  readTime: string;
+  format?: 'html' | 'markdown';
 }
 
 export interface Subtask {

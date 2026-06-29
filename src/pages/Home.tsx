@@ -106,7 +106,7 @@ export default function Home() {
  </div>
 
  <div className="inline-block bg-white px-6 lg:px-8 py-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/60 transition-all duration-300 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 w-[fit-content]">
- <span className="text-xs uppercase tracking-[0.2em] text-secondary">
+ <span className="text-xs font-bold uppercase tracking-[0.2em] text-secondary">
  Part-time retainers | Freelance projects | Advisory roles | Speaking engagements
  </span>
  </div>

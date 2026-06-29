@@ -5,6 +5,7 @@ import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
 import { BlogPost as IBlogPost } from '../types';
 import { ArrowLeft, Clock, Calendar, Share2, Linkedin, Twitter, Loader2 } from 'lucide-react';
+import Markdown from 'react-markdown';
 import React from 'react';
 
 import 'suneditor/dist/css/suneditor.min.css';
@@ -149,11 +150,17 @@ export default function BlogPost() {
  transition={{ delay: 0.3 }}
  className="prose prose-lg lg:prose-xl prose-slate max-w-none prose-headings: prose-headings:capitalize prose-headings:tracking-tighter prose-a:text-secondary mb-12"
  >
+ {post.format === 'markdown' ? (
+ <div className="markdown-body leading-[1.8] text-black editor-content" style={{ backgroundColor: 'transparent', border: 'none', padding: 0 }}>
+ <Markdown>{post.content}</Markdown>
+ </div>
+ ) : (
  <div 
  className="markdown-body leading-[1.8] text-black editor-content sun-editor-editable"
  style={{ backgroundColor: 'transparent', border: 'none', padding: 0 }}
  dangerouslySetInnerHTML={{ __html: post.content || '<p><em>Content could not be loaded or is empty.</em></p>' }}
  />
+ )}
  </motion.div>
 
  <div className="py-10 border-t border-border">
