@@ -3641,7 +3641,7 @@ Stewardship, Accuracy, Legacy.
             </div>
             {isAdmin && (
               <div
-                className={`flex items-center gap-2 bg-primary text-white px-3 py-1.5 rounded-xl text-sm font-sans tracking-normal shadow-md animate-in fade-in slide-in-from-right-2 duration-300 border border-primary/20 ${!selectedClientId ? "opacity-80" : ""}`}
+                className={`relative z-[60] flex items-center gap-2 bg-primary text-white px-3 py-1.5 rounded-xl text-sm font-sans tracking-normal shadow-md animate-in fade-in slide-in-from-right-2 duration-300 border border-primary/20 ${!selectedClientId ? "opacity-80" : ""}`}
               >
                 <span className="relative flex h-2 w-2 shrink-0">
                   {selectedClientId ? (
