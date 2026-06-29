@@ -41,22 +41,22 @@ export default function BlogList() {
    <meta property="og:description" content="Read expert articles and insights on Indian taxation, corporate compliance, financial auditing, wealth stewardship, and business planning." />
  </Helmet>
  <div className="max-w-7xl mx-auto px-6">
- <header className="mb-16">
+ <header className="mb-8">
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  >
- <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm flex w-max">
+ <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-max">
  <span>Financial Intelligence</span>
  </div>
- <h1 className="text-5xl md:text-[100px] leading-[0.95] text-primary uppercase font-bold tracking-tighter mb-8"><span className="text-3xl md:text-6xl align-baseline mr-1 md:mr-2">THE</span>LEDGER</h1>
+ <h1 className="text-5xl md:text-[100px] leading-[0.95] text-primary uppercase font-bold tracking-tighter mb-4"><span className="text-3xl md:text-6xl align-baseline mr-1 md:mr-2">THE</span>LEDGER</h1>
  <p className="space-y-6 text-base lg:text-base text-black font-medium leading-relaxed text-left max-w-2xl">
  In-depth analysis on the evolving world of finance, tax, and corporate policy.
  </p>
  </motion.div>
  </header>
 
- <div className="flex flex-wrap items-center gap-3 mb-16 border-b border-slate-100 pb-8">
+ <div className="flex flex-wrap items-center gap-3 mb-8 border-b border-slate-100 pb-4">
  {categories.map((cat) => (
  <button
  key={cat}

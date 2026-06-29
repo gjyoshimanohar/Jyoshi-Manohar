@@ -102,19 +102,19 @@ export default function Contact() {
   };
 
   return (
- <section id="contact" className="bg-[#FDFDFD] py-10 lg:py-16">
+ <section id="contact" className="bg-[#FDFDFD] py-5 lg:py-8">
  <div className="max-w-7xl mx-auto px-6 lg:px-12">
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-8">
+ <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-4">
  <div className="flex flex-col justify-between relative">
  <div className="relative z-10">
- <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-base px-4 py-2 rounded-full mb-8 shadow-sm w-max">
+ <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-base px-4 py-2 rounded-full mb-4 shadow-sm w-max">
  Strategic Partnership
  </p>
- <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">
+ <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">
  Ready to <br />
  Secure Your Capital?
  </h2>
- <p className="text-base lg:text-base text-black/70 font-medium leading-relaxed text-justify max-w-sm mb-12">
+ <p className="text-base lg:text-base text-black/70 font-medium leading-relaxed text-justify max-w-sm mb-6">
  Schedule a private session to discuss taxation, audit, or
  corporate strategy.
  </p>

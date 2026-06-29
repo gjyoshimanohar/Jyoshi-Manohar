@@ -101,11 +101,11 @@ export default function BlogPost() {
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
- className="py-12 lg:py-20"
+ className="py-6 lg:py-10"
  >
  <Link 
  to="/blog" 
- className="inline-flex items-center text-xs uppercase tracking-[0.2em] text-black hover:text-primary transition-colors mb-12 group"
+ className="inline-flex items-center text-xs uppercase tracking-[0.2em] text-black hover:text-primary transition-colors mb-6 group"
  >
  <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
  Back to Ledger
@@ -117,11 +117,11 @@ export default function BlogPost() {
  </span>
  </div>
  
- <h1 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-12">
+ <h1 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-2">
  {post.title}
  </h1>
  
- <div className="flex flex-wrap items-center justify-between gap-10 py-10 border-y border-border mb-16">
+ <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-border mb-2">
  <div className="flex items-center space-x-10">
  <div className="flex flex-col">
  <span className="text-xs text-black/50 uppercase tracking-widest mb-1">Published</span>
@@ -147,7 +147,7 @@ export default function BlogPost() {
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  transition={{ delay: 0.3 }}
- className="prose prose-lg lg:prose-xl prose-slate max-w-none prose-headings: prose-headings:capitalize prose-headings:tracking-tighter prose-a:text-secondary mb-24"
+ className="prose prose-lg lg:prose-xl prose-slate max-w-none prose-headings: prose-headings:capitalize prose-headings:tracking-tighter prose-a:text-secondary mb-12"
  >
  <div 
  className="markdown-body leading-[1.8] text-black editor-content sun-editor-editable"
@@ -156,7 +156,7 @@ export default function BlogPost() {
  />
  </motion.div>
 
- <div className="py-20 border-t border-border">
+ <div className="py-10 border-t border-border">
  <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
  <div className="flex items-center space-x-8">
  <div>

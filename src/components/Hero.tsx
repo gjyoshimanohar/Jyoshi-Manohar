@@ -3,7 +3,7 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 
 export default function Hero() {
  return (
- <section className="relative pt-28 pb-16 lg:pt-40 lg:pb-24 overflow-hidden bg-white border-b border-border">
+ <section className="relative pt-14 pb-8 lg:pt-20 lg:pb-12 overflow-hidden bg-white border-b border-border">
  <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-primary/[0.03] -z-0"></div>
  
  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
@@ -14,11 +14,11 @@ export default function Hero() {
  animate={{ opacity: 1, y: 0 }}
  transition={{ duration: 0.6 }}
  >
- <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-[10px] sm:text-xs md:text-sm whitespace-nowrap px-4 py-2 rounded-full mb-8 shadow-sm">
+ <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-[10px] sm:text-xs md:text-sm whitespace-nowrap px-4 py-2 rounded-full mb-4 shadow-sm">
  <span className="w-1.5 h-1.5 rounded-full bg-secondary flex-shrink-0"></span>
  <span className="text-secondary">Startup Consultant, Semi-Qualified Chartered Accountant</span>
  </p>
- <h1 className="text-6xl lg:text-[112px] text-primary leading-[0.9] tracking-tighter mb-8 uppercase">
+ <h1 className="text-6xl lg:text-[112px] text-primary leading-[0.9] tracking-tighter mb-4 uppercase">
  Financial<br />
  Clarity<br />
  <span className="text-[#d0d7e1]">
@@ -27,7 +27,7 @@ export default function Hero() {
  Business.
  </span>
  </h1>
- <p className="text-base lg:text-base text-black font-medium leading-relaxed text-justify mb-10 max-w-lg">
+ <p className="text-base lg:text-base text-black font-medium leading-relaxed text-justify mb-5 max-w-lg">
  Supporting every business and individual with trusted advisory, tax planning, and audit assurance services — no matter where you are in your journey.
  </p>
  
@@ -51,7 +51,7 @@ export default function Hero() {
  initial={{ opacity: 0, x: -20 }}
  animate={{ opacity: 1, x: 0 }}
  transition={{ duration: 0.8, delay: 0.4 }}
- className="mt-20 flex space-x-16"
+ className="mt-10 flex space-x-16"
  >
  <div>
  <div className="text-3xl text-primary mb-1">7+</div>

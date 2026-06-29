@@ -35,17 +35,17 @@ export default function Home() {
  <Hero />
  
  {/* About Section */}
- <section id="about" className="bg-[#FDFDFD] overflow-hidden py-10 lg:py-16">
+ <section id="about" className="bg-[#FDFDFD] overflow-hidden py-5 lg:py-8">
  <div className="max-w-7xl mx-auto px-6 lg:px-12">
  <div className="flex flex-col justify-start">
- <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-8 shadow-sm flex w-max">
+ <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-max">
  <span>The Strategic Partner</span>
  </div>
- <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">
+ <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">
  About Me
  </h2>
  
- <div className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-10">
+ <div className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-5">
  <p>
  I help startup founders and growing businesses simplify finance, taxation, and compliance, so they can focus on building, scaling, and creating long-term value.
  </p>
@@ -61,32 +61,32 @@ export default function Home() {
  </div>
 
  {/* Mission & Vision inline */}
- <div className="flex items-start gap-5 mb-8">
+ <div className="flex items-start gap-4 mb-4">
  <div className="p-4 bg-[#F0F4FF] rounded-2xl shrink-0 border border-blue-100/50 shadow-sm mt-1">
  <Target className="h-6 w-6 text-primary" strokeWidth={2.5} />
  </div>
  <div>
- <h4 className="text-xl font-medium text-primary mb-2">Mission</h4>
+ <h4 className="text-xl font-medium text-primary mb-3">Mission</h4>
  <p className="text-base lg:text-base text-black/80 font-medium leading-relaxed text-justify">
  To provide reliable, practical, and end-to-end financial, taxation, compliance, accounting, payroll, and advisory solutions that reduce business complexity, support informed decision-making, and allow founders and business owners to focus on building and scaling their ventures.
  </p>
  </div>
  </div>
 
- <div className="flex items-start gap-5 mb-12">
+ <div className="flex items-start gap-4 mb-4">
  <div className="p-4 bg-orange-50 rounded-2xl shrink-0 border border-orange-100/50 shadow-sm mt-1">
  <Lightbulb className="h-6 w-6 text-orange-500" strokeWidth={2.5} />
  </div>
  <div>
- <h4 className="text-xl font-medium text-primary mb-2">Vision</h4>
+ <h4 className="text-xl font-medium text-primary mb-3">Vision</h4>
  <p className="text-base lg:text-base text-black/80 font-medium leading-relaxed text-justify">
  To become a trusted finance and compliance partner for startups and growing businesses by enabling them to operate with clarity, confidence, and long-term financial discipline.
  </p>
  </div>
  </div>
 
- <h3 className="text-2xl text-primary mb-6">Professional Journey</h3>
- <div className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-12">
+ <h3 className="text-2xl text-primary mb-3">Professional Journey</h3>
+ <div className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-5">
  <p>
  In addition to my consulting work, I am passionate about professional development and communication within the finance community. As a former Member of the Managing Committee at SICASA Hyderabad, I led the Student Speakers’ Forum, an initiative focused on helping CA students build confidence in public speaking and presentation skills.
  </p>
@@ -98,8 +98,8 @@ export default function Home() {
  </p>
  </div>
 
- <h3 className="text-2xl text-primary mb-6">Let’s Work Together</h3>
- <div className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-8">
+ <h3 className="text-2xl text-primary mb-3">Let’s Work Together</h3>
+ <div className="space-y-6 text-sm lg:text-base text-black font-normal leading-relaxed text-justify mb-5">
  <p>
  Whether you are a startup founder seeking a trusted finance partner, a growing business looking for compliance and advisory support, or an organization looking for a finance speaker, I am open to meaningful collaborations across:
  </p>
@@ -117,10 +117,10 @@ export default function Home() {
  <Services />
 
  {/* Blog Preview Section */}
- <section className="bg-white pb-10">
+ <section className="bg-white pb-5">
  <div className="max-w-7xl mx-auto px-6">
- <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 lg:mb-8 gap-8">
- <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">Insights.</h2>
+ <div className="flex flex-col md:flex-row md:items-end justify-between mb-3 lg:mb-4 gap-4">
+ <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">Insights.</h2>
  <Link 
  to="/blog" 
  className="text-xs uppercase tracking-[0.3em] text-[#FF6B4A] border-b-2 border-[#FF6B4A] pb-1 hover:text-primary hover:border-primary transition-all"

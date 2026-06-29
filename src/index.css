@@ -235,3 +235,16 @@
  padding: 4px 8px;
  position: relative;
 }
+
+
+.sun-editor .se-toolbar {
+  position: sticky !important;
+  top: 80px !important;
+  z-index: 50 !important;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important;
+}
+
+.sun-editor-editable,
+.sun-editor-editable * {
+  font-family: var(--font-sans) !important;
+}

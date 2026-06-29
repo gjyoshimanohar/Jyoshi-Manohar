@@ -377,13 +377,15 @@ export default function Admin() {
  <strong>Document Editor:</strong> Use the MS Word/Google Docs style toolbar to format your content. <br/>
  If you upload an image via the "Upload Image" button above, it will be uploaded to your Firebase Storage and its URL will be appended as an `&lt;img&gt;` tag at the end of the post. You can also paste images directly.
  </div>
- <div className="bg-slate-100 overflow-hidden shadow-inner border border-slate-200">
+ <div className="bg-slate-100 shadow-inner border border-slate-200">
  <SunEditor 
  setContents={editingPost.content || ''}
  onChange={(newContent) => setEditingPost({...editingPost, content: newContent})}
  onImageUploadBefore={handleEditorImageUpload}
  setOptions={{
  minHeight: "600px",
+ stickyToolbar: 80,
+ mode: "classic",
  placeholder: "Start writing your blog here. Use the alignment tools in the toolbar to justify or align text.",
  buttonList: [
  ['undo', 'redo'],

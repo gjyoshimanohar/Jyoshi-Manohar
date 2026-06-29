@@ -5,13 +5,13 @@ import { services } from '../data';
 
 export default function Services() {
  return (
- <section id="services" className="bg-white py-10">
+ <section id="services" className="bg-white py-5">
  <div className="max-w-7xl mx-auto px-6">
- <div className="mb-6 lg:mb-8">
- <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-8">
+ <div className="mb-3 lg:mb-4">
+ <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">
  Strategic Expertise.
  </h2>
- <p className="text-base lg:text-base text-black font-medium leading-relaxed mb-8 max-w-none">
+ <p className="text-base lg:text-base text-black font-medium leading-relaxed mb-4 max-w-none">
  Precision-driven solutions for complex regulatory environments. We provide smart tools, efficient systems, and updated processes.
  </p>
  </div>
@@ -38,7 +38,7 @@ export default function Services() {
  </div>
 
  {IconComponent && (
- <div className="relative z-10 w-fit mb-6">
+ <div className="relative z-10 w-fit mb-3">
  <div className="flex items-center justify-center p-3 h-14 w-14 bg-primary/5 rounded-2xl transition-all duration-500 group-hover:bg-primary">
  <IconComponent 
  className="text-primary transition-all duration-500 group-hover:scale-110 group-hover:-rotate-3 group-hover:text-white" 
@@ -48,7 +48,7 @@ export default function Services() {
  </div>
  )}
 
- <h3 className="relative z-10 text-xl lg:text-2xl font-bold text-primary mb-3 transition-colors duration-500 group-hover:text-secondary">
+ <h3 className="relative z-10 text-xl lg:text-2xl font-bold text-primary mb-2 transition-colors duration-500 group-hover:text-secondary">
  {service.title}
  </h3>
  
