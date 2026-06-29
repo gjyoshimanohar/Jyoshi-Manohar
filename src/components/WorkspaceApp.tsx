@@ -3264,7 +3264,7 @@ export default function WorkspaceApp() {
                         return (
                           <div key={task.id} className="bg-white/80 backdrop-blur border border-white/50 p-3 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between min-h-[72px]" onClick={() => setSelectedTodoId(task.id)}>
                             <div className="flex items-start justify-between gap-2 mb-1.5">
-                              <span className="text-xs font-semibold text-gray-900 truncate leading-tight" title={task.title}>{task.title}</span>
+                              <span className="text-xs font-normal text-gray-900 truncate leading-tight" title={task.title}>{task.title}</span>
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${isOverdue ? 'bg-red-100 text-red-600' : hoursLeft < 24 ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
                                 {isOverdue ? 'Overdue' : hoursLeft === 0 ? '< 1h' : `${hoursLeft}h`}
                               </span>
@@ -3447,100 +3447,214 @@ export default function WorkspaceApp() {
  {isPendingExpanded && (
  <div className="space-y-0.5 border-t border-b border-gray-100/50">
  <AnimatePresence>
- {allActiveViewTodos.filter(t => !t.completed).map(todo => {
- const hasPriority = todo.priority && todo.priority < 4;
- return (
- <motion.div
- key={todo.id}
- initial={{ opacity: 0, scale: 0.99 }}
- animate={{ opacity: 1, scale: 1 }}
- className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
- hasPriority 
- ? todo.priority === 1 
- ? 'border-l-[3px] border-red-500 pl-3' 
- : todo.priority === 2 
- ? 'border-l-[3px] border-orange-400 pl-3' 
- : 'border-l-[3px] border-blue-400 pl-3'
- : ''
- }`}
- >
- <div className="flex items-center min-w-0 flex-1">
- {/* Custom circle checklists circular surrounds matching priorities */}
- <button
- onClick={() => handleToggleTodo(todo)}
- className={`mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full border-2 transition-all ${getPriorityCheckboxStyle(todo.priority)}`}
- title="Mark complete"
- >
- <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity" />
- </button>
+ {viewMode === 'folder' ? (
+    (() => {
+      const folderProjects = projects.filter(p => p.folderId === selectedFolderId);
+      const activeTasks = allActiveViewTodos.filter(t => !t.completed);
 
- <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
- <span className="text-xs sm:text-sm text-[#202020] font-semibold leading-relaxed flex items-center gap-1.5">
- {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
- {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
- {todo.title}
- </span>
- {todo.description && (
- <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
- )}
- {todo.subtasks && todo.subtasks.length > 0 && (
- <div className="mt-1.5 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
- {todo.subtasks.map(subtask => (
- <div key={subtask.id} className="flex items-center gap-2 group/subtask">
- <button
- type="button"
- onClick={() => {
- const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
- todoService.updateTodo(todo.id, { subtasks: next });
- }}
- className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
- >
- {subtask.completed && <Check className="w-2.5 h-2.5" />}
- </button>
- <span className={`text-xs flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
- {subtask.title}
- </span>
- </div>
- ))}
- </div>
- )}
- </div>
- </div>
+      return folderProjects.map(project => {
+        const projectTasks = activeTasks.filter(t => t.projectId === project.id);
+        if (projectTasks.length === 0) return null;
 
- <div className="flex items-center space-x-2.5 shrink-0 pl-2">
- {renderItemProjectBadge(todo)}
+        return (
+          <div key={project.id} className="mb-6 last:mb-2 text-left">
+            <div 
+              className="flex items-center justify-between px-3 py-2 bg-gray-50/70 hover:bg-gray-50/90 rounded-xl mb-2 border border-gray-100/80 transition-all cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+              onClick={() => {
+                setViewMode('project');
+                setSelectedProjectId(project.id);
+                setActiveAppTab('tasks');
+              }}
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: project.color || '#9ca3af' }} />
+                {renderIcon(project.icon, project.color, "w-4 h-4 text-gray-500 shrink-0")}
+                <span className="text-xs font-bold text-gray-800 tracking-tight truncate">{project.name}</span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: `${project.color}15`, color: project.color || '#4B5563' }}>
+                {projectTasks.length} pending
+              </span>
+            </div>
 
- {/* Repeat loop icon / or single calendar icon badges */}
- {viewMode !== 'trash' && (
- <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
- {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : <CalendarIcon className="w-3 h-3 mr-1 opacity-70" />}
- {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'No date'}
- </span>
- )}
+            <div className="pl-3.5 space-y-0.5 border-l-[3px] ml-3 mb-4 text-left" style={{ borderColor: project.color }}>
+              {projectTasks.map(todo => {
+                const hasPriority = todo.priority && todo.priority < 4;
+                return (
+                  <motion.div
+                    key={todo.id}
+                    initial={{ opacity: 0, scale: 0.99 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
+                      hasPriority 
+                        ? todo.priority === 1 
+                          ? 'border-l-[3px] border-red-500 pl-3' 
+                          : todo.priority === 2 
+                            ? 'border-l-[3px] border-orange-400 pl-3' 
+                            : 'border-l-[3px] border-blue-400 pl-3'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-center min-w-0 flex-1">
+                      <button
+                        onClick={() => handleToggleTodo(todo)}
+                        className={`mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full border-2 transition-all ${getPriorityCheckboxStyle(todo.priority)}`}
+                        title="Mark complete"
+                      >
+                        <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity" />
+                      </button>
 
- {/* Fast actions deletion / restore */}
- <div className="flex items-center space-x-1">
- {viewMode === 'trash' && (
- <button
- onClick={(e) => handleRestoreTodo(todo.id, e)}
- className="p-1 px-1.5 opacity-0 group-hover:opacity-100 text-xs font-medium text-green-700 bg-green-50 rounded border border-green-100 hover:bg-green-100 transition-opacity"
- title="Restore task"
- >
- Restore
- </button>
- )}
- <button
- onClick={(e) => handleDeleteTodo(todo.id, e)}
- className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
- title={viewMode === 'trash' ? 'Delete permanently' : 'Trash task'}
- >
- <Trash2 className="w-3.5 h-3.5" />
- </button>
- </div>
- </div>
- </motion.div>
- );
- })}
+                      <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
+                        <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
+                          {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+                          {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+                          {todo.title}
+                        </span>
+                        {todo.description && (
+                          <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
+                        )}
+                        {todo.subtasks && todo.subtasks.length > 0 && (
+                          <div className="mt-1.5 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                            {todo.subtasks.map(subtask => (
+                              <div key={subtask.id} className="flex items-center gap-2 group/subtask">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
+                                    todoService.updateTodo(todo.id, { subtasks: next });
+                                  }}
+                                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
+                                >
+                                  {subtask.completed && <Check className="w-2.5 h-2.5" />}
+                                </button>
+                                <span className={`text-xs flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+                                  {subtask.title}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2.5 shrink-0 pl-2">
+                      {renderItemProjectBadge(todo)}
+
+                      <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
+                        {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : <CalendarIcon className="w-3 h-3 mr-1 opacity-70" />}
+                        {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'No date'}
+                      </span>
+
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={(e) => handleDeleteTodo(todo.id, e)}
+                          className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
+                          title="Trash task"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      });
+    })()
+  ) : (
+    allActiveViewTodos.filter(t => !t.completed).map(todo => {
+      const hasPriority = todo.priority && todo.priority < 4;
+      return (
+        <motion.div
+          key={todo.id}
+          initial={{ opacity: 0, scale: 0.99 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
+            hasPriority 
+              ? todo.priority === 1 
+                ? 'border-l-[3px] border-red-500 pl-3' 
+                : todo.priority === 2 
+                  ? 'border-l-[3px] border-orange-400 pl-3' 
+                  : 'border-l-[3px] border-blue-400 pl-3'
+              : ''
+          }`}
+        >
+          <div className="flex items-center min-w-0 flex-1">
+            <button
+              onClick={() => handleToggleTodo(todo)}
+              className={`mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full border-2 transition-all ${getPriorityCheckboxStyle(todo.priority)}`}
+              title="Mark complete"
+            >
+              <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity" />
+            </button>
+
+            <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
+              <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
+                {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+                {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+                {todo.title}
+              </span>
+              {todo.description && (
+                <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
+              )}
+              {todo.subtasks && todo.subtasks.length > 0 && (
+                <div className="mt-1.5 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                  {todo.subtasks.map(subtask => (
+                    <div key={subtask.id} className="flex items-center gap-2 group/subtask">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
+                          todoService.updateTodo(todo.id, { subtasks: next });
+                        }}
+                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
+                      >
+                        {subtask.completed && <Check className="w-2.5 h-2.5" />}
+                      </button>
+                      <span className={`text-xs flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+                        {subtask.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2.5 shrink-0 pl-2">
+            {renderItemProjectBadge(todo)}
+
+            {viewMode !== 'trash' && (
+              <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
+                {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : <CalendarIcon className="w-3 h-3 mr-1 opacity-70" />}
+                {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'No date'}
+              </span>
+            )}
+
+            <div className="flex items-center space-x-1">
+              {viewMode === 'trash' && (
+                <button
+                  onClick={(e) => handleRestoreTodo(todo.id, e)}
+                  className="p-1 px-1.5 opacity-0 group-hover:opacity-100 text-xs font-medium text-green-700 bg-green-50 rounded border border-green-100 hover:bg-green-100 transition-opacity"
+                  title="Restore task"
+                >
+                  Restore
+                </button>
+              )}
+              <button
+                onClick={(e) => handleDeleteTodo(todo.id, e)}
+                className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
+                title={viewMode === 'trash' ? 'Delete permanently' : 'Trash task'}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      );
+    })
+  )}
  </AnimatePresence>
 
  {allActiveViewTodos.filter(t => !t.completed).length === 0 && (
@@ -3571,48 +3685,125 @@ export default function WorkspaceApp() {
  {isCompletedSectionExpanded && (
  <div className="space-y-0.5 border-t border-b border-gray-100/50">
  <AnimatePresence>
- {allActiveViewTodos.filter(t => t.completed).map(todo => (
- <motion.div
- key={todo.id}
- initial={{ opacity: 0 }}
- animate={{ opacity: 1 }}
- className="group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/40 hover:bg-[#fafafa]/80 transition-colors px-1"
- >
- <div className="flex items-center min-w-0 flex-1">
- {/* Completed checked circle */}
- <button
- onClick={() => handleToggleTodo(todo)}
- className="mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full bg-gray-200 border-2 border-gray-300 text-gray-500 hover:bg-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
- title="Mark active"
- >
- <Check className="w-2.5 h-2.5 text-white" />
- </button>
+ {viewMode === 'folder' ? (
+    (() => {
+      const folderProjects = projects.filter(p => p.folderId === selectedFolderId);
+      const completedTasks = allActiveViewTodos.filter(t => t.completed);
 
- <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
- <span className="text-xs sm:text-sm text-gray-400 line-through font-semibold leading-relaxed truncate block flex items-center gap-1.5">
- {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
- {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
- {todo.title}
- </span>
- </div>
- </div>
+      return folderProjects.map(project => {
+        const projectTasks = completedTasks.filter(t => t.projectId === project.id);
+        if (projectTasks.length === 0) return null;
 
- <div className="flex items-center space-x-2.5 shrink-0 pl-2">
- {renderItemProjectBadge(todo)}
- <span className="text-xs sm:text-xs text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full flex items-center select-none">
- {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : null}
- {formatCardDate(todo.dueDate) || 'No date'}
- </span>
- <button
- onClick={(e) => handleDeleteTodo(todo.id, e)}
- className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity ml-2"
- title="Delete task"
- >
- <Trash2 className="w-3.5 h-3.5" />
- </button>
- </div>
- </motion.div>
- ))}
+        return (
+          <div key={project.id} className="mb-6 last:mb-2 text-left">
+            <div 
+              className="flex items-center justify-between px-3 py-2 bg-gray-50/70 hover:bg-gray-50/90 rounded-xl mb-2 border border-gray-100/80 transition-all cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+              onClick={() => {
+                setViewMode('project');
+                setSelectedProjectId(project.id);
+                setActiveAppTab('tasks');
+              }}
+            >
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: project.color || '#9ca3af' }} />
+                {renderIcon(project.icon, project.color, "w-4 h-4 text-gray-500 shrink-0")}
+                <span className="text-xs font-bold text-gray-800 tracking-tight truncate">{project.name}</span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-600 border border-green-100">
+                {projectTasks.length} completed
+              </span>
+            </div>
+
+            <div className="pl-3.5 space-y-0.5 border-l-[3px] ml-3 mb-4 text-left" style={{ borderColor: project.color }}>
+              {projectTasks.map(todo => (
+                <motion.div
+                  key={todo.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/40 hover:bg-[#fafafa]/80 transition-colors px-1"
+                >
+                  <div className="flex items-center min-w-0 flex-1">
+                    <button
+                      onClick={() => handleToggleTodo(todo)}
+                      className="mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full bg-gray-200 border-2 border-gray-300 text-gray-500 hover:bg-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                      title="Mark active"
+                    >
+                      <Check className="w-2.5 h-2.5 text-white" />
+                    </button>
+
+                    <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
+                      <span className="text-xs sm:text-sm text-gray-400 line-through font-normal leading-relaxed truncate block flex items-center gap-1.5">
+                        {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+                        {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+                        {todo.title}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2.5 shrink-0 pl-2">
+                    {renderItemProjectBadge(todo)}
+                    <span className="text-xs sm:text-xs text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full flex items-center select-none">
+                      {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : null}
+                      {formatCardDate(todo.dueDate) || 'No date'}
+                    </span>
+                    <button
+                      onClick={(e) => handleDeleteTodo(todo.id, e)}
+                      className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity ml-2"
+                      title="Delete task"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        );
+      });
+    })()
+  ) : (
+    allActiveViewTodos.filter(t => t.completed).map(todo => (
+      <motion.div
+        key={todo.id}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/40 hover:bg-[#fafafa]/80 transition-colors px-1"
+      >
+        <div className="flex items-center min-w-0 flex-1">
+          <button
+            onClick={() => handleToggleTodo(todo)}
+            className="mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full bg-gray-200 border-2 border-gray-300 text-gray-500 hover:bg-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+            title="Mark active"
+          >
+            <Check className="w-2.5 h-2.5 text-white" />
+          </button>
+
+          <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
+            <span className="text-xs sm:text-sm text-gray-400 line-through font-normal leading-relaxed truncate block flex items-center gap-1.5">
+              {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+              {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+              {todo.title}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2.5 shrink-0 pl-2">
+          {renderItemProjectBadge(todo)}
+          <span className="text-xs sm:text-xs text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full flex items-center select-none">
+            {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : null}
+            {formatCardDate(todo.dueDate) || 'No date'}
+          </span>
+          <button
+            onClick={(e) => handleDeleteTodo(todo.id, e)}
+            className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity ml-2"
+            title="Delete task"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </motion.div>
+    ))
+  )}
  </AnimatePresence>
 
  {allActiveViewTodos.filter(t => t.completed).length === 0 && (
