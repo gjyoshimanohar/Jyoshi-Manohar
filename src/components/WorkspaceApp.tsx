@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { 
- Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Hash, 
+ Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, 
  MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, 
  CalendarDays, Search, Folder, Briefcase, Code, Map, Music, 
  Camera, Book, Heart, Star, Zap, Circle, BarChart2, Clock, Timer,
@@ -27,7 +27,7 @@ import GuidePopup from './GuidePopup';
 import { determineProjectByTitle } from '../utils/autoCategorize';
 
 const PROJECT_ICONS: Record<string, React.ElementType> = {
- Hash, Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Smile, Circle
+ Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Smile, Circle
 };
 
 const AVAILABLE_ICONS = Object.keys(PROJECT_ICONS);
@@ -52,10 +52,10 @@ const renderIcon = (name: string | undefined | null, defaultColor: string = '#6b
  if (name && name.length <= 4) {
  return <span className={`${className} flex items-center justify-center text-lg leading-none`}>{name}</span>;
  }
- return <Hash className={className} style={{ color: defaultColor }} />;
+ return null;
 };
 
-type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project' | 'trends' | 'completed' | 'trash';
+type ViewMode = 'inbox' | 'today' | 'upcoming' | 'project' | 'folder' | 'trends' | 'completed' | 'trash';
 
 // Helper for safety escaping CSV values
 const escapeCSV = (val: any): string => {
@@ -324,6 +324,7 @@ export default function WorkspaceApp() {
  // Sidebar controls
  const [viewMode, setViewMode] = useState<ViewMode>('today');
  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
  const [isProgressBannerExpanded, setIsProgressBannerExpanded] = useState(false);
  const [dailyTaskGoal, setDailyTaskGoal] = useState<number>(5);
@@ -422,6 +423,7 @@ export default function WorkspaceApp() {
  const [activeSectionMenu, setActiveSectionMenu] = useState<string | null>(null);
  const [activeAddingSection, setActiveAddingSection] = useState<string | null>(null);
  const [newTaskTitleInline, setNewTaskTitleInline] = useState('');
+ const [newTaskDescInline, setNewTaskDescInline] = useState('');
  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
  const [draggingOverSection, setDraggingOverSection] = useState<string | null>(null);
 
@@ -590,6 +592,47 @@ export default function WorkspaceApp() {
  ensureTickTickBootstrap(auth.currentUser.uid);
  }
  }, [loading, projects.length, folders.length, auth.currentUser]);
+
+ // Keep track of tasks we've already notified about in this session
+ const notifiedTaskIds = useRef<Set<string>>(new Set());
+
+ // Ask for notification permission on mount
+ useEffect(() => {
+ if ("Notification" in window && Notification.permission === "default") {
+ Notification.requestPermission().catch(console.error);
+ }
+ }, []);
+
+ // Check for upcoming or reached due dates
+ useEffect(() => {
+ if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+ const checkReminders = () => {
+ const now = Date.now();
+ todos.forEach((todo) => {
+ if (!todo.completed && todo.dueDate && !notifiedTaskIds.current.has(todo.id)) {
+ // Trigger notification if due date is reached or approaching (e.g., within 30 minutes)
+ const timeUntilDue = todo.dueDate - now;
+ // Notify if it's within 30 minutes from now, up to 1 day overdue
+ if (timeUntilDue > -86400000 && timeUntilDue <= 30 * 60 * 1000) {
+ try {
+ new Notification("Task Reminder", {
+ body: `The task "${todo.title}" is due ${timeUntilDue <= 0 ? 'now' : 'soon'}.`,
+ });
+ notifiedTaskIds.current.add(todo.id);
+ } catch (e) {
+ console.error("Error showing notification:", e);
+ }
+ }
+ }
+ });
+ };
+
+ // Check immediately and then every minute
+ checkReminders();
+ const interval = setInterval(checkReminders, 60000);
+ return () => clearInterval(interval);
+ }, [todos]);
 
  const handleLogout = () => signOut(auth);
 
@@ -906,7 +949,7 @@ export default function WorkspaceApp() {
  }
  };
 
- const handleAddTaskToSection = async (sectionName: string, titleStr: string, tagsStr: string = '') => {
+ const handleAddTaskToSection = async (sectionName: string, titleStr: string, tagsStr: string = '', descStr: string = '') => {
  if (!titleStr.trim() || !auth.currentUser || !selectedProjectId) return;
  
  const tagsArray = tagsStr.trim()
@@ -915,6 +958,7 @@ export default function WorkspaceApp() {
  
  await todoService.createTodo({
  title: titleStr.trim(),
+ description: descStr.trim() || undefined,
  userId: auth.currentUser.uid,
  completed: false,
  projectId: selectedProjectId,
@@ -1054,7 +1098,10 @@ export default function WorkspaceApp() {
  return (due && (!isPast(due) || isToday(due))) || (dl && (!isPast(dl) || isToday(dl)));
  });
  case 'project':
- return baseTodos.filter(t => t.projectId === selectedProjectId);
+      return baseTodos.filter(t => t.projectId === selectedProjectId);
+    case 'folder':
+      const folderProjectIds = projects.filter(p => p.folderId === selectedFolderId).map(p => p.id);
+      return baseTodos.filter(t => t.projectId && folderProjectIds.includes(t.projectId));
  case 'completed':
  case 'trash':
  case 'trends':
@@ -1108,15 +1155,25 @@ export default function WorkspaceApp() {
  case 'completed': return 'Completed Tasks';
  case 'trash': return 'Trash';
  case 'project': {
- const p = projects.find(p => p.id === selectedProjectId);
- if (!p) return 'Project';
- return (
- <span className="flex items-center">
- {renderIcon(p.icon, p.color, "w-6 h-6 mr-2")}
- {p.name}
- </span>
- );
- }
+      const p = projects.find(p => p.id === selectedProjectId);
+      if (!p) return 'Project';
+      return (
+        <span className="flex items-center">
+          {renderIcon(p.icon, p.color, "w-6 h-6 mr-2")}
+          {p.name}
+        </span>
+      );
+    }
+    case 'folder': {
+      const f = folders.find(f => f.id === selectedFolderId);
+      if (!f) return 'Folder';
+      return (
+        <span className="flex items-center">
+          <Folder className="w-6 h-6 mr-2 text-primary" />
+          {f.name}
+        </span>
+      );
+    }
  }
  };
 
@@ -1326,10 +1383,19 @@ export default function WorkspaceApp() {
  </form>
  ) : (
  <div className="flex items-center justify-between p-1 rounded group" onDrop={(e) => handleDropToFolder(e, folder.id)} onDragOver={handleDragOver}>
- <div className="flex items-center space-x-1 w-full cursor-pointer" onClick={() => toggleFolder(folder.id)}>
- <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform ${expandedFolders.includes(folder.id) ? '' : '-rotate-90'}`} />
+ <div className="flex items-center space-x-1 w-full cursor-pointer" onClick={() => {
+  setViewMode('folder');
+  setSelectedFolderId(folder.id);
+  setSelectedProjectId(null);
+  setIsAddingTask(false);
+  setActiveAppTab('tasks');
+  if (window.innerWidth < 768) setIsSidebarOpen(false);
+ }}>
+ <div onClick={(e) => { e.stopPropagation(); toggleFolder(folder.id); }} className="p-0.5 hover:bg-gray-200 rounded">
+  <ChevronDown className={`w-3.5 h-3.5 text-gray-400 hover:text-gray-600 shrink-0 transition-transform ${expandedFolders.includes(folder.id) ? '' : '-rotate-90'}`} />
+ </div>
  <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
- <span className="text-xs text-gray-700 font-medium truncate max-w-[120px]">{folder.name}</span>
+ <span className={`text-xs font-medium truncate max-w-[120px] ${viewMode === 'folder' && selectedFolderId === folder.id ? 'text-primary' : 'text-gray-700'}`}>{folder.name}</span>
  {getFolderPendingCount(folder.id) > 0 && (
  <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-1 py-0.2 rounded-full">
  {getFolderPendingCount(folder.id)}
@@ -2149,7 +2215,7 @@ export default function WorkspaceApp() {
  <div className="w-full">
     
 
- {false ? (
+ {(viewMode === 'project' && projects.find(p => p.id === selectedProjectId)?.viewType === 'kanban') ? (
  <div className="w-full">
  {/* ELEGANT TAGS/LABELS FILTER BAR FOR ORGANIZATIONAL FILTERING */}
  {(() => {
@@ -2426,9 +2492,10 @@ export default function WorkspaceApp() {
  onChange={(e) => setNewTaskTitleInline(e.target.value)}
  onKeyDown={async (e) => {
  if (e.key === 'Enter' && newTaskTitleInline.trim()) {
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline);
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
  setNewTaskTitleInline('');
  setNewTaskTagsInline('');
+ setNewTaskDescInline('');
  setActiveAddingSection(null);
  } else if (e.key === 'Escape') {
  setActiveAddingSection(null);
@@ -2437,6 +2504,25 @@ export default function WorkspaceApp() {
  className="w-full text-xs font-medium border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400"
  autoFocus
  />
+ <textarea
+ rows={2}
+ placeholder="Add detailed notes or description (optional)"
+ value={newTaskDescInline}
+ onChange={(e) => setNewTaskDescInline(e.target.value)}
+ onKeyDown={async (e) => {
+ if (e.key === 'Enter' && !e.shiftKey && newTaskTitleInline.trim()) {
+ e.preventDefault();
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
+ setNewTaskTitleInline('');
+ setNewTaskTagsInline('');
+ setNewTaskDescInline('');
+ setActiveAddingSection(null);
+ } else if (e.key === 'Escape') {
+ setActiveAddingSection(null);
+ }
+ }}
+ className="w-full text-xs font-medium border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400 mt-1.5 resize-none"
+ />
  <input
  type="text"
  placeholder="Labels / Sub-categories (comma-sep)"
@@ -2444,9 +2530,10 @@ export default function WorkspaceApp() {
  onChange={(e) => setNewTaskTagsInline(e.target.value)}
  onKeyDown={async (e) => {
  if (e.key === 'Enter' && newTaskTitleInline.trim()) {
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline);
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
  setNewTaskTitleInline('');
  setNewTaskTagsInline('');
+ setNewTaskDescInline('');
  setActiveAddingSection(null);
  } else if (e.key === 'Escape') {
  setActiveAddingSection(null);
@@ -2459,6 +2546,7 @@ export default function WorkspaceApp() {
  onClick={() => {
  setActiveAddingSection(null);
  setNewTaskTagsInline('');
+ setNewTaskDescInline('');
  }}
  className="text-xs text-gray-500 hover:bg-gray-100 px-2.5 py-1.5 rounded-lg font-medium"
  >
@@ -2467,9 +2555,10 @@ export default function WorkspaceApp() {
  <button
  onClick={async () => {
  if (newTaskTitleInline.trim()) {
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline);
+ await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline);
  setNewTaskTitleInline('');
  setNewTaskTagsInline('');
+ setNewTaskDescInline('');
  setActiveAddingSection(null);
  }
  }}
@@ -2769,7 +2858,7 @@ export default function WorkspaceApp() {
  <div className="relative flex-1 space-y-1.5">
  <input
  type="text"
- placeholder={`+ Add task to "${viewMode === 'project' ? (projects.find(p=>p.id===selectedProjectId)?.name || 'Inbox') : 'Inbox'}"... (Press Enter)`}
+ placeholder={`+ Add task to "${viewMode === 'project' ? (projects.find(p=>p.id===selectedProjectId)?.name || 'Inbox') : viewMode === 'folder' ? (folders.find(f=>f.id===selectedFolderId)?.name || 'Folder') : 'Inbox'}"... (Press Enter)`}
  value={newTaskTitle}
  onChange={(e) => { const text = e.target.value; setNewTaskTitle(text); const lower = text.toLowerCase(); if (/(daily|every day)/.test(lower)) setNewTaskRepeatInterval('daily'); else if (/(weekly|every week)/.test(lower)) setNewTaskRepeatInterval('weekly'); else if (/(monthly|every month)/.test(lower)) setNewTaskRepeatInterval('monthly'); else if (/(quarterly|every quarter)/.test(lower)) setNewTaskRepeatInterval('quarterly'); else if (/(yearly|every year|annually)/.test(lower)) setNewTaskRepeatInterval('yearly'); else setNewTaskRepeatInterval(null); }}
  onKeyDown={(e) => {
@@ -2805,17 +2894,18 @@ export default function WorkspaceApp() {
  </motion.div>
  )}
  </AnimatePresence>
- <input
- type="text"
- placeholder="Add note or description (optional)"
+ <textarea
+ rows={2}
+ placeholder="Add detailed notes or description (optional)"
  value={newTaskDesc}
  onChange={(e) => setNewTaskDesc(e.target.value)}
  onKeyDown={(e) => {
- if (e.key === 'Enter' && newTaskTitle.trim()) {
+ if (e.key === 'Enter' && !e.shiftKey && newTaskTitle.trim()) {
+ e.preventDefault();
  handleUnifiedQuickAdd(newTaskTitle);
  }
  }}
- className="w-full text-xs bg-transparent outline-none text-gray-500 placeholder:text-gray-400 font-medium"
+ className="w-full text-xs bg-transparent outline-none text-gray-500 placeholder:text-gray-400 font-medium resize-none mt-1"
  />
  </div>
  </div>
@@ -2962,75 +3052,143 @@ export default function WorkspaceApp() {
  )}
 
  
-          {/* UPCOMING DEADLINES OVERVIEW DASHBOARD */}
+          {/* UPCOMING DEADLINES & PRIORITY DASHBOARD */}
           {viewMode === 'today' && (
-            <div className="mb-6 bg-gradient-to-br from-[#1a2b58]/5 to-transparent border border-[#1a2b58]/10 rounded-2xl p-4 relative overflow-hidden">
-              <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] text-[#1a2b58] pointer-events-none">
-                <Target className="w-40 h-40" />
-              </div>
-              <h3 className="text-sm font-semibold text-[#1a2b58] mb-3 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-orange-500" />
-                Upcoming Deadlines (Next 48 Hours)
-              </h3>
-              {(() => {
-                const now = Date.now();
-                const upcomingDeadlines = todos.filter(t => 
-                  !t.completed && 
-                  !t.deletedAt && 
-                  t.dueDate && 
-                  t.dueDate > now - 12 * 60 * 60 * 1000 && 
-                  t.dueDate <= now + 48 * 60 * 60 * 1000
-                ).sort((a, b) => a.dueDate! - b.dueDate!);
-                
-                if (upcomingDeadlines.length === 0) {
-                  return <p className="text-xs text-gray-500 italic">No pressing deadlines in the next 48 hours.</p>;
-                }
-                
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 relative z-10">
-                    {upcomingDeadlines.slice(0, 6).map(task => {
-                      const proj = projects.find(p => p.id === task.projectId);
-                      const isOverdue = task.dueDate! < now;
-                      const hoursLeft = Math.max(0, Math.floor((task.dueDate! - now) / (1000 * 60 * 60)));
-                      
-                      return (
-                        <div key={task.id} className="bg-white/80 backdrop-blur border border-white/50 p-3 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between min-h-[72px]" onClick={() => setSelectedTodoId(task.id)}>
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <span className="text-xs font-semibold text-gray-900 truncate leading-tight" title={task.title}>{task.title}</span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${isOverdue ? 'bg-red-100 text-red-600' : hoursLeft < 24 ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                              {isOverdue ? 'Overdue' : hoursLeft === 0 ? '< 1h' : `${hoursLeft}h`}
-                            </span>
+            <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Upcoming Deadlines Widget */}
+              <div className="lg:col-span-2 bg-gradient-to-br from-[#1a2b58]/5 to-transparent border border-[#1a2b58]/10 rounded-2xl p-4 relative overflow-hidden">
+                <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] text-[#1a2b58] pointer-events-none">
+                  <Target className="w-40 h-40" />
+                </div>
+                <h3 className="text-sm font-semibold text-[#1a2b58] mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-orange-500" />
+                  Upcoming Deadlines (Next 48 Hours)
+                </h3>
+                {(() => {
+                  const now = Date.now();
+                  const upcomingDeadlines = todos.filter(t => 
+                    !t.completed && 
+                    !t.deletedAt && 
+                    t.dueDate && 
+                    t.dueDate > now - 12 * 60 * 60 * 1000 && 
+                    t.dueDate <= now + 48 * 60 * 60 * 1000
+                  ).sort((a, b) => a.dueDate! - b.dueDate!);
+                  
+                  if (upcomingDeadlines.length === 0) {
+                    return <p className="text-xs text-gray-500 italic relative z-10">No pressing deadlines in the next 48 hours.</p>;
+                  }
+                  
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
+                      {upcomingDeadlines.slice(0, 6).map(task => {
+                        const proj = projects.find(p => p.id === task.projectId);
+                        const isOverdue = task.dueDate! < now;
+                        const hoursLeft = Math.max(0, Math.floor((task.dueDate! - now) / (1000 * 60 * 60)));
+                        
+                        return (
+                          <div key={task.id} className="bg-white/80 backdrop-blur border border-white/50 p-3 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between min-h-[72px]" onClick={() => setSelectedTodoId(task.id)}>
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <span className="text-xs font-semibold text-gray-900 truncate leading-tight" title={task.title}>{task.title}</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${isOverdue ? 'bg-red-100 text-red-600' : hoursLeft < 24 ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
+                                {isOverdue ? 'Overdue' : hoursLeft === 0 ? '< 1h' : `${hoursLeft}h`}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-medium">
+                              {proj ? (
+                                <>
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: proj.color || '#9ca3af' }} />
+                                  <span className="truncate max-w-[80px]" title={proj.name}>{proj.name}</span>
+                                  <span className="text-gray-300">•</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Inbox className="w-3 h-3 shrink-0 text-gray-400" />
+                                  <span>Inbox</span>
+                                  <span className="text-gray-300">•</span>
+                                </>
+                              )}
+                              <span className="truncate flex items-center gap-1">
+                                <CalendarIcon className="w-3 h-3 opacity-70" />
+                                {format(new Date(task.dueDate!), "MMM d, h:mm a")}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-medium">
-                            {proj ? (
-                              <>
-                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: proj.color || '#9ca3af' }} />
-                                <span className="truncate max-w-[80px]" title={proj.name}>{proj.name}</span>
-                                <span className="text-gray-300">•</span>
-                              </>
-                            ) : (
-                              <>
-                                <Inbox className="w-3 h-3 shrink-0 text-gray-400" />
-                                <span>Inbox</span>
-                                <span className="text-gray-300">•</span>
-                              </>
-                            )}
-                            <span className="truncate flex items-center gap-1">
-                              <CalendarIcon className="w-3 h-3 opacity-70" />
-                              {format(new Date(task.dueDate!), "MMM d, h:mm a")}
-                            </span>
-                          </div>
+                        );
+                      })}
+                      {upcomingDeadlines.length > 6 && (
+                        <div className="flex items-center justify-center p-3 rounded-xl border border-dashed border-[#1a2b58]/20 bg-white/30 text-xs font-semibold text-[#1a2b58]/70 hover:text-[#1a2b58] cursor-pointer hover:bg-white/60 transition-colors h-full min-h-[72px]" onClick={() => setViewMode('upcoming')}>
+                          +{upcomingDeadlines.length - 6} more deadlines
                         </div>
-                      );
-                    })}
-                    {upcomingDeadlines.length > 6 && (
-                      <div className="flex items-center justify-center p-3 rounded-xl border border-dashed border-[#1a2b58]/20 bg-white/30 text-xs font-semibold text-[#1a2b58]/70 hover:text-[#1a2b58] cursor-pointer hover:bg-white/60 transition-colors h-full min-h-[72px]" onClick={() => setViewMode('upcoming')}>
-                        +{upcomingDeadlines.length - 6} more deadlines
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Priority Breakdown Widget */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none">
+                  <Flag className="w-32 h-32 text-gray-900" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 relative z-10">
+                    <BarChart2 className="w-4 h-4 text-blue-500" />
+                    Today's Priorities
+                  </h3>
+                  {(() => {
+                    // get todays tasks
+                    const todaysTasks = todos.filter(t => {
+                      if (t.completed || t.deletedAt) return false;
+                      const due = t.dueDate ? new Date(t.dueDate) : null;
+                      const dl = t.deadline ? new Date(t.deadline) : null;
+                      return (due && (isToday(due) || isPast(due))) || (dl && (isToday(dl) || isPast(dl)));
+                    });
+                    
+                    if (todaysTasks.length === 0) {
+                      return <p className="text-xs text-gray-500 italic relative z-10">No active tasks for today.</p>;
+                    }
+                    
+                    const p1Count = todaysTasks.filter(t => t.priority === 1).length;
+                    const p2Count = todaysTasks.filter(t => t.priority === 2).length;
+                    const p3Count = todaysTasks.filter(t => t.priority === 3).length;
+                    const p4Count = todaysTasks.filter(t => !t.priority || t.priority === 4).length;
+                    const totalCount = todaysTasks.length;
+                    
+                    return (
+                      <div className="space-y-3 relative z-10">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 text-[10px] font-bold text-gray-500">P1</div>
+                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-red-500 rounded-full" style={{ width: `${(p1Count / totalCount) * 100}%` }} />
+                          </div>
+                          <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p1Count}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 text-[10px] font-bold text-gray-500">P2</div>
+                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-orange-400 rounded-full" style={{ width: `${(p2Count / totalCount) * 100}%` }} />
+                          </div>
+                          <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p2Count}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 text-[10px] font-bold text-gray-500">P3</div>
+                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(p3Count / totalCount) * 100}%` }} />
+                          </div>
+                          <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p3Count}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 text-[10px] font-bold text-gray-500">P4</div>
+                          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-gray-400 rounded-full" style={{ width: `${(p4Count / totalCount) * 100}%` }} />
+                          </div>
+                          <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p4Count}</div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })()}
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
           )}
 
@@ -4054,6 +4212,15 @@ export default function WorkspaceApp() {
  <Menu className="w-4.5 h-4.5" />
  </button>
 
+ {/* View Kanban Button */}
+ <button
+ type="button"
+ onClick={() => setListViewType('kanban')}
+ className={`p-2.5 border rounded-xl flex items-center justify-center transition-all ${listViewType === 'kanban' ? 'bg-[#ebf3ff]/80 border-[#1a2b58] text-[#1a2b58] shadow-sm' : 'border-gray-200 bg-gray-50/50 text-gray-400 hover:bg-gray-100/50'}`}
+ title="Kanban Board View"
+ >
+ <GripVertical className="w-4.5 h-4.5" />
+ </button>
 
  {/* View Timeline Button (With tiny Sparkles / Crown offset premium crown badge) */}
  <button
@@ -4242,7 +4409,7 @@ export default function WorkspaceApp() {
           newProjectName.trim(), 
           listColor, 
           auth.currentUser.uid, 
-          'Hash', 
+          undefined, 
           targetFolder,
           listViewType as any,
           sections
