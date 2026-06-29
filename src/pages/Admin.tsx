@@ -330,6 +330,7 @@ export default function Admin() {
  </div>
  </div>
  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+ <div className="space-y-8">
  <div>
  <label className="block text-xs uppercase tracking-widest text-black mb-3">Category</label>
  <input
@@ -342,12 +343,35 @@ export default function Admin() {
  />
  </div>
  <div>
+ <label className="block text-xs uppercase tracking-widest text-black mb-3">Post Date</label>
+ <input
+ required
+ type="date"
+ value={(() => {
+ if (!editingPost.date) return '';
+ const d = new Date(editingPost.date);
+ return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+ })()}
+ onChange={e => {
+ const dateVal = e.target.value;
+ if (dateVal) {
+ const formattedDate = new Date(dateVal + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+ setEditingPost({...editingPost, date: formattedDate});
+ } else {
+ setEditingPost({...editingPost, date: ''});
+ }
+ }}
+ className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
+ />
+ </div>
+ </div>
+ <div className="flex flex-col h-full">
  <label className="block text-xs uppercase tracking-widest text-black mb-3">Excerpt</label>
  <textarea
  required
  value={editingPost.excerpt || ''}
  onChange={e => setEditingPost({...editingPost, excerpt: e.target.value})}
- className="w-full bg-accent border-none p-4 font-normal text-primary focus:ring-2 focus:ring-primary outline-none h-24"
+ className="w-full bg-accent border-none p-4 font-normal text-primary focus:ring-2 focus:ring-primary outline-none h-full min-h-[12rem]"
  placeholder="Brief summary shown on the listing page"
  />
  </div>
