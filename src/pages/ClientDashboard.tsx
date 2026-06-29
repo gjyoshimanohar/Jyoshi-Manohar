@@ -406,6 +406,9 @@ export default function ClientDashboard() {
   >("applications");
   const [serviceFilter, setServiceFilter] = useState<string>("All");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isOpsDropdownOpen, setIsOpsDropdownOpen] = useState(false);
+  const [opsModalType, setOpsModalType] = useState<"app" | "doc" | "filing" | null>(null);
+  const [opsTargetClientId, setOpsTargetClientId] = useState<string>("");
 
   // Real-time Chat States
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -1791,7 +1794,11 @@ Stewardship, Accuracy, Legacy.
   // Create Application (Admin Flow)
   const handleCreateApp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClientId) {
+    const targetClient = opsModalType ? opsTargetClientId : selectedClientId;
+    const targetClientEmail = opsModalType 
+      ? clients.find(c => c.uid === opsTargetClientId)?.email || ""
+      : selectedClientEmail;
+    if (!targetClient) {
       alert("Please select a target client first.");
       return;
     }
@@ -1801,7 +1808,7 @@ Stewardship, Accuracy, Legacy.
         selectedClientEmail ||
         "client@manohar.com";
       const newApp: Omit<Application, "id"> = {
-        userId: selectedClientId,
+        userId: targetClient,
         userEmail: parentUserEmail,
         title: newAppTitle,
         type: newAppType,
@@ -1832,7 +1839,7 @@ Stewardship, Accuracy, Legacy.
       // Trigger notification for the client
       try {
         await addDoc(collection(db, "notifications"), {
-          userId: selectedClientId,
+          userId: targetClient,
           userEmail: parentUserEmail,
           title: "New Application Tracker Launched",
           message: `CA Admin has launched a new tracker: [${newAppTitle}] (${newAppType})`,
@@ -1851,6 +1858,7 @@ Stewardship, Accuracy, Legacy.
       setNewAppDesc("");
       setNewAppStep("");
       setNewAppEstComp("");
+      if (opsModalType) setOpsModalType(null);
       setFeedback({
         message:
           "Successfully created new target client application status block!",
@@ -1870,7 +1878,11 @@ Stewardship, Accuracy, Legacy.
   // Create Document (Admin Flow)
   const handleCreateDoc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClientId) {
+    const targetClient = opsModalType ? opsTargetClientId : selectedClientId;
+    const targetClientEmail = opsModalType 
+      ? clients.find(c => c.uid === opsTargetClientId)?.email || ""
+      : selectedClientEmail;
+    if (!targetClient) {
       alert("Please select a target client first.");
       return;
     }
@@ -1978,7 +1990,7 @@ Stewardship, Accuracy, Legacy.
         : "PDF";
 
       const newDocument: Omit<ClientDocument, "id"> = {
-        userId: selectedClientId,
+        userId: targetClient,
         userEmail: parentUserEmail,
         name: finalName,
         description: newDocDesc || "CA-certified official client report file.",
@@ -1994,7 +2006,7 @@ Stewardship, Accuracy, Legacy.
       // Trigger notification for the client
       try {
         await addDoc(collection(db, "notifications"), {
-          userId: selectedClientId,
+          userId: targetClient,
           userEmail: parentUserEmail,
           title: "New Document Received",
           message: `CA Admin has uploaded an official document: [${finalName}] (Category: ${newDocCategory})`,
@@ -2012,7 +2024,7 @@ Stewardship, Accuracy, Legacy.
       setUploadFile(null);
       setUploadProgress(null);
       setCustomUrl("");
-
+      if (opsModalType) setOpsModalType(null);
       setFeedback({
         message:
           "Successfully delivered official secure document file package to client portal!",
@@ -2034,7 +2046,11 @@ Stewardship, Accuracy, Legacy.
   // Create Compliance Filing (Admin Flow)
   const handleCreateFiling = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClientId) {
+    const targetClient = opsModalType ? opsTargetClientId : selectedClientId;
+    const targetClientEmail = opsModalType 
+      ? clients.find(c => c.uid === opsTargetClientId)?.email || ""
+      : selectedClientEmail;
+    if (!targetClient) {
       alert("Please select a target client first.");
       return;
     }
@@ -2048,7 +2064,7 @@ Stewardship, Accuracy, Legacy.
         : Date.now() + 30 * 24 * 60 * 60 * 1000;
 
       const newFiling: Omit<ComplianceFiling, "id"> = {
-        userId: selectedClientId,
+        userId: targetClient,
         userEmail: parentUserEmail,
         title: newFilingTitle,
         serviceType: newFilingService,
@@ -2068,7 +2084,7 @@ Stewardship, Accuracy, Legacy.
       // Trigger notification for the client
       try {
         await addDoc(collection(db, "notifications"), {
-          userId: selectedClientId,
+          userId: targetClient,
           userEmail: parentUserEmail,
           title: "New Compliance Tracker Item",
           message: `CA Admin scheduled a new compliance tracker item: [${newFilingTitle}] (${newFilingService})`,
@@ -2085,6 +2101,7 @@ Stewardship, Accuracy, Legacy.
 
       setNewFilingTitle("");
       setNewFilingARN("");
+      if (opsModalType) setOpsModalType(null);
       setFeedback({
         message:
           "Successfully loaded real-time compliance tracker filing item!",
@@ -2102,7 +2119,8 @@ Stewardship, Accuracy, Legacy.
 
   const handleCreateLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClientId) {
+    const targetClient = opsModalType ? opsTargetClientId : selectedClientId;
+    if (!targetClient) {
       alert("Please select a target client first.");
       return;
     }
@@ -2127,7 +2145,7 @@ Stewardship, Accuracy, Legacy.
         setEditingLoginId(null);
       } else {
         const newLogin: Omit<ClientLogin, "id"> = {
-          userId: selectedClientId,
+          userId: targetClient,
           portalName: newLoginPortal,
           username: newLoginUsername,
           password: newLoginPassword,
@@ -3449,6 +3467,8 @@ Stewardship, Accuracy, Legacy.
                   <span>Blog Admin</span>
                 </Link>
               )}
+              
+
               {/* Real-time Notifications Bell dropdown */}
               <div className="relative">
                 <button
@@ -3672,6 +3692,56 @@ Stewardship, Accuracy, Legacy.
                 )}
               </div>
             )}
+            
+            {/* Operations Console Dropdown */}
+            {isAdmin && (
+              <div className="relative w-full sm:w-auto mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsOpsDropdownOpen(!isOpsDropdownOpen)}
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 text-white hover:bg-slate-800 border border-transparent font-semibold rounded-xl text-sm transition-all shadow-md cursor-pointer hover:shadow-lg w-full sm:w-auto"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Operations Console</span>
+                </button>
+
+                {isOpsDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 bg-transparent"
+                      onClick={() => setIsOpsDropdownOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-3 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in slide-in-from-top-3 duration-200 text-left">
+                      <div className="p-4 bg-slate-50 border-b border-slate-100">
+                        <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                          Operations Console
+                        </span>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        <button
+                          onClick={() => { setOpsModalType("app"); setIsOpsDropdownOpen(false); }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                        >
+                          <Briefcase className="h-3.5 w-3.5" /> Push Service Engagement
+                        </button>
+                        <button
+                          onClick={() => { setOpsModalType("doc"); setIsOpsDropdownOpen(false); }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                        >
+                          <FileText className="h-3.5 w-3.5" /> Deliver Legal Document
+                        </button>
+                        <button
+                          onClick={() => { setOpsModalType("filing"); setIsOpsDropdownOpen(false); }}
+                          className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                        >
+                          <Calendar className="h-3.5 w-3.5" /> Push Compliance Calendar
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -3888,32 +3958,7 @@ Stewardship, Accuracy, Legacy.
 
                   {isAdmin && (
                     <>
-                      <button
-                        onClick={() => setActiveTab("admin")}
-                        className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
-                          activeTab === "admin"
-                            ? "bg-primary text-white border-primary shadow-md"
-                            : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Upload className="h-4 w-4 shrink-0" />
-                          {isSidebarOpen && (
-                            <span className="text-xs font-bold uppercase tracking-wider">
-                              Operations Console
-                            </span>
-                          )}
-                        </div>
-                        {isSidebarOpen && (
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === "admin" ? "bg-white/15 text-white" : "bg-slate-100 text-slate-800"}`}
-                          >
-                            Admin
-                          </span>
-                        )}
-                      </button>
-
-                      <button
+<button
                         onClick={() => setActiveTab("logins")}
                         className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
                           activeTab === "logins"
@@ -6575,430 +6620,7 @@ Stewardship, Accuracy, Legacy.
                   )}
                 </div>
 
-                {/* Grid for forms */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Form 1: New Application */}
-                  <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm">
-                    <h3 className="text-sm font-bold text-primary uppercase tracking-wider mb-6 flex items-center gap-2 pb-3 border-b border-slate-100/60">
-                      <Briefcase className="h-4 w-4 text-primary" />
-                      <span>Push Service Engagement</span>
-                    </h3>
-                    <form onSubmit={handleCreateApp} className="space-y-4">
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                          Application title name
-                        </label>
-                        <input
-                          type="text"
-                          value={newAppTitle}
-                          onChange={(e) => setNewAppTitle(e.target.value)}
-                          placeholder="e.g. Corporate Auditing FY25-26"
-                          required
-                          className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Department Sector
-                          </label>
-                          <CustomSelect
-                            value={newAppType}
-                            onChange={(val) => setNewAppType(val)}
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary font-medium"
-                            options={[
-                              "GST Service",
-                              "Direct Tax",
-                              "Corporate Compliance",
-                              "Statutory Audit",
-                            ]}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Target Status
-                          </label>
-                          <CustomSelect
-                            value={newAppStatus}
-                            onChange={(val) => setNewAppStatus(val as any)}
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary font-medium"
-                            options={[
-                              "Pending Documents",
-                              "Under Review",
-                              "Submitted to Department",
-                              "Query Raised",
-                              "Approved & Issued",
-                            ]}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                          Description summary
-                        </label>
-                        <textarea
-                          value={newAppDesc}
-                          onChange={(e) => setNewAppDesc(e.target.value)}
-                          placeholder="Provide statutory guidelines or overview of documentation requirements..."
-                          className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium min-h-[85px] resize-none"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Active current step
-                          </label>
-                          <input
-                            type="text"
-                            value={newAppStep}
-                            onChange={(e) => setNewAppStep(e.target.value)}
-                            placeholder="e.g. Verifying physical ledger lease deeds"
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Target date or completion
-                          </label>
-                          <input
-                            type="text"
-                            value={newAppEstComp}
-                            onChange={(e) => setNewAppEstComp(e.target.value)}
-                            placeholder="e.g. July 31, 2026"
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        type="submit"
-                        className="w-full bg-primary hover:bg-secondary text-white border border-transparent text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider transition-all shadow-md focus:outline-none cursor-pointer"
-                      >
-                        Publish Tracking Instance
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Form 2: Deliver Certified document */}
-                  <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm">
-                    <h3 className="text-sm font-bold text-primary uppercase tracking-wider mb-6 flex items-center gap-2 pb-3 border-b border-slate-100/60">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <span>Deliver Legal Certified Document</span>
-                    </h3>
-                    <form onSubmit={handleCreateDoc} className="space-y-4">
-                      {/* Upload certified file natively */}
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
-                          Native File Upload (Highly Recommended)
-                        </label>
-                        <div className="border border-dashed border-slate-200 hover:border-primary rounded-xl p-4 bg-slate-50 transition-colors relative flex flex-col items-center justify-center text-center cursor-pointer">
-                          <input
-                            type="file"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              setUploadFile(file);
-                              if (file) {
-                                // Auto-fill standard file parameters inside the form
-                                setNewDocName(file.name);
-
-                                // Auto-generate estimated readable size
-                                if (file.size > 1024 * 1024) {
-                                  setNewDocSize(
-                                    (file.size / (1024 * 1024)).toFixed(2) +
-                                      " MB",
-                                  );
-                                } else {
-                                  setNewDocSize(
-                                    (file.size / 1024).toFixed(1) + " KB",
-                                  );
-                                }
-                              }
-                            }}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                          />
-                          <Upload className="h-5 w-5 text-slate-400 mb-2" />
-                          <p className="text-[11px] font-semibold text-slate-700 max-w-[280px] truncate">
-                            {uploadFile
-                              ? uploadFile.name
-                              : "Choose a local file, or drag & drop"}
-                          </p>
-                          <p className="text-[9px] text-slate-400 mt-1">
-                            {uploadFile
-                              ? `${(uploadFile.size / 1024).toFixed(1)} KB`
-                              : "Supports PDF, Excel, images, zip up to 10MB"}
-                          </p>
-                          {uploadFile && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                setUploadFile(null);
-                              }}
-                              className="text-[10px] text-red-500 hover:underline mt-2 z-20 font-bold relative"
-                            >
-                              Clear selected file
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Custom external URL input if they prefer link sharing */}
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                          OR EXTERNAL WEB LINK (E.G. GOOGLE DRIVE, DROPBOX)
-                        </label>
-                        <input
-                          type="url"
-                          value={customUrl}
-                          onChange={(e) => setCustomUrl(e.target.value)}
-                          placeholder="https://drive.google.com/file/... or other cloud storage link"
-                          className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                        />
-                        <p className="text-[9px] text-slate-400 mt-1 leading-normal">
-                          Provide shared link coordinates if the file is already
-                          uploaded to your business Cloud/Drive systems.
-                        </p>
-                      </div>
-
-                      <div className="border-t border-slate-100/60 py-2"></div>
-
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                          Document display name
-                        </label>
-                        <input
-                          type="text"
-                          value={newDocName}
-                          onChange={(e) => setNewDocName(e.target.value)}
-                          placeholder="e.g. MCA certificate - MCA_GSTIN.pdf"
-                          required
-                          className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Subcategory
-                          </label>
-                          <CustomSelect
-                            value={newDocCategory}
-                            onChange={(val) => setNewDocCategory(val)}
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary font-medium"
-                            options={[
-                              "Certificates",
-                              "Taxes and Filing",
-                              "Internal Financials",
-                              "Audited Statements",
-                            ]}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Payload size estimation
-                          </label>
-                          <input
-                            type="text"
-                            value={newDocSize}
-                            onChange={(e) => setNewDocSize(e.target.value)}
-                            placeholder="e.g. 1.2 MB"
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                          Document context details
-                        </label>
-                        <textarea
-                          value={newDocDesc}
-                          onChange={(e) => setNewDocDesc(e.target.value)}
-                          placeholder="Draft concise instructions or content description detailing the significance of this ledger file..."
-                          className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium min-h-[90px] resize-none"
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={uploadProgress !== null}
-                        className={`w-full text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider transition-all shadow-md focus:outline-none cursor-pointer flex items-center justify-center gap-2 ${
-                          uploadProgress !== null
-                            ? "bg-slate-400 cursor-not-allowed"
-                            : "bg-primary hover:bg-secondary text-white border border-transparent"
-                        }`}
-                      >
-                        {uploadProgress !== null ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            <span>Uploading File ({uploadProgress}%)</span>
-                          </>
-                        ) : (
-                          "Publish File into Vault"
-                        )}
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Form 3: Push Compliance Calendar */}
-                  <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm md:col-span-2">
-                    <h3 className="text-sm font-bold text-primary uppercase tracking-wider mb-6 flex items-center gap-2 pb-3 border-b border-slate-100/60">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      <span>Push Scheduled Compliance Calendar Date</span>
-                    </h3>
-                    <form
-                      onSubmit={handleCreateFiling}
-                      className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                    >
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Statutory Filing Title
-                          </label>
-                          <input
-                            type="text"
-                            value={newFilingTitle}
-                            onChange={(e) => setNewFilingTitle(e.target.value)}
-                            placeholder="e.g., GSTR-3B Outward return for Quarter 1"
-                            required
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                              Segment Sector
-                            </label>
-                            <CustomSelect
-                              value={newFilingService}
-                              onChange={(val) => setNewFilingService(val)}
-                              className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary font-medium"
-                              options={[
-                                "GST",
-                                "Income Tax",
-                                "Corporate Compliance",
-                                "TDS and PF",
-                              ]}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                              Financial Assessment Year
-                            </label>
-                            <CustomSelect
-                              value={newFilingFY}
-                              onChange={(val) => setNewFilingFY(val)}
-                              className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary font-medium"
-                              options={[
-                                "2023-24",
-                                "2024-25",
-                                "2025-26",
-                                "2026-27",
-                                "2027-28",
-                                "2028-29",
-                              ]}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Statutory Due date
-                          </label>
-                          <input
-                            type="date"
-                            value={newFilingDueDate}
-                            onChange={(e) =>
-                              setNewFilingDueDate(e.target.value)
-                            }
-                            required
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                            Periodic Window (Month/Quarter)
-                          </label>
-                          <CustomSelect
-                            value={newFilingPeriod}
-                            onChange={(val) => setNewFilingPeriod(val)}
-                            className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary font-medium z-50"
-                            options={[
-                              "January",
-                              "February",
-                              "March",
-                              "April",
-                              "May",
-                              "June",
-                              "July",
-                              "August",
-                              "September",
-                              "October",
-                              "November",
-                              "December",
-                              "Q1 (Apr-Jun)",
-                              "Q2 (Jul-Sep)",
-                              "Q3 (Oct-Dec)",
-                              "Q4 (Jan-Mar)",
-                              "H1 (Apr-Sep)",
-                              "H2 (Oct-Mar)",
-                              "Annual",
-                            ]}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                              Filing status
-                            </label>
-                            <CustomSelect
-                              value={newFilingStatus}
-                              onChange={(val) => setNewFilingStatus(val as any)}
-                              className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary font-medium"
-                              options={[
-                                "Upcoming",
-                                "In Progress",
-                                "Pending Client Action",
-                                "Filed",
-                              ]}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-                              Govt Receipt ARN Reference
-                            </label>
-                            <input
-                              type="text"
-                              value={newFilingARN}
-                              onChange={(e) => setNewFilingARN(e.target.value)}
-                              placeholder="e.g. ARN-29001"
-                              className="w-full bg-slate-50 border border-slate-100/60 rounded-xl p-3.5 text-xs text-primary outline-none focus:border-primary font-medium"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="pt-5">
-                          <button
-                            type="submit"
-                            className="w-full bg-slate-950 hover:bg-secondary border border-transparent text-white rounded-xl py-3.5 text-xs font-bold uppercase tracking-wider transition-all shadow-md focus:outline-none cursor-pointer"
-                          >
-                            Add Scheduled Compliance Event
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  </div>
                 </div>
-              </div>
             )}
 
             {/* LOGINS ADMIN PANEL */}
@@ -7623,7 +7245,320 @@ Stewardship, Accuracy, Legacy.
         )}
       </AnimatePresence>
 
-      {/* Add New Client Dialog Modal */}
+      
+      
+      {/* Operations Console Modals */}
+      <AnimatePresence>
+        {opsModalType && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <div className="absolute inset-0" onClick={() => setOpsModalType(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-[2rem] shadow-2xl border border-slate-100/60 w-full max-w-2xl overflow-hidden font-sans text-primary flex flex-col max-h-[90vh] relative z-10"
+            >
+              <div className="bg-slate-900 px-6 py-5 text-white flex justify-between items-center relative overflow-hidden shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/15 to-transparent pointer-events-none" />
+                <div className="relative z-10 flex items-center gap-3">
+                  <div className="bg-indigo-500/20 p-2 rounded-xl text-indigo-300 border border-indigo-500/25">
+                    {opsModalType === 'app' && <Briefcase className="h-5 w-5 text-indigo-300" />}
+                    {opsModalType === 'doc' && <FileText className="h-5 w-5 text-indigo-300" />}
+                    {opsModalType === 'filing' && <Calendar className="h-5 w-5 text-indigo-300" />}
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold tracking-tight">
+                      {opsModalType === 'app' && "Push Service Engagement"}
+                      {opsModalType === 'doc' && "Deliver Legal Certified Document"}
+                      {opsModalType === 'filing' && "Push Scheduled Compliance Calendar Date"}
+                    </h3>
+                    <p className="text-[10px] text-indigo-200/75 font-medium uppercase tracking-wider">
+                      Operations Console Action
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpsModalType(null)}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer z-10"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-6 md:p-8 overflow-y-auto space-y-5 flex-1">
+                {opsModalType === 'app' && (
+                  <form onSubmit={handleCreateApp} className="space-y-5">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                        Target Client *
+                      </label>
+                      <CustomSelect
+                        value={opsTargetClientId}
+                        onChange={(val) => setOpsTargetClientId(val)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                        options={[
+                          { value: "", label: "Select Client..." },
+                          ...clients.map((c) => ({
+                            value: c.uid,
+                            label: c.displayName || c.email,
+                          }))
+                        ]}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Application Title *
+                        </label>
+                        <input
+                          type="text"
+                          value={newAppTitle}
+                          onChange={(e) => setNewAppTitle(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary placeholder:text-slate-400"
+                          placeholder="e.g. GST Registration"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Service Type
+                        </label>
+                        <CustomSelect
+                          value={newAppType}
+                          onChange={(val) => setNewAppType(val)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                          options={[
+                            "GST Registration",
+                            "Income Tax Filing",
+                            "Company Incorporation",
+                            "Trademark Registration",
+                            "TDS Return",
+                            "Audit Report",
+                            "Other Service"
+                          ]}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Initial Status
+                        </label>
+                        <CustomSelect
+                          value={newAppStatus}
+                          onChange={(val) => setNewAppStatus(val as any)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                          options={[
+                            "Pending Documents",
+                            "Processing",
+                            "Completed"
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Estimated Completion (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={newAppEstComp}
+                          onChange={(e) => setNewAppEstComp(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary"
+                        />
+                      </div>
+                    </div>
+                    <div className="pt-4 flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-md"
+                      >
+                        Push Tracker
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {opsModalType === 'doc' && (
+                  <form onSubmit={handleCreateDoc} className="space-y-5">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                        Target Client *
+                      </label>
+                      <CustomSelect
+                        value={opsTargetClientId}
+                        onChange={(val) => setOpsTargetClientId(val)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                        options={[
+                          { value: "", label: "Select Client..." },
+                          ...clients.map((c) => ({
+                            value: c.uid,
+                            label: c.displayName || c.email,
+                          }))
+                        ]}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Document Title *
+                        </label>
+                        <input
+                          type="text"
+                          value={newDocName}
+                          onChange={(e) => setNewDocName(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary placeholder:text-slate-400"
+                          placeholder="e.g. FY 2025-26 Balance Sheet"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Category
+                        </label>
+                        <CustomSelect
+                          value={newDocCategory}
+                          onChange={(val) => setNewDocCategory(val)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                          options={[
+                            "Financials",
+                            "Certificates",
+                            "Legal",
+                            "Other"
+                          ]}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Secure File Package (PDF/Excel)
+                        </label>
+                        <input
+                          type="file"
+                          onChange={(e) => setUploadFile(e.target.files ? e.target.files[0] : null)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-primary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          External Web Link (Optional)
+                        </label>
+                        <input
+                          type="url"
+                          value={customUrl}
+                          onChange={(e) => setCustomUrl(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary placeholder:text-slate-400"
+                          placeholder="https://..."
+                        />
+                      </div>
+                    </div>
+                    <div className="pt-4 flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={uploadProgress !== null}
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-md disabled:opacity-50"
+                      >
+                        {uploadProgress !== null ? "Encrypting & Delivering..." : "Deliver Secure Document"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {opsModalType === 'filing' && (
+                  <form onSubmit={handleCreateFiling} className="space-y-5">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                        Target Client *
+                      </label>
+                      <CustomSelect
+                        value={opsTargetClientId}
+                        onChange={(val) => setOpsTargetClientId(val)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                        options={[
+                          { value: "", label: "Select Client..." },
+                          ...clients.map((c) => ({
+                            value: c.uid,
+                            label: c.displayName || c.email,
+                          }))
+                        ]}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Filing Title *
+                        </label>
+                        <input
+                          type="text"
+                          value={newFilingTitle}
+                          onChange={(e) => setNewFilingTitle(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary placeholder:text-slate-400"
+                          placeholder="e.g. GSTR-3B Return"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Tax Domain
+                        </label>
+                        <CustomSelect
+                          value={newFilingService}
+                          onChange={(val) => setNewFilingService(val)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                          options={[
+                            "GST",
+                            "Income Tax",
+                            "ROC",
+                            "TDS",
+                            "Other"
+                          ]}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Filing Status
+                        </label>
+                        <CustomSelect
+                          value={newFilingStatus}
+                          onChange={(val) => setNewFilingStatus(val as any)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
+                          options={[
+                            "Upcoming",
+                            "Overdue",
+                            "Filed"
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
+                          Statutory Due Date *
+                        </label>
+                        <input
+                          type="date"
+                          value={newFilingDueDate}
+                          onChange={(e) => setNewFilingDueDate(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="pt-4 flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-md"
+                      >
+                        Push Calendar Date
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+{/* Add New Client Dialog Modal */}
       <AnimatePresence>
         {showAddNewClientModal && (
           <div
