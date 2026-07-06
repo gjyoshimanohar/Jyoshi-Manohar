@@ -18,9 +18,38 @@ export interface BlogPost {
 }
 
 export interface Subtask {
- id: string;
- title: string;
- completed: boolean;
+  id: string;
+  title: string;
+  completed: boolean;
+}
+
+export interface TaskCommentReply {
+  id: string;
+  text: string;
+  createdAt: number;
+  author?: string;
+  likes?: number;
+  isLikedByMe?: boolean;
+}
+
+export interface TaskActivity {
+  id: string;
+  type: 'status' | 'priority' | 'title' | 'comment' | 'create' | 'subtask' | 'other';
+  field: string;
+  oldValue?: string;
+  newValue?: string;
+  createdAt: number;
+  user?: string;
+}
+
+export interface TaskComment {
+  id: string;
+  text: string;
+  createdAt: number;
+  author?: string;
+  likes?: number;
+  isLikedByMe?: boolean;
+  replies?: TaskCommentReply[];
 }
 
 export interface Todo {
@@ -37,6 +66,8 @@ export interface Todo {
 	projectId?: string; // 'inbox' or custom ID
 	tags?: string[];
 	subtasks?: Subtask[];
+	comments?: TaskComment[];
+	activities?: TaskActivity[];
 	deletedAt?: number;
 	sectionName?: string | null;
 	deleteReason?: string;

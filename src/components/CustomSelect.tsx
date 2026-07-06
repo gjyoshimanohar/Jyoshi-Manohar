@@ -37,7 +37,11 @@ export default function CustomSelect({ options, value, onChange, className = '',
   const displayLabel = currentLabel ? getLabel(currentLabel) : placeholder;
 
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
+    <div 
+      className={`relative ${className}`} 
+      ref={dropdownRef}
+      style={{ zIndex: isOpen ? 50 : undefined }}
+    >
       <button
         type="button"
         disabled={disabled}

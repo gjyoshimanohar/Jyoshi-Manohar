@@ -11,10 +11,10 @@ import {
  Settings, FileSpreadsheet, Download, Lock, ListTodo, LayoutGrid
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
-import { FileText } from 'lucide-react';
-import { Todo, Project, Folder as FolderType } from '../types';
+import { FileText, MessageSquare, CornerDownRight } from 'lucide-react';
+import { Todo, Project, Folder as FolderType, TaskActivity } from '../types';
 import { auth } from '../lib/firebase';
-import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears } from 'date-fns';
+import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears, formatDistanceToNow } from 'date-fns';
 import EmojiPicker from 'emoji-picker-react';
 import { DayPicker } from 'react-day-picker';
 import CustomSelect from './CustomSelect';
@@ -371,6 +371,15 @@ export default function WorkspaceApp() {
  const [editingTodoDateId, setEditingTodoDateId] = useState<string | null>(null);
  const [editingTodoDeadlineId, setEditingTodoDeadlineId] = useState<string | null>(null);
  const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
+ const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+ const [detailTab, setDetailTab] = useState<'details' | 'activity'>('details');
+ const [initialTitle, setInitialTitle] = useState<string>('');
+
+ useEffect(() => {
+   if (selectedTodoId) {
+     setDetailTab('details');
+   }
+ }, [selectedTodoId]);
 
  // Folder Creating
  const [isAddingFolder, setIsAddingFolder] = useState(false);
@@ -864,7 +873,18 @@ export default function WorkspaceApp() {
 
  const handleToggleTodo = async (todo: Todo) => {
  const isCompleting = !todo.completed;
- await todoService.updateTodoStatus(todo.id, isCompleting);
+ const now = Date.now();
+ const newActivity = {
+   id: Math.random().toString(36).substring(2, 9),
+   type: 'status' as const,
+   field: 'Status',
+   oldValue: todo.completed ? 'Completed' : 'Active',
+   newValue: isCompleting ? 'Completed' : 'Active',
+   createdAt: now,
+   user: 'You'
+ };
+ const updatedActivities = [...(todo.activities || []), newActivity];
+ await todoService.updateTodo(todo.id, { completed: isCompleting, activities: updatedActivities });
 
  if (isCompleting && todo.repeatInterval) {
  const baseDate = todo.dueDate ? new Date(todo.dueDate) : new Date();
@@ -1205,9 +1225,9 @@ export default function WorkspaceApp() {
 
  const getPriorityColor = (priority?: number) => {
  switch(priority) {
- case 1: return 'text-red-500 fill-red-500 hover:fill-red-600';
- case 2: return 'text-orange-500 fill-orange-500 hover:fill-orange-600';
- case 3: return 'text-primary fill-primary hover:fill-blue-600';
+ case 1: return 'text-red-400 fill-red-400/40 hover:text-red-500 hover:fill-red-400/60';
+ case 2: return 'text-orange-400 fill-orange-400/40 hover:text-orange-500 hover:fill-orange-400/60';
+ case 3: return 'text-blue-400 fill-blue-400/40 hover:text-blue-500 hover:fill-blue-400/60';
  default: return 'text-slate-400';
  }
  };
@@ -1215,10 +1235,10 @@ export default function WorkspaceApp() {
  // Bullet priorities for Custom checkbox circular surrounds matching the TickTick mockup
  const getPriorityCheckboxStyle = (priority?: number) => {
  switch (priority) {
- case 1: return 'border-red-500 hover:bg-red-50 text-red-500';
- case 2: return 'border-orange-500 hover:bg-orange-50 text-orange-500';
- case 3: return 'border-primary hover:bg-blue-50 text-primary';
- default: return 'border-gray-300 hover:bg-gray-100 text-gray-500';
+ case 1: return 'border-red-300 hover:bg-red-50/50 text-red-400 bg-red-50/20';
+ case 2: return 'border-orange-300 hover:bg-orange-50/50 text-orange-400 bg-orange-50/20';
+ case 3: return 'border-blue-300 hover:bg-blue-50/50 text-blue-400 bg-blue-50/20';
+ default: return 'border-gray-200 hover:bg-gray-50 text-gray-400';
  }
  };
 
@@ -2642,10 +2662,10 @@ export default function WorkspaceApp() {
 
  {/* ACTIVE PENDING TASKS */}
  {[
- { level: 1, label: 'P1 Urgent', borderLeft: 'border-l-[3px] border-red-500 bg-red-50/60', text: 'text-red-700' },
- { level: 2, label: 'P2 High', borderLeft: 'border-l-[3px] border-orange-400 bg-orange-50/60', text: 'text-orange-700' },
- { level: 3, label: 'P3 Medium', borderLeft: 'border-l-[3px] border-blue-400 bg-blue-50/60', text: 'text-blue-700' },
- { level: 4, label: 'P4 Standard', borderLeft: 'border-l-[3px] border-gray-200 bg-gray-50/60', text: 'text-gray-600' }
+ { level: 1, label: 'P1 Urgent', borderLeft: 'border-l-[3px] border-red-300 bg-red-50/40', text: 'text-red-500' },
+ { level: 2, label: 'P2 High', borderLeft: 'border-l-[3px] border-orange-300 bg-orange-50/40', text: 'text-orange-500' },
+ { level: 3, label: 'P3 Medium', borderLeft: 'border-l-[3px] border-blue-300 bg-blue-50/40', text: 'text-blue-500' },
+ { level: 4, label: 'P4 Standard', borderLeft: 'border-l-[3px] border-slate-200 bg-slate-50/40', text: 'text-slate-500' }
  ].map(prio => {
  const prioTasks = inactiveTasks.filter(t => (t.priority || 4) === prio.level);
  
@@ -2681,11 +2701,11 @@ export default function WorkspaceApp() {
  let borderPrio = "border-gray-300 hover:border-primary";
  let checkColor = "text-primary";
  if (todo.priority === 1) {
- borderPrio = "border-red-500 hover:bg-red-50 text-red-500";
+ borderPrio = "border-red-300 hover:bg-red-50/50 text-red-400 bg-red-50/15";
  } else if (todo.priority === 2) {
- borderPrio = "border-orange-500 hover:bg-orange-50 text-orange-500";
+ borderPrio = "border-orange-300 hover:bg-orange-50/50 text-orange-400 bg-orange-50/15";
  } else if (todo.priority === 3) {
- borderPrio = "border-primary hover:bg-blue-50 text-primary";
+ borderPrio = "border-blue-300 hover:bg-blue-50/50 text-blue-400 bg-blue-50/15";
  }
 
  const formattedDate = formatCardDate(todo.dueDate);
@@ -2700,7 +2720,7 @@ export default function WorkspaceApp() {
  e.dataTransfer.setData("text/plain", todo.id);
  }}
  className={`bg-white rounded-2xl border border-gray-100 p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all cursor-grab active:cursor-grabbing text-left flex flex-col gap-1.5 group select-none relative duration-100 ${
- todo.priority === 1 ? 'border-l-2 border-l-red-400' : ''
+ todo.priority === 1 ? 'border-l-2 border-l-red-300 pl-3' : todo.priority === 2 ? 'border-l-2 border-l-orange-300 pl-3' : todo.priority === 3 ? 'border-l-2 border-l-blue-300 pl-3' : ''
  }`}
  onClick={() => setSelectedTodoId(todo.id)}
  >
@@ -2729,25 +2749,10 @@ export default function WorkspaceApp() {
  </p>
  )}
  {todo.subtasks && todo.subtasks.length > 0 && (
- <div className="mt-2 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
- {todo.subtasks.map(subtask => (
- <div key={subtask.id} className="flex items-center gap-1.5 group/subtask">
- <button
- type="button"
- onClick={() => {
- const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
- todoService.updateTodo(todo.id, { subtasks: next });
- }}
- className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
- >
- {subtask.completed && <Check className="w-2.5 h-2.5" />}
- </button>
- <span className={`text-[11px] flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
- {subtask.title}
- </span>
- </div>
- ))}
- </div>
+   <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
+     <ListTodo className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+     <span>{todo.subtasks.filter(s => s.completed).length}/{todo.subtasks.length} Subtasks</span>
+   </div>
  )}
  </div>
 
@@ -3020,7 +3025,7 @@ export default function WorkspaceApp() {
                             <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.12 }} className="absolute left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
                               {[ { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" }, { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" }, { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" }, ].map((preset) => { const isSelected = newTaskDueDate && isSameDay(newTaskDueDate, preset.date); return ( <button key={preset.label} type="button" onClick={() => { setNewTaskDueDate(preset.date); setShowDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} /> {preset.label} </span> {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button> ); })}
                               <button type="button" onClick={() => { setNewTaskDueDate(undefined); setShowDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!newTaskDueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Clear Date </span> {!newTaskDueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button>
-                              <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={newTaskDueDate ? format(newTaskDueDate, "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { setNewTaskDueDate(startOfDay(new Date(e.target.value + "T00:00:00"))); } else { setNewTaskDueDate(undefined); } }} /> </div>
+                              <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={newTaskDueDate ? format(newTaskDueDate, "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { setNewTaskDueDate(startOfDay(new Date(e.target.value + "T00:00:00"))); setShowDatePicker(false); } else { setNewTaskDueDate(undefined); setShowDatePicker(false); } }} /> </div>
                             </motion.div>
                           )}
  </AnimatePresence>
@@ -3335,28 +3340,28 @@ export default function WorkspaceApp() {
                         <div className="flex items-center gap-2">
                           <div className="w-6 text-[10px] font-bold text-gray-500">P1</div>
                           <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-red-500 rounded-full" style={{ width: `${(p1Count / totalCount) * 100}%` }} />
+                            <div className="h-full bg-red-300 rounded-full" style={{ width: `${(p1Count / totalCount) * 100}%` }} />
                           </div>
                           <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p1Count}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-6 text-[10px] font-bold text-gray-500">P2</div>
                           <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-orange-400 rounded-full" style={{ width: `${(p2Count / totalCount) * 100}%` }} />
+                            <div className="h-full bg-orange-300 rounded-full" style={{ width: `${(p2Count / totalCount) * 100}%` }} />
                           </div>
                           <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p2Count}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-6 text-[10px] font-bold text-gray-500">P3</div>
                           <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-400 rounded-full" style={{ width: `${(p3Count / totalCount) * 100}%` }} />
+                            <div className="h-full bg-blue-300 rounded-full" style={{ width: `${(p3Count / totalCount) * 100}%` }} />
                           </div>
                           <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p3Count}</div>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-6 text-[10px] font-bold text-gray-500">P4</div>
                           <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-gray-400 rounded-full" style={{ width: `${(p4Count / totalCount) * 100}%` }} />
+                            <div className="h-full bg-gray-300 rounded-full" style={{ width: `${(p4Count / totalCount) * 100}%` }} />
                           </div>
                           <div className="w-4 text-[10px] font-semibold text-gray-700 text-right">{p4Count}</div>
                         </div>
@@ -3487,10 +3492,10 @@ export default function WorkspaceApp() {
                     className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
                       hasPriority 
                         ? todo.priority === 1 
-                          ? 'border-l-[3px] border-red-500 pl-3' 
+                          ? 'border-l-[3px] border-red-300 pl-3' 
                           : todo.priority === 2 
-                            ? 'border-l-[3px] border-orange-400 pl-3' 
-                            : 'border-l-[3px] border-blue-400 pl-3'
+                            ? 'border-l-[3px] border-orange-300 pl-3' 
+                            : 'border-l-[3px] border-blue-300 pl-3'
                         : ''
                     }`}
                   >
@@ -3513,24 +3518,9 @@ export default function WorkspaceApp() {
                           <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
                         )}
                         {todo.subtasks && todo.subtasks.length > 0 && (
-                          <div className="mt-1.5 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
-                            {todo.subtasks.map(subtask => (
-                              <div key={subtask.id} className="flex items-center gap-2 group/subtask">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
-                                    todoService.updateTodo(todo.id, { subtasks: next });
-                                  }}
-                                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
-                                >
-                                  {subtask.completed && <Check className="w-2.5 h-2.5" />}
-                                </button>
-                                <span className={`text-xs flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
-                                  {subtask.title}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
+                            <ListTodo className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                            <span>{todo.subtasks.filter(s => s.completed).length}/{todo.subtasks.length} Subtasks</span>
                           </div>
                         )}
                       </div>
@@ -3573,10 +3563,10 @@ export default function WorkspaceApp() {
           className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
             hasPriority 
               ? todo.priority === 1 
-                ? 'border-l-[3px] border-red-500 pl-3' 
+                ? 'border-l-[3px] border-red-300 pl-3' 
                 : todo.priority === 2 
-                  ? 'border-l-[3px] border-orange-400 pl-3' 
-                  : 'border-l-[3px] border-blue-400 pl-3'
+                  ? 'border-l-[3px] border-orange-300 pl-3' 
+                  : 'border-l-[3px] border-blue-300 pl-3'
               : ''
           }`}
         >
@@ -3599,24 +3589,9 @@ export default function WorkspaceApp() {
                 <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
               )}
               {todo.subtasks && todo.subtasks.length > 0 && (
-                <div className="mt-1.5 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
-                  {todo.subtasks.map(subtask => (
-                    <div key={subtask.id} className="flex items-center gap-2 group/subtask">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = todo.subtasks?.map(s => s.id === subtask.id ? { ...s, completed: !s.completed } : s);
-                          todoService.updateTodo(todo.id, { subtasks: next });
-                        }}
-                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${subtask.completed ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 hover:border-gray-400'}`}
-                      >
-                        {subtask.completed && <Check className="w-2.5 h-2.5" />}
-                      </button>
-                      <span className={`text-xs flex-1 truncate transition-colors ${subtask.completed ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
-                        {subtask.title}
-                      </span>
-                    </div>
-                  ))}
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
+                  <ListTodo className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span>{todo.subtasks.filter(s => s.completed).length}/{todo.subtasks.length} Subtasks</span>
                 </div>
               )}
             </div>
@@ -4105,6 +4080,67 @@ export default function WorkspaceApp() {
  {(() => {
  const todo = todos.find(t => t.id === selectedTodoId);
  if (!todo) return null;
+
+ const logDueDateChange = (nextDate: number | null) => {
+   const now = Date.now();
+   const oldVal = todo.dueDate ? format(new Date(todo.dueDate), 'MMM d, yyyy') : 'No Date';
+   const newVal = nextDate ? format(new Date(nextDate), 'MMM d, yyyy') : 'No Date';
+   const newActivity = {
+     id: Math.random().toString(36).substring(2, 9),
+     type: 'other' as const,
+     field: 'Due Date',
+     oldValue: oldVal,
+     newValue: newVal,
+     createdAt: now,
+     user: 'You'
+   };
+   return [...(todo.activities || []), newActivity];
+ };
+
+ const getActivityDetails = (act: TaskActivity) => {
+   switch (act.type) {
+     case 'status':
+       return {
+         label: act.newValue === 'Completed' ? 'completed the task' : 'marked the task as active',
+         icon: <Check className="w-3 h-3 text-emerald-600" />,
+         bgColor: 'bg-emerald-50 border-emerald-100'
+       };
+     case 'priority':
+       return {
+         label: `changed priority to ${act.newValue}`,
+         icon: <Flag className="w-3 h-3 text-blue-600 fill-current" />,
+         bgColor: 'bg-blue-50 border-blue-100'
+       };
+     case 'title':
+       return {
+         label: `renamed task`,
+         details: `"${act.oldValue}" to "${act.newValue}"`,
+         icon: <FileText className="w-3 h-3 text-amber-600" />,
+         bgColor: 'bg-amber-50 border-amber-100'
+       };
+     case 'other':
+       if (act.field === 'Due Date') {
+         return {
+           label: `changed due date to ${act.newValue}`,
+           icon: <CalendarIcon className="w-3 h-3 text-purple-600" />,
+           bgColor: 'bg-purple-50 border-purple-100'
+         };
+       }
+       return {
+         label: `updated ${act.field}`,
+         details: `"${act.oldValue}" to "${act.newValue}"`,
+         icon: <Clock className="w-3 h-3 text-gray-500" />,
+         bgColor: 'bg-gray-50 border-gray-100'
+       };
+     default:
+       return {
+         label: `updated task`,
+         icon: <Clock className="w-3 h-3 text-gray-500" />,
+         bgColor: 'bg-gray-50 border-gray-100'
+       };
+   }
+ };
+
  return (
  <>
  <div className="flex items-center justify-between border-b border-gray-100 p-4">
@@ -4118,8 +4154,32 @@ export default function WorkspaceApp() {
  <X className="w-4 h-4" />
  </button>
  </div>
+ 
+ {/* Tab Navigation */}
+ <div className="flex border-b border-gray-100 px-6 bg-white select-none shrink-0">
+   <button
+     type="button"
+     onClick={() => setDetailTab('details')}
+     className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 mr-6 transition-all ${detailTab === 'details' ? 'border-[#1a2b58] text-[#1a2b58]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+   >
+     Task Details
+   </button>
+   <button
+     type="button"
+     onClick={() => setDetailTab('activity')}
+     className={`py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${detailTab === 'activity' ? 'border-[#1a2b58] text-[#1a2b58]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+   >
+     Activity
+     {todo.activities && todo.activities.length > 0 && (
+       <span className="bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+         {todo.activities.length}
+       </span>
+     )}
+   </button>
+ </div>
 
- <div className="flex-1 overflow-y-auto p-6 text-left">
+ {detailTab === 'details' ? (
+   <div className="flex-1 overflow-y-auto p-6 text-left">
  <div className="flex items-start">
  <button 
  onClick={() => handleToggleTodo(todo)}
@@ -4132,6 +4192,24 @@ export default function WorkspaceApp() {
  className={`text-lg outline-none w-full bg-transparent pr-8 ${todo.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}
  value={todo.title}
  onChange={(e) => todoService.updateTodo(todo.id, { title: e.target.value })}
+ onFocus={() => setInitialTitle(todo.title)}
+ onBlur={async () => {
+   if (todo.title !== initialTitle && todo.title.trim() !== '') {
+     const now = Date.now();
+     const newActivity = {
+       id: Math.random().toString(36).substring(2, 9),
+       type: 'title' as const,
+       field: 'Title',
+       oldValue: initialTitle,
+       newValue: todo.title,
+       createdAt: now,
+       user: 'You'
+     };
+     const updatedActivities = [...(todo.activities || []), newActivity];
+     setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, activities: updatedActivities } : t));
+     await todoService.updateTodo(todo.id, { activities: updatedActivities });
+   }
+ }}
  />
  <button
  type="button"
@@ -4179,16 +4257,76 @@ export default function WorkspaceApp() {
 </button>
 <AnimatePresence>
 {showDetailDatePicker && (
-                            <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute top-full left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
-                              {[ { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" }, { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" }, { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" }, ].map((preset) => { const isSelected = todo.dueDate && isSameDay(new Date(todo.dueDate), preset.date); return ( <button key={preset.label} type="button" onClick={() => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: preset.date.getTime() } : t));
- todoService.updateTodo(todo.id, { dueDate: preset.date.getTime() }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} /> {preset.label} </span> {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button> ); })}
-                              <button type="button" onClick={() => { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: null } : t));
- todoService.updateTodo(todo.id, { dueDate: null }); setShowDetailDatePicker(false); }} className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.dueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`} > <span className="flex items-center gap-2"> <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Clear Date </span> {!todo.dueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />} </button>
-                              <div className="mx-1 h-px bg-gray-100 my-1.5" /> <div className="px-1.5 pb-1"> <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label> <input type="date" className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50" value={todo.dueDate ? format(new Date(todo.dueDate), "yyyy-MM-dd") : ""} onClick={(e) => e.stopPropagation()} onChange={(e) => { if (e.target.value) { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: startOfDay(new Date(e.target.value + "T00:00:00")).getTime() } : t));
- todoService.updateTodo(todo.id, { dueDate: startOfDay(new Date(e.target.value + "T00:00:00")).getTime() }); } else { setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: null } : t));
- todoService.updateTodo(todo.id, { dueDate: null }); } }} /> </div>
-                            </motion.div>
-                          )}
+  <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute top-full left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-44" onClick={(e) => e.stopPropagation()}>
+    {[
+      { label: "Today", date: startOfDay(new Date()), color: "bg-green-500" },
+      { label: "Tomorrow", date: startOfDay(addDays(new Date(), 1)), color: "bg-primary" },
+      { label: "Next Week", date: startOfDay(addWeeks(new Date(), 1)), color: "bg-purple-500" },
+    ].map((preset) => {
+      const isSelected = todo.dueDate && isSameDay(new Date(todo.dueDate), preset.date);
+      return (
+        <button
+          key={preset.label}
+          type="button"
+          onClick={() => {
+            const nextDate = preset.date.getTime();
+            const updatedActivities = logDueDateChange(nextDate);
+            setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: nextDate, activities: updatedActivities } : t));
+            todoService.updateTodo(todo.id, { dueDate: nextDate, activities: updatedActivities });
+            setShowDetailDatePicker(false);
+          }}
+          className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
+        >
+          <span className="flex items-center gap-2">
+            <span className={`w-1.5 h-1.5 rounded-full ${preset.color}`} />
+            {preset.label}
+          </span>
+          {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+        </button>
+      );
+    })}
+    <button
+      type="button"
+      onClick={() => {
+        const updatedActivities = logDueDateChange(null);
+        setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: null, activities: updatedActivities } : t));
+        todoService.updateTodo(todo.id, { dueDate: null, activities: updatedActivities });
+        setShowDetailDatePicker(false);
+      }}
+      className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.dueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
+    >
+      <span className="flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        Clear Date
+      </span>
+      {!todo.dueDate && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+    </button>
+    <div className="mx-1 h-px bg-gray-100 my-1.5" />
+    <div className="px-1.5 pb-1">
+      <label className="text-[10px] uppercase font-semibold text-gray-400 mb-1 block tracking-widest px-1">Custom Date</label>
+      <input
+        type="date"
+        className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50"
+        value={todo.dueDate ? format(new Date(todo.dueDate), "yyyy-MM-dd") : ""}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          if (e.target.value) {
+            const nextDate = startOfDay(new Date(e.target.value + "T00:00:00")).getTime();
+            const updatedActivities = logDueDateChange(nextDate);
+            setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: nextDate, activities: updatedActivities } : t));
+            todoService.updateTodo(todo.id, { dueDate: nextDate, activities: updatedActivities });
+            setShowDetailDatePicker(false);
+          } else {
+            const updatedActivities = logDueDateChange(null);
+            setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, dueDate: null, activities: updatedActivities } : t));
+            todoService.updateTodo(todo.id, { dueDate: null, activities: updatedActivities });
+            setShowDetailDatePicker(false);
+          }
+        }}
+      />
+    </div>
+  </motion.div>
+)}
 </AnimatePresence>
  </div>
 
@@ -4224,10 +4362,21 @@ export default function WorkspaceApp() {
  return (
  <button
  key={level}
- onClick={() => {
- setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, priority: level } : t));
- todoService.updateTodo(todo.id, { priority: level });
- setShowDetailPriorityPicker(false);
+ onClick={async () => {
+   const now = Date.now();
+   const newActivity = {
+     id: Math.random().toString(36).substring(2, 9),
+     type: 'priority' as const,
+     field: 'Priority',
+     oldValue: `P${todo.priority || 4}`,
+     newValue: `P${level}`,
+     createdAt: now,
+     user: 'You'
+   };
+   const updatedActivities = [...(todo.activities || []), newActivity];
+   setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, priority: level, activities: updatedActivities } : t));
+   await todoService.updateTodo(todo.id, { priority: level, activities: updatedActivities });
+   setShowDetailPriorityPicker(false);
  }}
  className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
  >
@@ -4453,8 +4602,245 @@ export default function WorkspaceApp() {
  </div>
  </div>
 
+  {/* Comments Section */}
+  <div className="flex flex-col text-left pt-5 border-t border-gray-150">
+    <label className="text-xs text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none font-medium">
+      <MessageSquare className="w-3.5 h-3.5 text-[#1a2b58]" /> Comments ({(todo.comments?.length || 0) + (todo.comments?.reduce((acc, c) => acc + (c.replies?.length || 0), 0) || 0)})
+    </label>
+    
+    {/* Comments List */}
+    <div className="space-y-3.5 mb-4 max-h-[280px] overflow-y-auto pr-1">
+      {(!todo.comments || todo.comments.length === 0) ? (
+        <p className="text-xs text-gray-400 italic">No comments yet. Add one below!</p>
+      ) : (
+        todo.comments.map(comment => {
+          const hasLikedComment = comment.isLikedByMe;
+          const isReplying = replyingToCommentId === comment.id;
+
+          return (
+            <div key={comment.id} className="group/comment flex flex-col gap-1.5">
+              {/* Comment Bubble */}
+              <div className="bg-gray-50/70 p-3 rounded-xl border border-gray-100 flex flex-col gap-1 text-xs transition-colors hover:bg-gray-50">
+                <div className="flex items-center justify-between text-gray-400 font-medium select-none">
+                  <span className="text-gray-600 font-semibold">{comment.author || 'You'}</span>
+                  <span>{formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}</span>
+                </div>
+                <p className="text-gray-700 whitespace-pre-wrap select-text">{comment.text}</p>
+                
+                {/* Actions Toolbar (Like & Reply) */}
+                <div className="flex items-center gap-4 mt-1 pt-1.5 border-t border-gray-100/50 text-[11px] text-gray-400">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const updatedComments = todo.comments?.map(c => {
+                        if (c.id === comment.id) {
+                          const isLiked = !c.isLikedByMe;
+                          return {
+                            ...c,
+                            isLikedByMe: isLiked,
+                            likes: (c.likes || 0) + (isLiked ? 1 : -1)
+                          };
+                        }
+                        return c;
+                      }) || [];
+                      setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, comments: updatedComments } : t));
+                      todoService.updateTodo(todo.id, { comments: updatedComments });
+                    }}
+                    className={`flex items-center gap-1 font-semibold transition-colors hover:text-rose-500 ${hasLikedComment ? 'text-rose-500' : ''}`}
+                  >
+                    <Heart className={`w-3 h-3 ${hasLikedComment ? 'fill-rose-500 text-rose-500' : ''}`} />
+                    <span>{comment.likes || 0}</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => setReplyingToCommentId(isReplying ? null : comment.id)}
+                    className={`flex items-center gap-1 font-semibold transition-colors hover:text-[#1a2b58] ${isReplying ? 'text-[#1a2b58]' : ''}`}
+                  >
+                    <CornerDownRight className="w-3.5 h-3.5" />
+                    <span>Reply</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Threaded Replies */}
+              {comment.replies && comment.replies.length > 0 && (
+                <div className="border-l-2 border-gray-100 pl-3.5 ml-3.5 space-y-2 flex flex-col">
+                  {comment.replies.map(reply => {
+                    const hasLikedReply = reply.isLikedByMe;
+                    return (
+                      <div key={reply.id} className="bg-gray-50/40 p-2.5 rounded-xl border border-gray-50 flex flex-col gap-1 text-[11px] transition-colors hover:bg-gray-50/60">
+                        <div className="flex items-center justify-between text-gray-400 font-medium select-none">
+                          <span className="text-gray-600 font-semibold">{reply.author || 'You'}</span>
+                          <span>{formatDistanceToNow(new Date(reply.createdAt), { addSuffix: true })}</span>
+                        </div>
+                        <p className="text-gray-700 whitespace-pre-wrap select-text">{reply.text}</p>
+                        
+                        {/* Reply Like Action */}
+                        <div className="flex items-center gap-3 mt-0.5 text-[10px] text-gray-400">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const updatedComments = todo.comments?.map(c => {
+                                if (c.id === comment.id) {
+                                  const updatedReplies = c.replies?.map(r => {
+                                    if (r.id === reply.id) {
+                                      const isLiked = !r.isLikedByMe;
+                                      return {
+                                        ...r,
+                                        isLikedByMe: isLiked,
+                                        likes: (r.likes || 0) + (isLiked ? 1 : -1)
+                                      };
+                                    }
+                                    return r;
+                                  }) || [];
+                                  return { ...c, replies: updatedReplies };
+                                }
+                                return c;
+                              }) || [];
+                              setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, comments: updatedComments } : t));
+                              todoService.updateTodo(todo.id, { comments: updatedComments });
+                            }}
+                            className={`flex items-center gap-1 font-semibold transition-colors hover:text-rose-500 ${hasLikedReply ? 'text-rose-500' : ''}`}
+                          >
+                            <Heart className={`w-2.5 h-2.5 ${hasLikedReply ? 'fill-rose-500 text-rose-500' : ''}`} />
+                            <span>{reply.likes || 0}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Inline Reply Input Box */}
+              {isReplying && (
+                <div className="ml-3.5 pl-3.5 border-l-2 border-primary/20 flex gap-2 items-start mt-1">
+                  <textarea
+                    placeholder="Write a reply... (Enter to post)"
+                    className="text-xs flex-1 bg-gray-50/50 hover:bg-gray-50 border focus:bg-white focus:border-primary p-2 rounded-xl outline-none transition resize-none h-[48px]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        const text = e.currentTarget.value.trim();
+                        if (text) {
+                          const newReply = {
+                            id: Math.random().toString(36).substring(2, 9),
+                            text,
+                            createdAt: Date.now(),
+                            author: 'You',
+                            likes: 0,
+                            isLikedByMe: false
+                          };
+                          const updatedComments = todo.comments?.map(c => {
+                            if (c.id === comment.id) {
+                              return {
+                                ...c,
+                                replies: [...(c.replies || []), newReply]
+                              };
+                            }
+                            return c;
+                          }) || [];
+                          setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, comments: updatedComments } : t));
+                          todoService.updateTodo(todo.id, { comments: updatedComments });
+                          setReplyingToCommentId(null);
+                        }
+                      }
+                    }}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setReplyingToCommentId(null)}
+                    className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 select-none self-center"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+
+    {/* Comment Input Box */}
+    <div className="flex gap-2 items-start mt-1">
+      <textarea
+        placeholder="Add a comment... (Enter to post)"
+        className="text-xs flex-1 bg-gray-50/50 hover:bg-gray-50 border focus:bg-white focus:border-primary p-2.5 rounded-xl outline-none transition resize-none h-[68px]"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const text = e.currentTarget.value.trim();
+            if (text) {
+              const newComment = {
+                id: Math.random().toString(36).substring(2, 9),
+                text,
+                createdAt: Date.now(),
+                author: 'You',
+                likes: 0,
+                isLikedByMe: false,
+                replies: []
+              };
+              const updatedComments = [...(todo.comments || []), newComment];
+              setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, comments: updatedComments } : t));
+              todoService.updateTodo(todo.id, { comments: updatedComments });
+              e.currentTarget.value = '';
+            }
+          }
+        }}
+      />
+    </div>
+  </div>
+
  </div>
  </div>
+ ) : (
+   <div className="flex-1 overflow-y-auto p-6 text-left">
+     {/* Activity Tab Feed */}
+     {(!todo.activities || todo.activities.length === 0) ? (
+       <div className="h-full flex flex-col items-center justify-center text-center py-12 px-4">
+         <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 mb-3 border border-gray-100 animate-pulse">
+           <Clock className="w-6 h-6 text-gray-400" />
+         </div>
+         <h3 className="text-sm font-semibold text-gray-700 mb-1">No activity logged yet</h3>
+         <p className="text-xs text-gray-400 max-w-[260px] leading-relaxed">
+           Changes to this task's status, priority, or title will appear here in chronological order.
+         </p>
+       </div>
+     ) : (
+       <div className="space-y-5 relative pl-4 ml-2 border-l border-gray-100 pt-2 pb-6">
+         {todo.activities.slice().reverse().map((act) => {
+           const details = getActivityDetails(act);
+           return (
+             <div key={act.id} className="relative flex flex-col gap-1 text-xs">
+               {/* Circle Icon Indicator */}
+               <div className={`absolute -left-[25px] top-0.5 w-5 h-5 rounded-full border flex items-center justify-center shrink-0 bg-white ${details.bgColor}`}>
+                 {details.icon}
+               </div>
+               
+               {/* Activity Description */}
+               <div className="flex flex-col gap-0.5 ml-2">
+                 <div className="flex items-center justify-between text-gray-400 font-medium select-none">
+                   <span className="text-gray-700 font-semibold">{act.user || 'You'}</span>
+                   <span>{formatDistanceToNow(new Date(act.createdAt), { addSuffix: true })}</span>
+                 </div>
+                 <p className="text-gray-600">
+                   {details.label}
+                 </p>
+                 {details.details && (
+                   <p className="text-gray-400 text-[11px] bg-gray-50/50 border border-gray-100 rounded-lg p-2 mt-1 whitespace-pre-wrap font-medium">
+                     {details.details}
+                   </p>
+                 )}
+               </div>
+             </div>
+           );
+         })}
+       </div>
+     )}
+   </div>
+ )}
  </>
  );
  })()}
