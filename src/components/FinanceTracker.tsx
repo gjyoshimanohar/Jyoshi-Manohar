@@ -21,6 +21,7 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
+  ArrowLeftRight,
   Trash2,
   Edit3,
   Plus,
@@ -37,7 +38,8 @@ import {
   Check,
   Building,
   CreditCard,
-  Wallet
+  Wallet,
+  LayoutDashboard
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -115,6 +117,25 @@ interface ClientUser {
   displayName?: string;
 }
 
+const getAccountTypeInfo = (type: string) => {
+  switch (type) {
+    case "bank_account":
+      return { label: "Bank Account", icon: Wallet, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100", isAsset: true };
+    case "investment":
+      return { label: "Investment", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", isAsset: true };
+    case "other_asset":
+      return { label: "Other Asset", icon: Sparkles, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100", isAsset: true };
+    case "credit_card":
+      return { label: "Credit Card", icon: CreditCard, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100", isAsset: false };
+    case "loan":
+      return { label: "Loan / Debt", icon: TrendingDown, color: "text-red-600", bg: "bg-red-50", border: "border-red-100", isAsset: false };
+    case "other_liability":
+      return { label: "Other Liability", icon: AlertCircle, color: "text-rose-600", bg: "bg-rose-50", border: "border-rose-100", isAsset: false };
+    default:
+      return { label: "Unknown Asset", icon: Wallet, color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-100", isAsset: true };
+  }
+};
+
 export default function FinanceTracker() {
   const [records, setRecords] = useState<FinanceRecord[]>([]);
   const [clients, setClients] = useState<ClientUser[]>([]);
@@ -122,10 +143,11 @@ export default function FinanceTracker() {
   const [syncing, setSyncing] = useState(false);
 
   // Filters
+  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
   const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
-  const [selectedType, setSelectedType] = useState<"all" | "income" | "expense">("all");
+  const [selectedType, setSelectedType] = useState<"all" | "income" | "expense" | "transfer">("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -135,7 +157,7 @@ export default function FinanceTracker() {
   
   // Transaction Form fields
   const [formScope, setFormScope] = useState<"business" | "personal">("business");
-  const [formType, setFormType] = useState<"income" | "expense">("income");
+  const [formType, setFormType] = useState<"income" | "expense" | "transfer">("income");
   const [formCategory, setFormCategory] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -153,15 +175,17 @@ export default function FinanceTracker() {
   // Payment Accounts State
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<PaymentAccount | null>(null);
 
   // New Payment Account Form Fields
   const [accountName, setAccountName] = useState("");
-  const [accountType, setAccountType] = useState<'bank_account' | 'credit_card'>("bank_account");
+  const [accountType, setAccountType] = useState<'bank_account' | 'credit_card' | 'investment' | 'loan' | 'other_asset' | 'other_liability'>("bank_account");
   const [accountOpeningBalance, setAccountOpeningBalance] = useState("");
 
   // Payment fields in the Transaction Form
   const [formPaymentMode, setFormPaymentMode] = useState<string>("Cash");
   const [formPaymentAccountId, setFormPaymentAccountId] = useState<string>("");
+  const [formTransferToAccountId, setFormTransferToAccountId] = useState<string>("");
 
   // Fetch Finance Records, Clients, & Payment Accounts list
   useEffect(() => {
@@ -222,7 +246,9 @@ export default function FinanceTracker() {
   // Autofill Category default when formType or formScope changes
   useEffect(() => {
     if (!editingRecord) {
-      if (formScope === "business") {
+      if (formType === "transfer") {
+        setFormCategory("Internal Transfer");
+      } else if (formScope === "business") {
         if (formType === "income") {
           setFormCategory(INCOME_CATEGORIES[0]);
         } else {
@@ -239,16 +265,20 @@ export default function FinanceTracker() {
   }, [formType, formScope, editingRecord]);
 
   // Handle open modal for new transaction
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (defaultType?: "income" | "expense" | "transfer") => {
     setEditingRecord(null);
     const initialScope = selectedScope === "all" ? "business" : selectedScope;
     setFormScope(initialScope);
-    setFormType("expense"); // Standard default is expense (since users track expenses more actively)
     
-    if (initialScope === "business") {
-      setFormCategory(EXPENSE_CATEGORIES[0]);
+    const initialType = defaultType || (activeTab === "incomes" ? "income" : "expense");
+    setFormType(initialType);
+    
+    if (initialType === "transfer") {
+      setFormCategory("Internal Transfer");
+    } else if (initialScope === "business") {
+      setFormCategory(initialType === "income" ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0]);
     } else {
-      setFormCategory(PERSONAL_EXPENSE_CATEGORIES[0]);
+      setFormCategory(initialType === "income" ? PERSONAL_INCOME_CATEGORIES[0] : PERSONAL_EXPENSE_CATEGORIES[0]);
     }
     
     setFormAmount("");
@@ -259,6 +289,7 @@ export default function FinanceTracker() {
     setFormCustomClientName("");
     setFormPaymentMode("Cash");
     setFormPaymentAccountId("");
+    setFormTransferToAccountId("");
     setIsModalOpen(true);
   };
 
@@ -277,6 +308,7 @@ export default function FinanceTracker() {
     setFormCustomClientName(rec.clientName || "");
     setFormPaymentMode(rec.paymentMode || "Cash");
     setFormPaymentAccountId(rec.paymentAccountId || "");
+    setFormTransferToAccountId(rec.transferToAccountId || "");
     setIsModalOpen(true);
   };
 
@@ -288,6 +320,21 @@ export default function FinanceTracker() {
       return;
     }
 
+    if (formType === "transfer") {
+      if (!formPaymentAccountId) {
+        alert("Please select the Source Account (From) for the transfer.");
+        return;
+      }
+      if (!formTransferToAccountId) {
+        alert("Please select the Destination Account (To) for the transfer.");
+        return;
+      }
+      if (formPaymentAccountId === formTransferToAccountId) {
+        alert("Source Account (From) and Destination Account (To) cannot be the same.");
+        return;
+      }
+    }
+
     const linkedClient = clients.find(c => c.uid === formClientId);
     const clientName = linkedClient 
       ? (linkedClient.displayName || linkedClient.email)
@@ -295,16 +342,17 @@ export default function FinanceTracker() {
 
     const transactionPayload = {
       type: formType,
-      category: formCategory,
+      category: formType === "transfer" ? "Internal Transfer" : formCategory,
       amount: parseFloat(formAmount),
       description: formDescription,
       date: formDate,
       status: formStatus,
-      clientName,
-      clientId: formClientId || "",
+      clientName: formType === "transfer" ? "" : clientName,
+      clientId: formType === "transfer" ? "" : (formClientId || ""),
       scope: formScope,
       paymentMode: formPaymentMode,
-      paymentAccountId: formPaymentAccountId
+      paymentAccountId: formPaymentAccountId,
+      transferToAccountId: formType === "transfer" ? formTransferToAccountId : ""
     };
 
     try {
@@ -465,8 +513,26 @@ export default function FinanceTracker() {
     }
   };
 
-  // Create new Payment Account
-  const handleAddAccount = async (e: React.FormEvent) => {
+  // Open Modal to create new Payment Account
+  const handleOpenNewAccountModal = () => {
+    setEditingAccount(null);
+    setAccountName("");
+    setAccountType("bank_account");
+    setAccountOpeningBalance("");
+    setIsAccountModalOpen(true);
+  };
+
+  // Open Modal to edit existing Payment Account
+  const handleOpenEditAccountModal = (acc: PaymentAccount) => {
+    setEditingAccount(acc);
+    setAccountName(acc.name);
+    setAccountType(acc.type);
+    setAccountOpeningBalance(acc.openingBalance.toString());
+    setIsAccountModalOpen(true);
+  };
+
+  // Create or Update Payment Account
+  const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountName.trim() || !accountOpeningBalance || isNaN(parseFloat(accountOpeningBalance))) {
       alert("Please enter a valid name and opening balance.");
@@ -474,17 +540,26 @@ export default function FinanceTracker() {
     }
     try {
       setSyncing(true);
-      await financeService.createPaymentAccount({
-        name: accountName.trim(),
-        type: accountType,
-        openingBalance: parseFloat(accountOpeningBalance)
-      });
+      if (editingAccount) {
+        await financeService.updatePaymentAccount(editingAccount.id, {
+          name: accountName.trim(),
+          type: accountType,
+          openingBalance: parseFloat(accountOpeningBalance)
+        });
+      } else {
+        await financeService.createPaymentAccount({
+          name: accountName.trim(),
+          type: accountType,
+          openingBalance: parseFloat(accountOpeningBalance)
+        });
+      }
       setAccountName("");
       setAccountOpeningBalance("");
+      setEditingAccount(null);
       setIsAccountModalOpen(false);
     } catch (err) {
-      console.error("Failed to add payment account", err);
-      alert("Error creating payment account.");
+      console.error("Failed to save payment account", err);
+      alert(`Error ${editingAccount ? "updating" : "creating"} payment account.`);
     } finally {
       setSyncing(false);
     }
@@ -508,6 +583,10 @@ export default function FinanceTracker() {
   // Filter Logic
   const filteredRecords = useMemo(() => {
     return records.filter(rec => {
+      // Tab pre-filters
+      if (activeTab === "incomes" && rec.type !== "income") return false;
+      if (activeTab === "expenses" && rec.type !== "expense" && rec.type !== "transfer") return false;
+
       // Scope Filter (default legacy records to 'business')
       const recScope = rec.scope || "business";
       if (selectedScope !== "all" && recScope !== selectedScope) return false;
@@ -528,8 +607,10 @@ export default function FinanceTracker() {
         if (recMonth !== monthNum) return false;
       }
 
-      // Type Filter
-      if (selectedType !== "all" && rec.type !== selectedType) return false;
+      // Type Filter (only relevant if we are on dashboard tab)
+      if (activeTab === "dashboard") {
+        if (selectedType !== "all" && rec.type !== selectedType) return false;
+      }
 
       // Category Filter
       if (selectedCategory !== "All" && rec.category !== selectedCategory) return false;
@@ -545,7 +626,7 @@ export default function FinanceTracker() {
 
       return true;
     });
-  }, [records, selectedYear, selectedMonth, selectedScope, selectedType, selectedCategory, searchQuery]);
+  }, [records, selectedYear, selectedMonth, selectedScope, selectedType, selectedCategory, searchQuery, activeTab]);
 
   // Dynamic current balances for each account
   const accountBalances = useMemo(() => {
@@ -562,19 +643,69 @@ export default function FinanceTracker() {
 
     // Accumulate transactions
     records.forEach(rec => {
-      if (rec.paymentAccountId && balances[rec.paymentAccountId] && rec.status === "paid") {
+      if (rec.status !== "paid") return;
+
+      if (rec.paymentAccountId && balances[rec.paymentAccountId]) {
         if (rec.type === "income") {
           balances[rec.paymentAccountId].income += rec.amount;
           balances[rec.paymentAccountId].current += rec.amount;
-        } else {
+        } else if (rec.type === "expense") {
+          balances[rec.paymentAccountId].expense += rec.amount;
+          balances[rec.paymentAccountId].current -= rec.amount;
+        } else if (rec.type === "transfer") {
+          // Transfer acts as an outflow from source account
           balances[rec.paymentAccountId].expense += rec.amount;
           balances[rec.paymentAccountId].current -= rec.amount;
         }
+      }
+
+      if (rec.type === "transfer" && rec.transferToAccountId && balances[rec.transferToAccountId]) {
+        // Transfer acts as an inflow to destination account
+        balances[rec.transferToAccountId].income += rec.amount;
+        balances[rec.transferToAccountId].current += rec.amount;
       }
     });
 
     return balances;
   }, [paymentAccounts, records]);
+
+  // Compute Assets, Liabilities, and Net Worth
+  const balanceSheetMetrics = useMemo(() => {
+    let assetsSum = 0;
+    let liabilitiesSum = 0;
+
+    paymentAccounts.forEach(acc => {
+      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+      const info = getAccountTypeInfo(acc.type);
+      if (info.isAsset) {
+        assetsSum += b.current;
+      } else {
+        liabilitiesSum += -b.current;
+      }
+    });
+
+    return {
+      totalAssets: assetsSum,
+      totalLiabilities: liabilitiesSum,
+      netWorth: assetsSum - liabilitiesSum
+    };
+  }, [paymentAccounts, accountBalances]);
+
+  const { assets, liabilities } = useMemo(() => {
+    const assList: PaymentAccount[] = [];
+    const liabList: PaymentAccount[] = [];
+
+    paymentAccounts.forEach(acc => {
+      const info = getAccountTypeInfo(acc.type);
+      if (info.isAsset) {
+        assList.push(acc);
+      } else {
+        liabList.push(acc);
+      }
+    });
+
+    return { assets: assList, liabilities: liabList };
+  }, [paymentAccounts]);
 
   // Aggregate Metrics based on ALL records for selected month, year, and scope (ignores type/category filters for context)
   const metrics = useMemo(() => {
@@ -607,7 +738,7 @@ export default function FinanceTracker() {
           if (rec.status === "pending" || rec.status === "overdue") {
             pendingInvoicesVal += rec.amount;
           }
-        } else {
+        } else if (rec.type === "expense") {
           totalExpense += rec.amount;
         }
       }
@@ -640,7 +771,7 @@ export default function FinanceTracker() {
         const recMonth = rec.date.split("-")[1];
         if (recYear === selectedYear && recMonth === monthStr) {
           if (rec.type === "income") income += rec.amount;
-          else expense += rec.amount;
+          else if (rec.type === "expense") expense += rec.amount;
         }
       });
 
@@ -657,6 +788,7 @@ export default function FinanceTracker() {
   const categoryChartData = useMemo(() => {
     const categoryTotals: { [name: string]: number } = {};
     filteredRecords.forEach(rec => {
+      if (rec.type === "transfer") return;
       categoryTotals[rec.category] = (categoryTotals[rec.category] || 0) + rec.amount;
     });
 
@@ -673,17 +805,23 @@ export default function FinanceTracker() {
       return;
     }
 
-    const headers = ["ID", "Type", "Category", "Amount", "Description", "Date", "Status", "Client Name"];
-    const rows = filteredRecords.map(rec => [
-      rec.id,
-      rec.type,
-      rec.category,
-      rec.amount,
-      `"${(rec.description || "").replace(/"/g, '""')}"`,
-      rec.date,
-      rec.status,
-      `"${(rec.clientName || "").replace(/"/g, '""')}"`
-    ]);
+    const headers = ["ID", "Type", "Category", "Amount", "Description", "Date", "Status", "Client Name", "Source Account", "Destination Account"];
+    const rows = filteredRecords.map(rec => {
+      const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "";
+      const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "";
+      return [
+        rec.id,
+        rec.type,
+        rec.category,
+        rec.amount,
+        `"${(rec.description || "").replace(/"/g, '""')}"`,
+        rec.date,
+        rec.status,
+        `"${(rec.clientName || "").replace(/"/g, '""')}"`,
+        `"${sourceAcc.replace(/"/g, '""')}"`,
+        `"${destAcc.replace(/"/g, '""')}"`
+      ];
+    });
 
     const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -694,6 +832,202 @@ export default function FinanceTracker() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const renderLedgerLogsTable = (title: string, subtitle: string, defaultFormTypeToAdd?: "income" | "expense" | "transfer") => {
+    return (
+      <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
+        
+        {/* Table Header toolbar */}
+        <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 className="text-base font-bold text-primary tracking-tight">{title}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} transactions.</p>
+          </div>
+        </div>
+
+        {/* Real Table */}
+        <div className="overflow-x-auto">
+          {filteredRecords.length === 0 ? (
+            <div className="p-20 text-center flex flex-col items-center">
+              <Building className="w-10 h-10 text-gray-300 mb-3" />
+              <p className="text-slate-600 font-semibold italic text-sm">No transaction records logged under these criteria.</p>
+              <button
+                onClick={() => handleOpenAddModal(defaultFormTypeToAdd)}
+                className="mt-4 flex items-center space-x-1.5 bg-primary text-white text-xs px-4 py-2 rounded-lg font-bold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Log First Transaction</span>
+              </button>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/30 text-gray-400 font-bold border-b border-border">
+                  <th className="py-4 px-6 text-center">Filing Date</th>
+                  <th className="py-4 px-6 text-center">Book</th>
+                  <th className="py-4 px-6">Stream / Category</th>
+                  <th className="py-4 px-6">Narrative / Client</th>
+                  <th className="py-4 px-6 text-center">Receipt Status</th>
+                  <th className="py-4 px-6 text-center">Method / Source</th>
+                  <th className="py-4 px-6 text-right">Settled Amount</th>
+                  <th className="py-4 px-6 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredRecords.map((rec) => {
+                  const isIncome = rec.type === "income";
+                  const isTransfer = rec.type === "transfer";
+                  const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "--";
+                  const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "--";
+
+                  return (
+                    <tr key={rec.id} className="hover:bg-slate-50/30 transition-colors">
+                      {/* Date */}
+                      <td className="py-4 px-6 text-center font-semibold text-slate-500 whitespace-nowrap">
+                        <span className="flex items-center justify-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {rec.date}
+                        </span>
+                      </td>
+
+                      {/* Scope */}
+                      <td className="py-4 px-6 text-center font-bold">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                          rec.scope === "personal" 
+                            ? "bg-rose-50 text-rose-700 border border-rose-100" 
+                            : "bg-[#1a2b58]/5 text-[#1a2b58] border border-[#1a2b58]/10"
+                        }`}>
+                          {rec.scope === "personal" ? "Private" : "Corporate"}
+                        </span>
+                      </td>
+
+                      {/* Category */}
+                      <td className="py-4 px-6 font-bold text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate max-w-[150px]">{rec.category}</span>
+                        </div>
+                      </td>
+
+                      {/* Description & Client */}
+                      <td className="py-4 px-6 text-slate-600 font-semibold max-w-xs">
+                        <div className="space-y-1">
+                          <p className="truncate text-slate-800" title={rec.description}>{rec.description || "--"}</p>
+                          {rec.clientName && (
+                            <p className="text-[10px] text-[#AD8D3E] font-bold flex items-center gap-1">
+                              <User className="w-3 h-3 text-amber-600" />
+                              <span>Client: {rec.clientName}</span>
+                            </p>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-4 px-6 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                          rec.status === "paid"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : rec.status === "pending"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}>
+                          {rec.status === "paid" ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-green-600" />
+                              <span>Paid</span>
+                            </>
+                          ) : rec.status === "pending" ? (
+                            <>
+                              <AlertCircle className="w-3 h-3 text-amber-600 animate-pulse" />
+                              <span>Pending</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="w-3 h-3 text-rose-600" />
+                              <span>Overdue</span>
+                            </>
+                          )}
+                        </span>
+                      </td>
+
+                      {/* Method / Source */}
+                      <td className="py-4 px-6 text-center font-bold text-slate-600">
+                        {isTransfer ? (
+                          <div className="flex flex-col items-center text-[10px] text-blue-700 bg-blue-50/50 px-2 py-1 rounded-lg border border-blue-100">
+                            <span className="flex items-center gap-1 font-semibold">
+                              <ArrowLeftRight className="w-3 h-3 text-blue-500" /> Transfer
+                            </span>
+                            <span className="text-[9px] text-slate-500 mt-0.5">{sourceAcc} → {destAcc}</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            <span className="text-slate-700 text-[11px]">{rec.paymentMode || "Cash"}</span>
+                            {rec.paymentAccountId && (
+                              <span className="text-[9px] text-gray-400 font-semibold mt-0.5">({sourceAcc})</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Amount */}
+                      <td className={`py-4 px-6 text-right font-extrabold text-sm whitespace-nowrap ${
+                        isTransfer 
+                          ? "text-blue-600" 
+                          : isIncome 
+                            ? "text-green-600" 
+                            : "text-primary"
+                      }`}>
+                        {isTransfer ? "⇆" : (isIncome ? "+" : "-")} ₹{rec.amount.toLocaleString("en-IN")}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-4 px-6 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          <button
+                            onClick={() => handleOpenEditModal(rec)}
+                            className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-lg transition"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          
+                          {confirmDeleteId === rec.id ? (
+                            <div className="flex items-center space-x-1.5 z-10 bg-slate-50 border p-1 rounded-md">
+                              <span className="text-[10px] font-bold text-red-500">Confirm?</span>
+                              <button 
+                                onClick={() => handleDeleteTransaction(rec.id)} 
+                                className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold"
+                              >
+                                Yes
+                              </button>
+                              <button 
+                                onClick={() => setConfirmDeleteId(null)} 
+                                className="px-1.5 py-0.5 bg-slate-300 text-slate-800 rounded text-[9px] font-bold"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(rec.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -728,7 +1062,7 @@ export default function FinanceTracker() {
           </button>
 
           <button
-            onClick={handleOpenAddModal}
+            onClick={() => handleOpenAddModal()}
             className="flex items-center space-x-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm"
           >
             <Plus className="w-4 h-4" />
@@ -736,6 +1070,55 @@ export default function FinanceTracker() {
           </button>
         </div>
       </div>
+
+      {/* Two-Column Sidebar Layout */}
+      <div className="flex flex-col lg:flex-row gap-8 items-start">
+        
+        {/* Side Navigation Bar */}
+        <aside className="w-full lg:w-60 shrink-0 bg-white border border-border p-4 rounded-2xl flex flex-col gap-4 shadow-xs lg:sticky lg:top-6">
+          <div className="hidden lg:block pb-3 border-b border-slate-100">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">Firm Ledger Console</h3>
+            <p className="text-[10px] text-gray-400 font-semibold px-2 mt-0.5">CA Jyoshi Manohar</p>
+          </div>
+
+          <div className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-none">
+            {[
+              { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, desc: "Overview & Analytics" },
+              { id: "incomes", label: "Incomes", icon: TrendingUp, desc: "Professional Inflows" },
+              { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
+              { id: "account", label: "Account", icon: Wallet, desc: "Assets & Liabilities" },
+            ].map((tab) => {
+              const IconComp = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  id={`nav-tab-${tab.id}`}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setSelectedCategory("All");
+                  }}
+                  className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl transition-all font-semibold text-xs whitespace-nowrap shrink-0 border ${
+                    isActive
+                      ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                      : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-primary"
+                  }`}
+                >
+                  <IconComp className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-[#AD8D3E]" : "text-slate-400"}`} />
+                  <div className="flex flex-col text-left">
+                    <span className="leading-tight">{tab.label}</span>
+                    <span className={`text-[9px] hidden lg:block font-medium mt-0.5 ${isActive ? "text-slate-300" : "text-slate-400"}`}>
+                      {tab.desc}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Dynamic Content Area */}
+        <div className="flex-grow w-full min-w-0 space-y-6">
 
       {/* Finance Dimension Selector Tabs */}
       <div className="border-b border-slate-100 pb-px">
@@ -823,7 +1206,7 @@ export default function FinanceTracker() {
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Transaction Category</span>
             <div className="bg-accent border border-slate-200 rounded-lg p-0.5 flex space-x-1">
-              {(["all", "income", "expense"] as const).map(t => (
+              {(["all", "income", "expense", "transfer"] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setSelectedType(t)}
@@ -833,7 +1216,7 @@ export default function FinanceTracker() {
                       : "text-slate-600 hover:text-primary"
                   }`}
                 >
-                  {t}
+                  {t === "all" ? "All Logs" : t === "transfer" ? "Transfers" : t}
                 </button>
               ))}
             </div>
@@ -904,484 +1287,604 @@ export default function FinanceTracker() {
       </div>
 
       {/* Bento Grid Stats Panel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        
-        {/* Metric 1: Income */}
-        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500" />
-          <div>
-            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-              {selectedScope === "business"
-                ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : "Annual Revenue")
-                : selectedScope === "personal"
-                  ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : "Annual Private Inflow")
-                  : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : "Combined Annual Income")
-              }
-            </span>
-            <span className="text-2xl font-bold text-primary block mt-1.5">
-              ₹{metrics.totalIncome.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>
-                {selectedScope === "business"
-                  ? "Office client billings"
-                  : selectedScope === "personal"
-                    ? "Salary, SIP, drawings"
-                    : "All combined inflows"
-                }
-              </span>
-            </span>
-          </div>
-          <div className="p-3 bg-green-50 rounded-xl text-green-600">
-            <TrendingUp className="w-6 h-6" />
-          </div>
+      {activeTab !== "account" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          
+          {/* Metric 1: Income */}
+          {(activeTab === "dashboard" || activeTab === "incomes") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500" />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : "Annual Revenue")
+                    : selectedScope === "personal"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : "Annual Private Inflow")
+                      : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : "Combined Annual Income")
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.totalIncome.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-1">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Office client billings"
+                      : selectedScope === "personal"
+                        ? "Salary, SIP, drawings"
+                        : "All combined inflows"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className="p-3 bg-green-50 rounded-xl text-green-600">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+          {/* Metric 2: Expenses */}
+          {(activeTab === "dashboard" || activeTab === "expenses") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-red-400" />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : "Annual Overheads")
+                    : selectedScope === "personal"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : "Annual Private Outlay")
+                      : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : "Annual Outflows")
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.totalExpense.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[11px] text-red-500 font-semibold flex items-center gap-1 mt-1">
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Operating overheads"
+                      : selectedScope === "personal"
+                        ? "Groceries, Rent, Leisure"
+                        : "Total operating & private costs"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className="p-3 bg-red-50 rounded-xl text-red-500">
+                <TrendingDown className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+          {/* Metric 3: Profit / Net Margin */}
+          {(activeTab === "dashboard" || activeTab === "expenses") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className={`absolute top-0 left-0 w-1.5 h-full ${metrics.balance >= 0 ? "bg-[#AD8D3E]" : "bg-rose-500"}`} />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : "Annual Profit Margin")
+                    : selectedScope === "personal"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : "Net Annual Savings")
+                      : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : "Consolidated Surplus")
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.balance.toLocaleString("en-IN")}
+                </span>
+                <span className={`text-[11px] font-semibold flex items-center gap-1 mt-1 ${
+                  metrics.balance >= 0 ? "text-[#AD8D3E]" : "text-rose-500"
+                }`}>
+                  <DollarSign className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Net Operating Margin"
+                      : selectedScope === "personal"
+                        ? "Private savings surplus"
+                        : "Combined retained earnings"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className={`p-3 rounded-xl ${metrics.balance >= 0 ? "bg-amber-50 text-[#AD8D3E]" : "bg-rose-50 text-rose-500"}`}>
+                <BarChart3 className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+          {/* Metric 4: Pending Invoices / Accounts Receivable */}
+          {(activeTab === "dashboard" || activeTab === "incomes") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? "Outstanding Receivables"
+                    : selectedScope === "personal"
+                      ? "Pending Outlays"
+                      : "Consolidated Receivables"
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.pendingInvoicesVal.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[11px] text-blue-500 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Pending Client Fees"
+                      : selectedScope === "personal"
+                        ? "Pending bills & SIPs"
+                        : "Total Unresolved Outlays"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-xl text-blue-500">
+                <FileText className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
         </div>
+      )}
 
-        {/* Metric 2: Expenses */}
-        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-red-400" />
-          <div>
-            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-              {selectedScope === "business"
-                ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : "Annual Overheads")
-                : selectedScope === "personal"
-                  ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : "Annual Private Outlay")
-                  : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : "Annual Outflows")
-              }
-            </span>
-            <span className="text-2xl font-bold text-primary block mt-1.5">
-              ₹{metrics.totalExpense.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[11px] text-red-500 font-semibold flex items-center gap-1 mt-1">
-              <TrendingDown className="w-3.5 h-3.5" />
-              <span>
-                {selectedScope === "business"
-                  ? "Operating overheads"
-                  : selectedScope === "personal"
-                    ? "Groceries, Rent, Leisure"
-                    : "Total operating & private costs"
-                }
-              </span>
-            </span>
-          </div>
-          <div className="p-3 bg-red-50 rounded-xl text-red-500">
-            <TrendingDown className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Metric 3: Profit / Net Margin */}
-        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
-          <div className={`absolute top-0 left-0 w-1.5 h-full ${metrics.balance >= 0 ? "bg-[#AD8D3E]" : "bg-rose-500"}`} />
-          <div>
-            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-              {selectedScope === "business"
-                ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : "Annual Profit Margin")
-                : selectedScope === "personal"
-                  ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : "Net Annual Savings")
-                  : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : "Consolidated Surplus")
-              }
-            </span>
-            <span className="text-2xl font-bold text-primary block mt-1.5">
-              ₹{metrics.balance.toLocaleString("en-IN")}
-            </span>
-            <span className={`text-[11px] font-semibold flex items-center gap-1 mt-1 ${
-              metrics.balance >= 0 ? "text-[#AD8D3E]" : "text-rose-500"
-            }`}>
-              <DollarSign className="w-3.5 h-3.5" />
-              <span>
-                {selectedScope === "business"
-                  ? "Net Operating Margin"
-                  : selectedScope === "personal"
-                    ? "Private savings surplus"
-                    : "Combined retained earnings"
-                }
-              </span>
-            </span>
-          </div>
-          <div className={`p-3 rounded-xl ${metrics.balance >= 0 ? "bg-amber-50 text-[#AD8D3E]" : "bg-rose-50 text-rose-500"}`}>
-            <BarChart3 className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Metric 4: Pending Invoices / Accounts Receivable */}
-        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
-          <div>
-            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-              {selectedScope === "business"
-                ? "Outstanding Receivables"
-                : selectedScope === "personal"
-                  ? "Pending Outlays"
-                  : "Consolidated Receivables"
-              }
-            </span>
-            <span className="text-2xl font-bold text-primary block mt-1.5">
-              ₹{metrics.pendingInvoicesVal.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[11px] text-blue-500 font-semibold flex items-center gap-1 mt-1">
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>
-                {selectedScope === "business"
-                  ? "Pending Client Fees"
-                  : selectedScope === "personal"
-                    ? "Pending bills & SIPs"
-                    : "Total Unresolved Outlays"
-                }
-              </span>
-            </span>
-          </div>
-          <div className="p-3 bg-blue-50 rounded-xl text-blue-500">
-            <FileText className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
-
-      {/* Linked Payment Accounts & Ledgers */}
-      <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h3 className="text-lg font-bold text-primary tracking-tight">🏦 Payment Sources & Live Ledgers</h3>
-            <p className="text-xs text-gray-500 mt-1">
-              Active bank accounts and credit cards with automated dynamic ledger balance computation.
-            </p>
-          </div>
-          <button
-            onClick={() => setIsAccountModalOpen(true)}
-            className="flex items-center space-x-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-          >
-            <Plus className="w-4 h-4 text-slate-600" />
-            <span>Add Source Account</span>
-          </button>
-        </div>
-
-        {paymentAccounts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-            <Wallet className="w-8 h-8 text-slate-400 mb-2" />
-            <h4 className="text-xs font-bold text-slate-700">No Payment Accounts Configured</h4>
-            <p className="text-[11px] text-gray-400 max-w-sm mt-1">
-              Add a bank account or credit card to link transactions, track live available funds, and monitor overhead offsets.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {paymentAccounts.map((acc) => {
-              const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
-              const isBank = acc.type === "bank_account";
-              return (
-                <div key={acc.id} className="border border-border p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/50">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        {isBank ? (
-                          <Wallet className="w-4 h-4 text-emerald-600" />
-                        ) : (
-                          <CreditCard className="w-4 h-4 text-amber-500" />
-                        )}
-                        <span className="font-semibold text-slate-800 text-sm">{acc.name}</span>
-                      </div>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        isBank ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100"
-                      }`}>
-                        {isBank ? "🏦 Bank Account" : "💳 Credit Card"}
-                      </span>
-                    </div>
-                    
-                    <button
-                      onClick={() => handleDeleteAccount(acc.id, acc.name)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all p-1"
-                      title="Delete payment account"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100">
-                    <span className="text-xs text-gray-400 block font-medium">Dynamic Ledger Balance</span>
-                    <span className={`text-xl font-bold tracking-tight block mt-0.5 ${
-                      b.current >= 0 ? "text-emerald-700" : "text-amber-700"
-                    }`}>
-                      ₹{b.current.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
-                    <div>
-                      <span className="text-gray-400 block">Opening</span>
-                      <span className="font-semibold text-slate-700">₹{acc.openingBalance.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div>
-                      <span className="text-green-500 block">Inflows</span>
-                      <span className="font-semibold text-green-700">+{b.income.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div>
-                      <span className="text-red-400 block">Outflows</span>
-                      <span className="font-semibold text-red-600">-{b.expense.toLocaleString("en-IN")}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Visual Analytics Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Recharts Area Chart: Annual Inflow & Overhead trends */}
-        <div className="lg:col-span-2 bg-white border border-border p-6 rounded-2xl shadow-sm">
-          <div className="flex justify-between items-center mb-6">
+      {/* Assets & Liabilities / Balance Sheet & Live Ledgers */}
+      {activeTab === "account" && (
+        <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
-              <h3 className="text-base font-bold text-primary tracking-tight">Income &amp; Expense Trends</h3>
-              <p className="text-xs text-gray-400">Comparing professional fees vs operating expenses over year {selectedYear}.</p>
+              <h3 className="text-lg font-bold text-primary tracking-tight">🏦 Balance Sheet &amp; Live Ledgers</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Consolidated Assets, Liabilities, and Net Worth computed in real-time from active ledger transactions.
+              </p>
             </div>
-            <div className="flex space-x-3 text-xs">
-              <span className="flex items-center gap-1 font-semibold text-primary">
-                <span className="w-3 h-3 bg-[#1a2b58] rounded" /> Inflow
+            <button
+              onClick={handleOpenNewAccountModal}
+              className="flex items-center space-x-1.5 bg-[#1a2b58] hover:bg-[#121f42] text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>Add Account / Asset / Liability</span>
+            </button>
+          </div>
+
+          {/* Real-time Net Worth & Liquidity Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            {/* Net Worth */}
+            <div className="bg-[#1a2b58] text-white p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <Building className="w-16 h-16" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#AD8D3E]">Net Worth (Balance Sheet)</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1">
+                ₹{balanceSheetMetrics.netWorth.toLocaleString("en-IN")}
               </span>
-              <span className="flex items-center gap-1 font-semibold text-primary">
-                <span className="w-3 h-3 bg-[#AD8D3E] rounded" /> Outflow
+              <span className="text-[10px] text-slate-300 block mt-2 font-medium">
+                Assets less outstanding liabilities
+              </span>
+            </div>
+
+            {/* Total Assets */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <TrendingUp className="w-16 h-16 text-green-600" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Assets</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-emerald-700">
+                ₹{balanceSheetMetrics.totalAssets.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-green-600 block mt-2 font-medium flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                {assets.length} Active asset sources
+              </span>
+            </div>
+
+            {/* Total Liabilities */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <TrendingDown className="w-16 h-16 text-rose-600" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Liabilities</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-amber-700">
+                ₹{balanceSheetMetrics.totalLiabilities.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-amber-600 block mt-2 font-medium flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                {liabilities.length} Debt / credit streams
               </span>
             </div>
           </div>
 
-          <div className="h-72 w-full text-xs font-medium">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1a2b58" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#1a2b58" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#AD8D3E" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#AD8D3E" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", border: "none", color: "#fff" }}
-                  itemStyle={{ color: "#fff" }}
-                />
-                <Area type="monotone" dataKey="Income" stroke="#1a2b58" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIncome)" />
-                <Area type="monotone" dataKey="Expense" stroke="#AD8D3E" strokeWidth={2.5} fillOpacity={1} fill="url(#colorExpense)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Category breakdown sidebar widget */}
-        <div className="bg-white border border-border p-6 rounded-2xl shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-base font-bold text-primary tracking-tight mb-1">Specific Distribution</h3>
-            <p className="text-xs text-gray-400 mb-4">Percentage allocation based on current filtered scopes.</p>
-            
-            {categoryChartData.length === 0 ? (
-              <div className="py-12 text-center text-gray-400 italic text-xs border border-dashed rounded-xl mt-4">
-                No categorical data matches active filters.
-              </div>
-            ) : (
-              <div className="h-44 w-full relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={65}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {categoryChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => `₹${value}`} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-[10px] uppercase font-bold text-gray-400">Filtered</span>
-                  <span className="text-sm font-bold text-primary">{categoryChartData.length} Keys</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Custom Category List legend */}
-          <div className="mt-4 space-y-2 max-h-[160px] overflow-y-auto pr-1">
-            {categoryChartData.slice(0, 5).map((entry, index) => {
-              const totalVal = categoryChartData.reduce((acc, curr) => acc + curr.value, 0);
-              const percentage = totalVal > 0 ? Math.round((entry.value / totalVal) * 100) : 0;
-              return (
-                <div key={entry.name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                    <span className="font-semibold text-primary truncate max-w-[120px]">{entry.name}</span>
-                  </div>
-                  <div className="text-gray-500 font-semibold">
-                    ₹{entry.value.toLocaleString("en-IN")} <span className="text-[10px] font-bold text-[#AD8D3E]">({percentage}%)</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Transaction Records Table Container */}
-      <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
-        
-        {/* Table Header toolbar */}
-        <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <h3 className="text-base font-bold text-primary tracking-tight">Financial Ledger Logs</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} total logged transactions.</p>
-          </div>
-        </div>
-
-        {/* Real Table */}
-        <div className="overflow-x-auto">
-          {filteredRecords.length === 0 ? (
-            <div className="p-20 text-center flex flex-col items-center">
-              <Building className="w-10 h-10 text-gray-300 mb-3" />
-              <p className="text-slate-600 font-semibold italic text-sm">No transaction records match active filters.</p>
-              <button
-                onClick={handleOpenAddModal}
-                className="mt-4 flex items-center space-x-1.5 bg-primary text-white text-xs px-4 py-2 rounded-lg font-bold"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Log first transaction</span>
-              </button>
+          {paymentAccounts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+              <Wallet className="w-8 h-8 text-slate-400 mb-2" />
+              <h4 className="text-xs font-bold text-slate-700">No Accounts Configured</h4>
+              <p className="text-[11px] text-gray-400 max-w-sm mt-1">
+                Add a bank account, investment, credit card, or loan to link transactions, track live assets and liabilities, and compute net worth.
+              </p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
-                  <th className="py-4 px-6">Date</th>
-                  <th className="py-4 px-6">Description</th>
-                  <th className="py-4 px-6">Category</th>
-                  <th className="py-4 px-6">Client / Vendor</th>
-                  <th className="py-4 px-6">Status</th>
-                  <th className="py-4 px-6 text-right">Amount</th>
-                  <th className="py-4 px-6 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="text-xs divide-y divide-border font-medium">
-                {filteredRecords.map((rec) => {
-                  const isIncome = rec.type === "income";
-                  return (
-                    <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
-                      {/* Date */}
-                      <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
-                        {new Date(rec.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric"
-                        })}
-                      </td>
-                      
-                      {/* Description */}
-                      <td className="py-4 px-6 font-semibold text-primary max-w-sm truncate" title={rec.description}>
-                        {rec.description || "N/A"}
-                      </td>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* LEFT COLUMN: Assets */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    🟢 Assets &amp; Savings ({assets.length})
+                  </span>
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                    ₹{balanceSheetMetrics.totalAssets.toLocaleString("en-IN")}
+                  </span>
+                </div>
 
-                      {/* Category */}
-                      <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                          isIncome 
-                            ? "bg-indigo-50/80 text-primary" 
-                            : "bg-amber-50/80 text-amber-800"
-                        }`}>
-                          <Tag className="w-3 h-3 shrink-0" />
-                          {rec.category}
-                        </span>
-                      </td>
-
-                      {/* Client Name */}
-                      <td className="py-4 px-6 text-gray-600 truncate max-w-[150px]">
-                        {rec.clientName ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="p-1 bg-slate-100 rounded-full text-slate-500">
-                              <User className="w-3 h-3" />
-                            </span>
-                            <span className="truncate">{rec.clientName}</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-300 italic">Self Overheads</span>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          rec.status === "paid" 
-                            ? "bg-green-50 text-green-700 border border-green-200" 
-                            : rec.status === "overdue"
-                              ? "bg-red-50 text-red-700 border border-red-200"
-                              : "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                        }`}>
-                          {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
-                          {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
-                          {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
-                          {rec.status}
-                        </span>
-                      </td>
-
-                      {/* Amount */}
-                      <td className={`py-4 px-6 text-right font-bold text-sm ${
-                        isIncome ? "text-green-600" : "text-primary"
-                      }`}>
-                        {isIncome ? "+" : "-"} ₹{rec.amount.toLocaleString("en-IN")}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-4 px-6 text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          <button
-                            onClick={() => handleOpenEditModal(rec)}
-                            className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-lg transition"
-                            title="Edit"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          
-                          {confirmDeleteId === rec.id ? (
-                            <div className="flex items-center space-x-1.5 z-10 bg-slate-50 border p-1 rounded-md">
-                              <span className="text-[10px] font-bold text-red-500">Confirm?</span>
-                              <button 
-                                onClick={() => handleDeleteTransaction(rec.id)} 
-                                className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold"
+                {assets.length === 0 ? (
+                  <div className="py-8 px-4 text-center border border-dashed border-slate-100 rounded-xl text-gray-400 text-xs bg-slate-50/30">
+                    No active asset accounts configured.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {assets.map((acc) => {
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+                      const typeInfo = getAccountTypeInfo(acc.type);
+                      const IconComp = typeInfo.icon;
+                      return (
+                        <div key={acc.id} className="border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <IconComp className={`w-4 h-4 ${typeInfo.color}`} />
+                                <span className="font-semibold text-slate-800 text-sm">{acc.name}</span>
+                              </div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${typeInfo.bg} ${typeInfo.color} border ${typeInfo.border}`}>
+                                {typeInfo.label}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleOpenEditAccountModal(acc)}
+                                className="text-slate-400 hover:text-slate-700 transition p-1"
+                                title="Edit asset account"
                               >
-                                Yes
+                                <Edit3 className="w-3.5 h-3.5" />
                               </button>
-                              <button 
-                                onClick={() => setConfirmDeleteId(null)} 
-                                className="px-1.5 py-0.5 bg-slate-300 text-slate-800 rounded text-[9px] font-bold"
+                              <button
+                                onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                                className="text-slate-400 hover:text-red-500 transition p-1"
+                                title="Delete asset account"
                               >
-                                No
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          ) : (
-                            <button
-                              onClick={() => setConfirmDeleteId(rec.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-end">
+                            <div>
+                              <span className="text-xs text-gray-400 block font-medium">Dynamic Ledger Balance</span>
+                              <span className="text-lg font-extrabold text-emerald-700 tracking-tight block mt-0.5">
+                                ₹{b.current.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
+                            <div>
+                              <span className="text-gray-400 block">Opening</span>
+                              <span className="font-semibold text-slate-700">₹{acc.openingBalance.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-green-500 block">Inflows</span>
+                              <span className="font-semibold text-green-700">+{b.income.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-red-400 block">Outflows</span>
+                              <span className="font-semibold text-red-600">-{b.expense.toLocaleString("en-IN")}</span>
+                            </div>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT COLUMN: Liabilities */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    🔴 Liabilities &amp; Debts ({liabilities.length})
+                  </span>
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
+                    ₹{balanceSheetMetrics.totalLiabilities.toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                {liabilities.length === 0 ? (
+                  <div className="py-8 px-4 text-center border border-dashed border-slate-100 rounded-xl text-gray-400 text-xs bg-slate-50/30">
+                    No active liability accounts configured.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {liabilities.map((acc) => {
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+                      const typeInfo = getAccountTypeInfo(acc.type);
+                      const IconComp = typeInfo.icon;
+                      // Outstanding debt is the positive presentation of negative ledger balance
+                      const outstandingDebt = -b.current;
+
+                      return (
+                        <div key={acc.id} className="border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <IconComp className={`w-4 h-4 ${typeInfo.color}`} />
+                                <span className="font-semibold text-slate-800 text-sm">{acc.name}</span>
+                              </div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${typeInfo.bg} ${typeInfo.color} border ${typeInfo.border}`}>
+                                {typeInfo.label}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleOpenEditAccountModal(acc)}
+                                className="text-slate-400 hover:text-slate-700 transition p-1"
+                                title="Edit liability account"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                                className="text-slate-400 hover:text-red-500 transition p-1"
+                                title="Delete liability"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-end">
+                            <div>
+                              <span className="text-xs text-gray-400 block font-medium">Outstanding Debt</span>
+                              <span className={`text-lg font-extrabold tracking-tight block mt-0.5 ${outstandingDebt >= 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                                ₹{outstandingDebt.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
+                            <div>
+                              <span className="text-gray-400 block">Opening Debt</span>
+                              <span className="font-semibold text-slate-700">₹{(-acc.openingBalance).toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-green-500 block">Payments</span>
+                              <span className="font-semibold text-green-700">₹{b.income.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-red-400 block">New Charges</span>
+                              <span className="font-semibold text-red-600">₹{b.expense.toLocaleString("en-IN")}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+            </div>
           )}
+        </div>
+      )}
+
+      {/* Visual Analytics Row */}
+      {activeTab === "dashboard" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Recharts Area Chart: Annual Inflow & Overhead trends */}
+          <div className="lg:col-span-2 bg-white border border-border p-6 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-base font-bold text-primary tracking-tight">Income &amp; Expense Trends</h3>
+                <p className="text-xs text-gray-400">Comparing professional fees vs operating expenses over year {selectedYear}.</p>
+              </div>
+              <div className="flex space-x-3 text-xs">
+                <span className="flex items-center gap-1 font-semibold text-primary">
+                  <span className="w-3 h-3 bg-[#1a2b58] rounded" /> Inflow
+                </span>
+                <span className="flex items-center gap-1 font-semibold text-primary">
+                  <span className="w-3 h-3 bg-[#AD8D3E] rounded" /> Outflow
+                </span>
+              </div>
+            </div>
+
+            <div className="h-72 w-full text-xs font-medium">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1a2b58" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#1a2b58" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#AD8D3E" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#AD8D3E" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", border: "none", color: "#fff" }}
+                    itemStyle={{ color: "#fff" }}
+                  />
+                  <Area type="monotone" dataKey="Income" stroke="#1a2b58" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIncome)" />
+                  <Area type="monotone" dataKey="Expense" stroke="#AD8D3E" strokeWidth={2.5} fillOpacity={1} fill="url(#colorExpense)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Category breakdown sidebar widget */}
+          <div className="bg-white border border-border p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight mb-1">Specific Distribution</h3>
+              <p className="text-xs text-gray-400 mb-4">Percentage allocation based on current filtered scopes.</p>
+              
+              {categoryChartData.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 italic text-xs border border-dashed rounded-xl mt-4">
+                  No categorical data matches active filters.
+                </div>
+              ) : (
+                <div className="h-44 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {categoryChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `₹${value}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Filtered</span>
+                    <span className="text-sm font-bold text-primary">{categoryChartData.length} Keys</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Custom Category List legend */}
+            <div className="mt-4 space-y-2 max-h-[160px] overflow-y-auto pr-1">
+              {categoryChartData.slice(0, 5).map((entry, index) => {
+                const totalVal = categoryChartData.reduce((acc, curr) => acc + curr.value, 0);
+                const percentage = totalVal > 0 ? Math.round((entry.value / totalVal) * 100) : 0;
+                return (
+                  <div key={entry.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="font-semibold text-primary truncate max-w-[120px]">{entry.name}</span>
+                    </div>
+                    <div className="text-gray-500 font-semibold">
+                      ₹{entry.value.toLocaleString("en-IN")} <span className="text-[10px] font-bold text-[#AD8D3E]">({percentage}%)</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab-Specific Ledger Content */}
+      {activeTab === "incomes" && renderLedgerLogsTable("Professional Income Streams", "Inflows of professional billings & fee drawings", "income")}
+      {activeTab === "expenses" && renderLedgerLogsTable("Firm Operating Expenses", "Operating overheads, staff drawdowns, and equipment purchases", "expense")}
+
+      {activeTab === "dashboard" && (
+        <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
+          {/* Recent Table Toolbar */}
+          <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight">Recent Ledger Activity</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Showing the latest 5 recorded transactions across all books.</p>
+            </div>
+            <button
+              onClick={() => {
+                setActiveTab("incomes");
+              }}
+              className="text-xs font-bold text-primary hover:text-[#AD8D3E] flex items-center gap-1 transition"
+            >
+              <span>View All Transactions</span>
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            {records.length === 0 ? (
+              <div className="p-16 text-center flex flex-col items-center">
+                <Building className="w-10 h-10 text-gray-300 mb-2" />
+                <p className="text-slate-600 font-semibold italic text-sm">No recent transactions recorded.</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/30 text-gray-400 font-bold border-b border-border">
+                    <th className="py-4 px-6 text-center">Filing Date</th>
+                    <th className="py-4 px-6 text-center">Book</th>
+                    <th className="py-4 px-6">Stream / Category</th>
+                    <th className="py-4 px-6">Narrative / Client</th>
+                    <th className="py-4 px-6 text-center">Receipt Status</th>
+                    <th className="py-4 px-6 text-right">Settled Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {records.slice(-5).reverse().map((rec) => {
+                    const isIncome = rec.type === "income";
+                    const isTransfer = rec.type === "transfer";
+                    
+                    return (
+                      <tr key={rec.id} className="hover:bg-slate-50/30 transition-colors">
+                        <td className="py-4 px-6 text-center text-slate-500 whitespace-nowrap">
+                          {rec.date}
+                        </td>
+                        <td className="py-4 px-6 text-center font-bold">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                            rec.scope === "personal" 
+                              ? "bg-rose-50 text-rose-700 border border-rose-100" 
+                              : "bg-[#1a2b58]/5 text-[#1a2b58] border border-[#1a2b58]/10"
+                          }`}>
+                            {rec.scope === "personal" ? "Private" : "Corporate"}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 font-bold text-slate-800">
+                          {rec.category}
+                        </td>
+                        <td className="py-4 px-6 text-slate-600 max-w-xs truncate">
+                          {rec.description || "--"}
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                            rec.status === "paid"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-amber-50 text-amber-700 border-amber-200"
+                          }`}>
+                            {rec.status === "paid" ? "Paid" : "Pending"}
+                          </span>
+                        </td>
+                        <td className={`py-4 px-6 text-right font-extrabold text-sm whitespace-nowrap ${
+                          isTransfer 
+                            ? "text-blue-600" 
+                            : isIncome 
+                              ? "text-green-600" 
+                              : "text-primary"
+                        }`}>
+                          {isTransfer ? "⇆" : (isIncome ? "+" : "-")} ₹{rec.amount.toLocaleString("en-IN")}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
         </div>
       </div>
 
@@ -1449,30 +1952,42 @@ export default function FinanceTracker() {
               </div>
 
               {/* Type selector toggle */}
-              <div className="grid grid-cols-2 gap-3 p-1 bg-slate-50 border border-slate-100 rounded-xl">
+              <div className="grid grid-cols-3 gap-2 p-1 bg-slate-50 border border-slate-100 rounded-xl">
                 <button
                   type="button"
                   onClick={() => setFormType("income")}
-                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
                     formType === "income"
                       ? "bg-white text-green-700 shadow-sm border border-slate-100"
                       : "text-slate-600 hover:text-primary"
                   }`}
                 >
-                  <TrendingUp className="w-4 h-4" />
-                  <span>{formScope === "business" ? "Office Revenue" : "Personal Inflow / Drawings"}</span>
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Inflow</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormType("expense")}
-                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
                     formType === "expense"
                       ? "bg-white text-amber-800 shadow-sm border border-slate-100"
                       : "text-slate-600 hover:text-primary"
                   }`}
                 >
-                  <TrendingDown className="w-4 h-4" />
-                  <span>{formScope === "business" ? "Overhead / Expense" : "Personal Expense"}</span>
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  <span>Outflow</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormType("transfer")}
+                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
+                    formType === "transfer"
+                      ? "bg-white text-blue-700 shadow-sm border border-slate-100"
+                      : "text-slate-600 hover:text-primary"
+                  }`}
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Transfer</span>
                 </button>
               </div>
 
@@ -1512,47 +2027,75 @@ export default function FinanceTracker() {
               </div>
 
               {/* Category and Status */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Account Category *
-                  </label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
-                  >
-                    {formScope === "business"
-                      ? (formType === "income" 
-                          ? INCOME_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                          : EXPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                        )
-                      : (formType === "income"
-                          ? PERSONAL_INCOME_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                          : PERSONAL_EXPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                        )
-                    }
-                  </select>
-                </div>
+              {formType === "transfer" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Account Category
+                    </label>
+                    <div className="w-full bg-slate-100 border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-500 flex items-center gap-1.5">
+                      <ArrowLeftRight className="w-4 h-4 text-slate-400" />
+                      <span>Internal Transfer</span>
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Invoice Status *
-                  </label>
-                  <select
-                    value={formStatus}
-                    onChange={(e) => setFormStatus(e.target.value as any)}
-                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
-                  >
-                    <option value="paid">Paid</option>
-                    <option value="pending">Pending Receipt</option>
-                    <option value="overdue">Overdue Invoicing</option>
-                  </select>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Transfer Status *
+                    </label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as any)}
+                      className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                    >
+                      <option value="paid">Paid (Settled)</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Account Category *
+                    </label>
+                    <select
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                    >
+                      {formScope === "business"
+                        ? (formType === "income" 
+                            ? INCOME_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                            : EXPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                          )
+                        : (formType === "income"
+                            ? PERSONAL_INCOME_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                            : PERSONAL_EXPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                          )
+                      }
+                    </select>
+                  </div>
 
-              {/* Client Linking (Only for Office/Business expenses) */}
-              {formScope === "business" && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Invoice Status *
+                    </label>
+                    <select
+                      value={formStatus}
+                      onChange={(e) => setFormStatus(e.target.value as any)}
+                      className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                    >
+                      <option value="paid">Paid</option>
+                      <option value="pending">Pending Receipt</option>
+                      <option value="overdue">Overdue Invoicing</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Client Linking (Only for Office/Business expenses & not transfers) */}
+              {formScope === "business" && formType !== "transfer" && (
                 <div className="bg-slate-50/60 border border-slate-100 p-4 rounded-xl space-y-4">
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
@@ -1595,43 +2138,108 @@ export default function FinanceTracker() {
                 </div>
               )}
 
-              {/* Payment Mode and Source Account */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Payment Mode *
-                  </label>
-                  <select
-                    value={formPaymentMode}
-                    onChange={(e) => setFormPaymentMode(e.target.value)}
-                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
-                  >
-                    <option value="Cash">Cash</option>
-                    <option value="UPI">UPI</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Cheque">Cheque</option>
-                  </select>
-                </div>
+              {/* Payment Mode and Source Account / Transfer Route */}
+              {formType === "transfer" ? (
+                <div className="bg-blue-50/40 border border-blue-100 p-4 rounded-xl space-y-4">
+                  <div className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                    <ArrowLeftRight className="w-4 h-4 text-blue-600" />
+                    <span>Configure Transfer Route</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                        Source Account (From) *
+                      </label>
+                      <select
+                        value={formPaymentAccountId}
+                        onChange={(e) => setFormPaymentAccountId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+                        required
+                      >
+                        <option value="">-- Select Source --</option>
+                        {paymentAccounts.map(acc => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.name} (₹{(accountBalances[acc.id]?.current ?? acc.openingBalance).toLocaleString("en-IN")})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Source / Payment Account
-                  </label>
-                  <select
-                    value={formPaymentAccountId}
-                    onChange={(e) => setFormPaymentAccountId(e.target.value)}
-                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
-                  >
-                    <option value="">-- None (Hand Cash / Direct) --</option>
-                    {paymentAccounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} ({acc.type === "bank_account" ? "Bank" : "Credit Card"})
-                      </option>
-                    ))}
-                  </select>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                        Destination Account (To) *
+                      </label>
+                      <select
+                        value={formTransferToAccountId}
+                        onChange={(e) => setFormTransferToAccountId(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+                        required
+                      >
+                        <option value="">-- Select Destination --</option>
+                        {paymentAccounts.map(acc => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.name} (₹{(accountBalances[acc.id]?.current ?? acc.openingBalance).toLocaleString("en-IN")})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
+                      Transfer Payment Mode *
+                    </label>
+                    <select
+                      value={formPaymentMode}
+                      onChange={(e) => setFormPaymentMode(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Cheque">Cheque</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Payment Mode *
+                    </label>
+                    <select
+                      value={formPaymentMode}
+                      onChange={(e) => setFormPaymentMode(e.target.value)}
+                      className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Credit Card">Credit Card</option>
+                      <option value="Cheque">Cheque</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Source / Payment Account
+                    </label>
+                    <select
+                      value={formPaymentAccountId}
+                      onChange={(e) => setFormPaymentAccountId(e.target.value)}
+                      className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                    >
+                      <option value="">-- None (Hand Cash / Direct) --</option>
+                      {paymentAccounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} ({acc.type === "bank_account" ? "Bank" : "Credit Card"})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* Description */}
               <div>
@@ -1685,7 +2293,7 @@ export default function FinanceTracker() {
             <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
               <h3 className="text-lg font-bold text-primary flex items-center gap-2">
                 <PlusCircle className="w-5 h-5 text-[#AD8D3E]" />
-                <span>Configure Payment Source</span>
+                <span>{editingAccount ? "Edit Payment Source" : "Configure Payment Source"}</span>
               </h3>
               <button 
                 onClick={() => setIsAccountModalOpen(false)}
@@ -1696,7 +2304,7 @@ export default function FinanceTracker() {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleAddAccount} className="space-y-4">
+            <form onSubmit={handleSaveAccount} className="space-y-4">
               {/* Account Name */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
@@ -1717,32 +2325,22 @@ export default function FinanceTracker() {
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Payment Account Type *
                 </label>
-                <div className="grid grid-cols-2 gap-3 p-1 bg-slate-50 border border-slate-100 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setAccountType("bank_account")}
-                    className={`py-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
-                      accountType === "bank_account"
-                        ? "bg-white text-emerald-700 shadow-sm border border-slate-100"
-                        : "text-slate-500 hover:text-primary"
-                    }`}
-                  >
-                    <Wallet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Bank Account</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAccountType("credit_card")}
-                    className={`py-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
-                      accountType === "credit_card"
-                        ? "bg-white text-amber-700 shadow-sm border border-slate-100"
-                        : "text-slate-500 hover:text-primary"
-                    }`}
-                  >
-                    <CreditCard className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Credit Card</span>
-                  </button>
-                </div>
+                <select
+                  value={accountType}
+                  onChange={(e) => setAccountType(e.target.value as any)}
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                >
+                  <optgroup label="Assets (Positive Balance / Savings)">
+                    <option value="bank_account">🏦 Bank Account</option>
+                    <option value="investment">📈 Investment Account</option>
+                    <option value="other_asset">💎 Other Asset</option>
+                  </optgroup>
+                  <optgroup label="Liabilities (Outstanding Debt / Outflow)">
+                    <option value="credit_card">💳 Credit Card</option>
+                    <option value="loan">🤝 Loan / Mortgage</option>
+                    <option value="other_liability">⚠️ Other Liability</option>
+                  </optgroup>
+                </select>
               </div>
 
               {/* Opening Balance */}
@@ -1763,8 +2361,8 @@ export default function FinanceTracker() {
                     className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
                   />
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  For credit cards, enter a negative value if there is a starting outstanding balance, or 0 if empty.
+                <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
+                  For Assets, enter a positive starting balance. For Liabilities (Credit Cards, Loans, etc.), enter a negative value for starting outstanding debt (or 0 if empty).
                 </p>
               </div>
 
@@ -1783,7 +2381,7 @@ export default function FinanceTracker() {
                   className="px-5 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
                 >
                   {syncing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Configure Account</span>
+                  <span>{editingAccount ? "Save Changes" : "Configure Account"}</span>
                 </button>
               </div>
             </form>

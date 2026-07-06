@@ -106,14 +106,14 @@ export interface Project {
 export interface PaymentAccount {
   id: string;
   name: string;
-  type: 'bank_account' | 'credit_card';
+  type: 'bank_account' | 'credit_card' | 'investment' | 'loan' | 'other_asset' | 'other_liability';
   openingBalance: number;
   createdAt: number;
 }
 
 export interface FinanceRecord {
   id: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'transfer';
   category: string;
   amount: number;
   description: string;
@@ -125,4 +125,5 @@ export interface FinanceRecord {
   scope?: 'business' | 'personal';
   paymentMode?: string;
   paymentAccountId?: string;
+  transferToAccountId?: string;
 }

@@ -146,7 +146,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "type": { "type": "string", "enum": ["income", "expense"] },
+        "type": { "type": "string", "enum": ["income", "expense", "transfer"] },
         "category": { "type": "string" },
         "amount": { "type": "number" },
         "description": { "type": "string" },
@@ -156,7 +156,8 @@
         "clientName": { "type": "string" },
         "clientId": { "type": "string" },
         "paymentMode": { "type": "string" },
-        "paymentAccountId": { "type": "string" }
+        "paymentAccountId": { "type": "string" },
+        "transferToAccountId": { "type": "string" }
       },
       "required": ["id", "type", "category", "amount", "date", "status", "createdAt"]
     },
@@ -167,7 +168,7 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "type": { "type": "string", "enum": ["bank_account", "credit_card"] },
+        "type": { "type": "string", "enum": ["bank_account", "credit_card", "investment", "loan", "other_asset", "other_liability"] },
         "openingBalance": { "type": "number" },
         "createdAt": { "type": "number" }
       },
