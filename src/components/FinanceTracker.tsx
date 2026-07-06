@@ -193,8 +193,6 @@ export default function FinanceTracker() {
 
   const [categoryManageType, setCategoryManageType] = useState<"businessIncome" | "businessExpense" | "personalIncome" | "personalExpense">("businessIncome");
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [editingCategoryOld, setEditingCategoryOld] = useState<string | null>(null);
-  const [editingCategoryNew, setEditingCategoryNew] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modal / Form States
@@ -318,37 +316,6 @@ export default function FinanceTracker() {
       [categoryManageType]: [...prev[categoryManageType], newCategoryName.trim()]
     }));
     setNewCategoryName("");
-  };
-
-  const handleSaveEditCategory = async () => {
-    if (!editingCategoryOld || !editingCategoryNew.trim()) return;
-    const trimmedNewName = editingCategoryNew.trim();
-    
-    setCustomCategories(prev => {
-      const list = prev[categoryManageType];
-      const idx = list.indexOf(editingCategoryOld);
-      if (idx === -1) return prev;
-      const newList = [...list];
-      newList[idx] = trimmedNewName;
-      return { ...prev, [categoryManageType]: newList };
-    });
-
-    // Also update any records that used this category
-    const relevantScope = categoryManageType.startsWith("business") ? "business" : "personal";
-    const relevantType = categoryManageType.endsWith("Income") ? "income" : "expense";
-
-    records.forEach(async (rec) => {
-      if (rec.scope === relevantScope && rec.type === relevantType && rec.category === editingCategoryOld) {
-        try {
-          await updateDoc(doc(db, "finances", rec.id), { category: trimmedNewName });
-        } catch (err) {
-          console.error("Error updating category in records:", err);
-        }
-      }
-    });
-
-    setEditingCategoryOld(null);
-    setEditingCategoryNew("");
   };
 
   const handleRemoveCategory = (catName: string) => {
@@ -1413,6 +1380,643 @@ export default function FinanceTracker() {
           )}
         </div>
       </div>
+
+      {/* Bento Grid Stats Panel */}
+      {activeTab === "dashboard" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          
+          {/* Metric 1: Income */}
+          {(activeTab === "dashboard" || activeTab === "incomes") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500" />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : "Annual Revenue")
+                    : selectedScope === "personal"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : "Annual Private Inflow")
+                      : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : "Combined Annual Income")
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.totalIncome.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-1">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Office client billings"
+                      : selectedScope === "personal"
+                        ? "Salary, SIP, drawings"
+                        : "All combined inflows"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className="p-3 bg-green-50 rounded-xl text-green-600">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+          {/* Metric 2: Expenses */}
+          {(activeTab === "dashboard" || activeTab === "expenses") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-red-400" />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : "Annual Overheads")
+                    : selectedScope === "personal"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : "Annual Private Outlay")
+                      : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : "Annual Outflows")
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.totalExpense.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[11px] text-red-500 font-semibold flex items-center gap-1 mt-1">
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Operating overheads"
+                      : selectedScope === "personal"
+                        ? "Groceries, Rent, Leisure"
+                        : "Total operating & private costs"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className="p-3 bg-red-50 rounded-xl text-red-500">
+                <TrendingDown className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+          {/* Metric 3: Profit / Net Margin */}
+          {(activeTab === "dashboard" || activeTab === "expenses") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className={`absolute top-0 left-0 w-1.5 h-full ${metrics.balance >= 0 ? "bg-[#AD8D3E]" : "bg-rose-500"}`} />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : "Annual Profit Margin")
+                    : selectedScope === "personal"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : "Net Annual Savings")
+                      : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : "Consolidated Surplus")
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.balance.toLocaleString("en-IN")}
+                </span>
+                <span className={`text-[11px] font-semibold flex items-center gap-1 mt-1 ${
+                  metrics.balance >= 0 ? "text-[#AD8D3E]" : "text-rose-500"
+                }`}>
+                  <DollarSign className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Net Operating Margin"
+                      : selectedScope === "personal"
+                        ? "Private savings surplus"
+                        : "Combined retained earnings"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className={`p-3 rounded-xl ${metrics.balance >= 0 ? "bg-amber-50 text-[#AD8D3E]" : "bg-rose-50 text-rose-500"}`}>
+                <BarChart3 className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+          {/* Metric 4: Pending Invoices / Accounts Receivable */}
+          {(activeTab === "dashboard" || activeTab === "incomes") && (
+            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
+              <div>
+                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+                  {selectedScope === "business"
+                    ? "Outstanding Receivables"
+                    : selectedScope === "personal"
+                      ? "Pending Outlays"
+                      : "Consolidated Receivables"
+                  }
+                </span>
+                <span className="text-2xl font-bold text-primary block mt-1.5">
+                  ₹{metrics.pendingInvoicesVal.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[11px] text-blue-500 font-semibold flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>
+                    {selectedScope === "business"
+                      ? "Pending Client Fees"
+                      : selectedScope === "personal"
+                        ? "Pending bills & SIPs"
+                        : "Total Unresolved Outlays"
+                    }
+                  </span>
+                </span>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-xl text-blue-500">
+                <FileText className="w-6 h-6" />
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* Assets & Liabilities / Balance Sheet & Live Ledgers */}
+      {activeTab === "account" && (
+        <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-primary tracking-tight">🏦 Balance Sheet &amp; Live Ledgers</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Consolidated Assets, Liabilities, and Net Worth computed in real-time from active ledger transactions.
+              </p>
+            </div>
+            <button
+              onClick={handleOpenNewAccountModal}
+              className="flex items-center space-x-1.5 bg-[#1a2b58] hover:bg-[#121f42] text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>Add Account / Asset / Liability</span>
+            </button>
+          </div>
+
+          {paymentAccounts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+              <Wallet className="w-8 h-8 text-slate-400 mb-2" />
+              <h4 className="text-xs font-bold text-slate-700">No Accounts Configured</h4>
+              <p className="text-[11px] text-gray-400 max-w-sm mt-1">
+                Add a bank account, investment, credit card, or loan to link transactions, track live assets and liabilities, and compute net worth.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* LEFT COLUMN: Assets */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    🟢 Assets &amp; Savings ({assets.length})
+                  </span>
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                    ₹{balanceSheetMetrics.totalAssets.toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                {assets.length === 0 ? (
+                  <div className="py-8 px-4 text-center border border-dashed border-slate-100 rounded-xl text-gray-400 text-xs bg-slate-50/30">
+                    No active asset accounts configured.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {assets.map((acc) => {
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+                      const typeInfo = getAccountTypeInfo(acc.type);
+                      const IconComp = typeInfo.icon;
+                      return (
+                        <div key={acc.id} className="border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <IconComp className={`w-4 h-4 ${typeInfo.color}`} />
+                                <span className="font-semibold text-slate-800 text-sm">{acc.name}</span>
+                              </div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${typeInfo.bg} ${typeInfo.color} border ${typeInfo.border}`}>
+                                {typeInfo.label}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleOpenEditAccountModal(acc)}
+                                className="text-slate-400 hover:text-slate-700 transition p-1"
+                                title="Edit asset account"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                                className="text-slate-400 hover:text-red-500 transition p-1"
+                                title="Delete asset account"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-end">
+                            <div>
+                              <span className="text-xs text-gray-400 block font-medium">Dynamic Ledger Balance</span>
+                              <span className="text-lg font-extrabold text-emerald-700 tracking-tight block mt-0.5">
+                                ₹{b.current.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
+                            <div>
+                              <span className="text-gray-400 block">Opening</span>
+                              <span className="font-semibold text-slate-700">₹{acc.openingBalance.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-green-500 block">Inflows</span>
+                              <span className="font-semibold text-green-700">+{b.income.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-red-400 block">Outflows</span>
+                              <span className="font-semibold text-red-600">-{b.expense.toLocaleString("en-IN")}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT COLUMN: Liabilities */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    🔴 Liabilities &amp; Debts ({liabilities.length})
+                  </span>
+                  <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
+                    ₹{balanceSheetMetrics.totalLiabilities.toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                {liabilities.length === 0 ? (
+                  <div className="py-8 px-4 text-center border border-dashed border-slate-100 rounded-xl text-gray-400 text-xs bg-slate-50/30">
+                    No active liability accounts configured.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {liabilities.map((acc) => {
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+                      const typeInfo = getAccountTypeInfo(acc.type);
+                      const IconComp = typeInfo.icon;
+                      // Outstanding debt is the positive presentation of negative ledger balance
+                      const outstandingDebt = -b.current;
+
+                      return (
+                        <div key={acc.id} className="border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <IconComp className={`w-4 h-4 ${typeInfo.color}`} />
+                                <span className="font-semibold text-slate-800 text-sm">{acc.name}</span>
+                              </div>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${typeInfo.bg} ${typeInfo.color} border ${typeInfo.border}`}>
+                                {typeInfo.label}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <button
+                                onClick={() => handleOpenEditAccountModal(acc)}
+                                className="text-slate-400 hover:text-slate-700 transition p-1"
+                                title="Edit liability account"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                                className="text-slate-400 hover:text-red-500 transition p-1"
+                                title="Delete liability"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-end">
+                            <div>
+                              <span className="text-xs text-gray-400 block font-medium">Outstanding Debt</span>
+                              <span className={`text-lg font-extrabold tracking-tight block mt-0.5 ${outstandingDebt >= 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                                ₹{outstandingDebt.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
+                            <div>
+                              <span className="text-gray-400 block">Opening Debt</span>
+                              <span className="font-semibold text-slate-700">₹{(-acc.openingBalance).toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-green-500 block">Payments</span>
+                              <span className="font-semibold text-green-700">₹{b.income.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div>
+                              <span className="text-red-400 block">New Charges</span>
+                              <span className="font-semibold text-red-600">₹{b.expense.toLocaleString("en-IN")}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "dashboard" && (
+        <>
+          {/* Real-time Net Worth & Liquidity Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            {/* Net Worth */}
+            <div className="bg-[#1a2b58] text-white p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <Building className="w-16 h-16" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#AD8D3E]">Net Worth (Balance Sheet)</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1">
+                ₹{balanceSheetMetrics.netWorth.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-slate-300 block mt-2 font-medium">
+                Assets less outstanding liabilities
+              </span>
+            </div>
+
+            {/* Total Assets */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <TrendingUp className="w-16 h-16 text-green-600" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Assets</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-emerald-700">
+                ₹{balanceSheetMetrics.totalAssets.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-green-600 block mt-2 font-medium flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                {assets.length} Active asset sources
+              </span>
+            </div>
+
+            {/* Total Liabilities */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <TrendingDown className="w-16 h-16 text-rose-600" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Liabilities</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-amber-700">
+                ₹{balanceSheetMetrics.totalLiabilities.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-amber-600 block mt-2 font-medium flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                {liabilities.length} Debt / credit streams
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Visual Analytics Row */}
+      {activeTab === "dashboard" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Recharts Area Chart: Annual Inflow & Overhead trends */}
+          <div className="lg:col-span-2 bg-white border border-border p-6 rounded-2xl shadow-sm">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-base font-bold text-primary tracking-tight">Income &amp; Expense Trends</h3>
+                <p className="text-xs text-gray-400">Comparing professional fees vs operating expenses over year {selectedYear}.</p>
+              </div>
+              <div className="flex space-x-3 text-xs">
+                <span className="flex items-center gap-1 font-semibold text-primary">
+                  <span className="w-3 h-3 bg-[#1a2b58] rounded" /> Inflow
+                </span>
+                <span className="flex items-center gap-1 font-semibold text-primary">
+                  <span className="w-3 h-3 bg-[#AD8D3E] rounded" /> Outflow
+                </span>
+              </div>
+            </div>
+
+            <div className="h-72 w-full text-xs font-medium">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1a2b58" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#1a2b58" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#AD8D3E" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#AD8D3E" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", border: "none", color: "#fff" }}
+                    itemStyle={{ color: "#fff" }}
+                  />
+                  <Area type="monotone" dataKey="Income" stroke="#1a2b58" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIncome)" />
+                  <Area type="monotone" dataKey="Expense" stroke="#AD8D3E" strokeWidth={2.5} fillOpacity={1} fill="url(#colorExpense)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Category breakdown sidebar widget */}
+          <div className="bg-white border border-border p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight mb-1">Specific Distribution</h3>
+              <p className="text-xs text-gray-400 mb-4">Percentage allocation based on current filtered scopes.</p>
+              
+              {categoryChartData.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 italic text-xs border border-dashed rounded-xl mt-4">
+                  No categorical data matches active filters.
+                </div>
+              ) : (
+                <div className="h-44 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {categoryChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `₹${value}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Filtered</span>
+                    <span className="text-sm font-bold text-primary">{categoryChartData.length} Keys</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Custom Category List legend */}
+            <div className="mt-4 space-y-2 max-h-[160px] overflow-y-auto pr-1">
+              {categoryChartData.slice(0, 5).map((entry, index) => {
+                const totalVal = categoryChartData.reduce((acc, curr) => acc + curr.value, 0);
+                const percentage = totalVal > 0 ? Math.round((entry.value / totalVal) * 100) : 0;
+                return (
+                  <div key={entry.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="font-semibold text-primary truncate max-w-[120px]">{entry.name}</span>
+                    </div>
+                    <div className="text-gray-500 font-semibold">
+                      ₹{entry.value.toLocaleString("en-IN")} <span className="text-[10px] font-bold text-[#AD8D3E]">({percentage}%)</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab-Specific Ledger Content */}
+      {activeTab === "incomes" && renderLedgerLogsTable("Professional Income Streams", "Inflows of professional billings & fee drawings", "income")}
+      {activeTab === "expenses" && renderLedgerLogsTable("Firm Operating Expenses", "Operating overheads, staff drawdowns, and equipment purchases", "expense")}
+
+      {activeTab === "dashboard" && (
+        <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
+          {/* Recent Table Toolbar */}
+          <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight">Recent Ledger Activity</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Showing the latest 5 recorded transactions across all books.</p>
+            </div>
+            <button
+              onClick={() => {
+                setActiveTab("incomes");
+              }}
+              className="text-xs font-bold text-primary hover:text-[#AD8D3E] flex items-center gap-1 transition"
+            >
+              <span>View All Transactions</span>
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            {records.length === 0 ? (
+              <div className="p-16 text-center flex flex-col items-center">
+                <Building className="w-10 h-10 text-gray-300 mb-2" />
+                <p className="text-slate-600 font-semibold italic text-sm">No recent transactions recorded.</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                    <th className="py-4 px-6">Date</th>
+                    <th className="py-4 px-6 text-center">Book</th>
+                    <th className="py-4 px-6">Category</th>
+                    <th className="py-4 px-6">Description / Client</th>
+                    <th className="py-4 px-6 text-center">Status</th>
+                    <th className="py-4 px-6 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="text-xs divide-y divide-border font-medium">
+                  {records.slice(-5).reverse().map((rec) => {
+                    const isIncome = rec.type === "income";
+                    const isTransfer = rec.type === "transfer";
+                    
+                    return (
+                      <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            {new Date(rec.date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric"
+                            })}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-center font-bold">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                            rec.scope === "personal" 
+                              ? "bg-rose-50 text-rose-700 border border-rose-100" 
+                              : "bg-[#1a2b58]/5 text-[#1a2b58] border border-[#1a2b58]/10"
+                          }`}>
+                            {rec.scope === "personal" ? "Private" : "Corporate"}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            isTransfer
+                              ? "bg-blue-50 text-blue-700 border border-blue-100"
+                              : isIncome 
+                                ? "bg-indigo-50/80 text-primary" 
+                                : "bg-amber-50/80 text-amber-800"
+                          }`}>
+                            {isTransfer ? (
+                              <ArrowLeftRight className="w-3 h-3 shrink-0 text-blue-500" />
+                            ) : (
+                              <Tag className="w-3 h-3 shrink-0" />
+                            )}
+                            {rec.category}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 font-semibold text-primary max-w-sm truncate" title={rec.description}>
+                          {rec.description || "N/A"}
+                          {rec.clientName && (
+                            <div className="flex items-center gap-1.5 mt-1.5 text-gray-600 font-normal">
+                              <span className="p-1 bg-slate-100 rounded-full text-slate-500">
+                                <User className="w-3 h-3" />
+                              </span>
+                              <span className="truncate text-[11px]">{rec.clientName}</span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            rec.status === "paid" 
+                              ? "bg-green-50 text-green-700 border border-green-200" 
+                              : rec.status === "overdue"
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                          }`}>
+                            {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                            {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                            {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                            {rec.status}
+                          </span>
+                        </td>
+                        <td className={`py-4 px-6 text-right font-extrabold text-sm whitespace-nowrap ${
+                          isTransfer 
+                            ? "text-blue-600" 
+                            : isIncome 
+                              ? "text-green-600" 
+                              : "text-primary"
+                        }`}>
+                          {isTransfer ? "⇆" : (isIncome ? "+" : "-")} ₹{rec.amount.toLocaleString("en-IN")}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Settings Tab Content */}
       {activeTab === "settings" && (
         <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
@@ -1457,61 +2061,14 @@ export default function FinanceTracker() {
                   <div className="h-48 overflow-y-auto space-y-2 pr-2 bg-white border border-slate-200 rounded-xl p-2">
                     {customCategories[categoryManageType].map((cat, idx) => (
                       <div key={idx} className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg">
-                        {editingCategoryOld === cat ? (
-                          <div className="flex items-center gap-2 w-full">
-                            <input
-                              type="text"
-                              value={editingCategoryNew}
-                              onChange={(e) => setEditingCategoryNew(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleSaveEditCategory();
-                                } else if (e.key === 'Escape') {
-                                  setEditingCategoryOld(null);
-                                }
-                              }}
-                              className="flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
-                              autoFocus
-                            />
-                            <button
-                              onClick={(e) => { e.preventDefault(); handleSaveEditCategory(); }}
-                              className="text-green-600 hover:text-green-700 transition p-1 font-bold text-xs"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={(e) => { e.preventDefault(); setEditingCategoryOld(null); }}
-                              className="text-slate-400 hover:text-slate-600 transition p-1 font-bold text-xs"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <span className="text-sm font-medium text-slate-700">{cat}</span>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={(e) => { 
-                                  e.preventDefault(); 
-                                  setEditingCategoryOld(cat); 
-                                  setEditingCategoryNew(cat); 
-                                }}
-                                className="text-slate-400 hover:text-blue-500 transition p-1"
-                                title="Edit category"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={(e) => { e.preventDefault(); handleRemoveCategory(cat); }}
-                                className="text-slate-400 hover:text-red-500 transition p-1"
-                                title="Remove category"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </>
-                        )}
+                        <span className="text-sm font-medium text-slate-700">{cat}</span>
+                        <button
+                          onClick={(e) => { e.preventDefault(); handleRemoveCategory(cat); }}
+                          className="text-red-400 hover:text-red-600 transition p-1"
+                          title="Remove category"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                     {customCategories[categoryManageType].length === 0 && (
@@ -1550,44 +2107,18 @@ export default function FinanceTracker() {
               </div>
             </div>
             
-            {/* Application Preferences */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-              <h4 className="text-sm font-bold text-primary mb-4 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-slate-400" />
-                Application Preferences
-              </h4>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Currency Display
-                  </label>
-                  <select
-                    className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
-                    defaultValue="INR"
-                  >
-                    <option value="INR">₹ Indian Rupee (INR)</option>
-                    <option value="USD">$ US Dollar (USD)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Financial Year Start
-                  </label>
-                  <select
-                    className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
-                    defaultValue="April"
-                  >
-                    <option value="April">April</option>
-                    <option value="January">January</option>
-                  </select>
-                </div>
-              </div>
+            {/* Other Settings (Placeholder) */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center text-center">
+              <Settings className="w-12 h-12 text-slate-300 mb-3" />
+              <h4 className="text-sm font-bold text-slate-500 mb-1">More Settings</h4>
+              <p className="text-xs text-slate-400">Additional configuration options will appear here.</p>
             </div>
           </div>
         </div>
       )}
         </div>
       </div>
+
       
       {/* Slide-over Form Drawer Modal */}
       {isModalOpen && (
