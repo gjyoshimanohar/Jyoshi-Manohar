@@ -842,7 +842,7 @@ export default function FinanceTracker() {
         <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-base font-bold text-primary tracking-tight">{title}</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} transactions.</p>
+            <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} total logged transactions.</p>
           </div>
         </div>
 
@@ -851,30 +851,30 @@ export default function FinanceTracker() {
           {filteredRecords.length === 0 ? (
             <div className="p-20 text-center flex flex-col items-center">
               <Building className="w-10 h-10 text-gray-300 mb-3" />
-              <p className="text-slate-600 font-semibold italic text-sm">No transaction records logged under these criteria.</p>
+              <p className="text-slate-600 font-semibold italic text-sm">No transaction records match active filters.</p>
               <button
                 onClick={() => handleOpenAddModal(defaultFormTypeToAdd)}
-                className="mt-4 flex items-center space-x-1.5 bg-primary text-white text-xs px-4 py-2 rounded-lg font-bold"
+                className="mt-4 flex items-center space-x-1.5 bg-primary hover:bg-primary-hover text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Log First Transaction</span>
+                <span>Log first transaction</span>
               </button>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50/30 text-gray-400 font-bold border-b border-border">
-                  <th className="py-4 px-6 text-center">Filing Date</th>
+                <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                  <th className="py-4 px-6">Date</th>
                   <th className="py-4 px-6 text-center">Book</th>
-                  <th className="py-4 px-6">Stream / Category</th>
-                  <th className="py-4 px-6">Narrative / Client</th>
-                  <th className="py-4 px-6 text-center">Receipt Status</th>
-                  <th className="py-4 px-6 text-center">Method / Source</th>
-                  <th className="py-4 px-6 text-right">Settled Amount</th>
+                  <th className="py-4 px-6">Category</th>
+                  <th className="py-4 px-6">Description / Client</th>
+                  <th className="py-4 px-6 text-center">Status</th>
+                  <th className="py-4 px-6 text-center">Source</th>
+                  <th className="py-4 px-6 text-right">Amount</th>
                   <th className="py-4 px-6 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="text-xs divide-y divide-border font-medium">
                 {filteredRecords.map((rec) => {
                   const isIncome = rec.type === "income";
                   const isTransfer = rec.type === "transfer";
@@ -882,12 +882,16 @@ export default function FinanceTracker() {
                   const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "--";
 
                   return (
-                    <tr key={rec.id} className="hover:bg-slate-50/30 transition-colors">
+                    <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
                       {/* Date */}
-                      <td className="py-4 px-6 text-center font-semibold text-slate-500 whitespace-nowrap">
-                        <span className="flex items-center justify-center gap-1.5">
+                      <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
+                        <span className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {rec.date}
+                          {new Date(rec.date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric"
+                          })}
                         </span>
                       </td>
 
@@ -903,51 +907,49 @@ export default function FinanceTracker() {
                       </td>
 
                       {/* Category */}
-                      <td className="py-4 px-6 font-bold text-slate-800">
-                        <div className="flex items-center gap-1.5">
-                          <Tag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate max-w-[150px]">{rec.category}</span>
-                        </div>
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          isTransfer
+                            ? "bg-blue-50 text-blue-700 border border-blue-100"
+                            : isIncome 
+                              ? "bg-indigo-50/80 text-primary" 
+                              : "bg-amber-50/80 text-amber-800"
+                        }`}>
+                          {isTransfer ? (
+                            <ArrowLeftRight className="w-3 h-3 shrink-0 text-blue-500" />
+                          ) : (
+                            <Tag className="w-3 h-3 shrink-0" />
+                          )}
+                          {rec.category}
+                        </span>
                       </td>
 
                       {/* Description & Client */}
-                      <td className="py-4 px-6 text-slate-600 font-semibold max-w-xs">
-                        <div className="space-y-1">
-                          <p className="truncate text-slate-800" title={rec.description}>{rec.description || "--"}</p>
-                          {rec.clientName && (
-                            <p className="text-[10px] text-[#AD8D3E] font-bold flex items-center gap-1">
-                              <User className="w-3 h-3 text-amber-600" />
-                              <span>Client: {rec.clientName}</span>
-                            </p>
-                          )}
-                        </div>
+                      <td className="py-4 px-6 font-semibold text-primary max-w-sm truncate" title={rec.description}>
+                        {rec.description || "N/A"}
+                        {rec.clientName && (
+                          <div className="flex items-center gap-1.5 mt-1.5 text-gray-600 font-normal">
+                            <span className="p-1 bg-slate-100 rounded-full text-slate-500">
+                              <User className="w-3 h-3" />
+                            </span>
+                            <span className="truncate text-[11px]">{rec.clientName}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Status */}
                       <td className="py-4 px-6 text-center">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                          rec.status === "paid"
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : rec.status === "pending"
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : "bg-rose-50 text-rose-700 border-rose-200"
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          rec.status === "paid" 
+                            ? "bg-green-50 text-green-700 border border-green-200" 
+                            : rec.status === "overdue"
+                              ? "bg-red-50 text-red-700 border border-red-200"
+                              : "bg-yellow-50 text-yellow-800 border border-yellow-200"
                         }`}>
-                          {rec.status === "paid" ? (
-                            <>
-                              <CheckCircle2 className="w-3 h-3 text-green-600" />
-                              <span>Paid</span>
-                            </>
-                          ) : rec.status === "pending" ? (
-                            <>
-                              <AlertCircle className="w-3 h-3 text-amber-600 animate-pulse" />
-                              <span>Pending</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle className="w-3 h-3 text-rose-600" />
-                              <span>Overdue</span>
-                            </>
-                          )}
+                          {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                          {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                          {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                          {rec.status}
                         </span>
                       </td>
 
@@ -1100,7 +1102,7 @@ export default function FinanceTracker() {
                   }}
                   className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl transition-all font-semibold text-xs whitespace-nowrap shrink-0 border ${
                     isActive
-                      ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                      ? "bg-primary border-primary text-white shadow-sm"
                       : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-primary"
                   }`}
                 >
@@ -1821,26 +1823,33 @@ export default function FinanceTracker() {
                 <p className="text-slate-600 font-semibold italic text-sm">No recent transactions recorded.</p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/30 text-gray-400 font-bold border-b border-border">
-                    <th className="py-4 px-6 text-center">Filing Date</th>
+                  <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                    <th className="py-4 px-6">Date</th>
                     <th className="py-4 px-6 text-center">Book</th>
-                    <th className="py-4 px-6">Stream / Category</th>
-                    <th className="py-4 px-6">Narrative / Client</th>
-                    <th className="py-4 px-6 text-center">Receipt Status</th>
-                    <th className="py-4 px-6 text-right">Settled Amount</th>
+                    <th className="py-4 px-6">Category</th>
+                    <th className="py-4 px-6">Description / Client</th>
+                    <th className="py-4 px-6 text-center">Status</th>
+                    <th className="py-4 px-6 text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
+                <tbody className="text-xs divide-y divide-border font-medium">
                   {records.slice(-5).reverse().map((rec) => {
                     const isIncome = rec.type === "income";
                     const isTransfer = rec.type === "transfer";
                     
                     return (
-                      <tr key={rec.id} className="hover:bg-slate-50/30 transition-colors">
-                        <td className="py-4 px-6 text-center text-slate-500 whitespace-nowrap">
-                          {rec.date}
+                      <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            {new Date(rec.date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric"
+                            })}
+                          </span>
                         </td>
                         <td className="py-4 px-6 text-center font-bold">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${
@@ -1851,19 +1860,45 @@ export default function FinanceTracker() {
                             {rec.scope === "personal" ? "Private" : "Corporate"}
                           </span>
                         </td>
-                        <td className="py-4 px-6 font-bold text-slate-800">
-                          {rec.category}
+                        <td className="py-4 px-6">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            isTransfer
+                              ? "bg-blue-50 text-blue-700 border border-blue-100"
+                              : isIncome 
+                                ? "bg-indigo-50/80 text-primary" 
+                                : "bg-amber-50/80 text-amber-800"
+                          }`}>
+                            {isTransfer ? (
+                              <ArrowLeftRight className="w-3 h-3 shrink-0 text-blue-500" />
+                            ) : (
+                              <Tag className="w-3 h-3 shrink-0" />
+                            )}
+                            {rec.category}
+                          </span>
                         </td>
-                        <td className="py-4 px-6 text-slate-600 max-w-xs truncate">
-                          {rec.description || "--"}
+                        <td className="py-4 px-6 font-semibold text-primary max-w-sm truncate" title={rec.description}>
+                          {rec.description || "N/A"}
+                          {rec.clientName && (
+                            <div className="flex items-center gap-1.5 mt-1.5 text-gray-600 font-normal">
+                              <span className="p-1 bg-slate-100 rounded-full text-slate-500">
+                                <User className="w-3 h-3" />
+                              </span>
+                              <span className="truncate text-[11px]">{rec.clientName}</span>
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-6 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                            rec.status === "paid"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            rec.status === "paid" 
+                              ? "bg-green-50 text-green-700 border border-green-200" 
+                              : rec.status === "overdue"
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
                           }`}>
-                            {rec.status === "paid" ? "Paid" : "Pending"}
+                            {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                            {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                            {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                            {rec.status}
                           </span>
                         </td>
                         <td className={`py-4 px-6 text-right font-extrabold text-sm whitespace-nowrap ${
