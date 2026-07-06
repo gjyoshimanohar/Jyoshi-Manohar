@@ -28,6 +28,7 @@ import { storage } from "../lib/firebase";
 
 import SunEditor from "suneditor-react";
 import "suneditor/dist/css/suneditor.min.css";
+import FinanceTracker from "../components/FinanceTracker";
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
@@ -41,6 +42,7 @@ export default function Admin() {
   const [password, setPassword] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [activeAdminTab, setActiveAdminTab] = useState<"blogs" | "finances">("finances");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -229,12 +231,12 @@ export default function Admin() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-white p-12 border border-border shadow-2xl"
+          className="max-w-md w-full bg-white p-12 border border-border shadow-2xl text-left"
         >
           <div className="text-center mb-8">
             <h1 className="text-4xl text-primary mb-2">Admin Portal</h1>
             <p className="text-black font-medium">
-              Please sign in to manage your blogs
+              Please sign in to manage your blogs and finances
             </p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -251,7 +253,7 @@ export default function Admin() {
                 required
               />
             </div>
-            <div className="mb-6">
+            <div>
               <label className="block text-xs uppercase tracking-widest text-black mb-2">
                 Password
               </label>
@@ -297,7 +299,7 @@ export default function Admin() {
   }
 
   return (
-    <main className="pt-32 pb-24 bg-accent min-h-screen">
+    <main className="pt-32 pb-24 bg-accent min-h-screen text-left">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
@@ -316,41 +318,45 @@ export default function Admin() {
               <LayoutDashboard className="h-4 w-4" />
               <span>Client Dashboard</span>
             </Link>
-            {!confirmSeed ? (
-              <button
-                onClick={() => setConfirmSeed(true)}
-                className="flex items-center space-x-2 bg-white border border-border px-6 py-3 uppercase text-xs tracking-widest hover:border-primary transition-all hidden sm:flex"
-              >
-                <Database className="h-4 w-4" />
-                <span>Sync Defaults</span>
-              </button>
-            ) : (
-              <div className="flex items-center space-x-2 bg-white border border-border pr-2 py-1 pl-4 hidden sm:flex">
-                <span className="font-medium text-xs">Are you sure?</span>
+            {activeAdminTab === "blogs" && (
+              !confirmSeed ? (
                 <button
-                  onClick={() => {
-                    handleSeedData();
-                    setConfirmSeed(false);
-                  }}
-                  className="px-3 py-2 bg-secondary text-white font-medium text-xs"
+                  onClick={() => setConfirmSeed(true)}
+                  className="flex items-center space-x-2 bg-white border border-border px-6 py-3 uppercase text-xs tracking-widest hover:border-primary transition-all hidden sm:flex"
                 >
-                  Yes
+                  <Database className="h-4 w-4" />
+                  <span>Sync Defaults</span>
                 </button>
-                <button
-                  onClick={() => setConfirmSeed(false)}
-                  className="px-3 py-2 bg-slate-200 text-black font-medium text-xs"
-                >
-                  No
-                </button>
-              </div>
+              ) : (
+                <div className="flex items-center space-x-2 bg-white border border-border pr-2 py-1 pl-4 hidden sm:flex">
+                  <span className="font-medium text-xs">Are you sure?</span>
+                  <button
+                    onClick={() => {
+                      handleSeedData();
+                      setConfirmSeed(false);
+                    }}
+                    className="px-3 py-2 bg-secondary text-white font-medium text-xs"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => setConfirmSeed(false)}
+                    className="px-3 py-2 bg-slate-200 text-black font-medium text-xs"
+                  >
+                    No
+                  </button>
+                </div>
+              )
             )}
-            <button
-              onClick={() => setEditingPost({})}
-              className="flex items-center space-x-2 bg-primary text-white px-6 py-3 uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Post</span>
-            </button>
+            {activeAdminTab === "blogs" && (
+              <button
+                onClick={() => setEditingPost({})}
+                className="flex items-center space-x-2 bg-primary text-white px-6 py-3 uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Post</span>
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="p-3 text-black hover:text-primary transition-colors flex items-center space-x-2"
@@ -363,337 +369,320 @@ export default function Admin() {
           </div>
         </header>
 
-        {editingPost ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white p-8 md:p-12 border border-border mb-12"
+        {/* Tab Selection Bar */}
+        <div className="flex border-b border-gray-200 mb-8 overflow-x-auto">
+          <button
+            onClick={() => {
+              setActiveAdminTab("finances");
+              setEditingPost(null);
+            }}
+            className={`py-4 px-6 font-bold uppercase tracking-widest text-xs border-b-2 transition-all shrink-0 ${
+              activeAdminTab === "finances"
+                ? "border-secondary text-primary border-b-2"
+                : "border-transparent text-gray-400 hover:text-primary"
+            }`}
           >
-            <div className="flex justify-between items-center mb-10">
-              <h2 className="text-2xl text-primary">
-                {editingPost.id ? "Edit Post" : "Create New Post"}
-              </h2>
-              <button
-                onClick={() => setEditingPost(null)}
-                className="text-black hover:text-primary transition-colors flex items-center space-x-2 uppercase text-xs tracking-widest"
-              >
-                <span>Discard Changes</span>
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <form onSubmit={handleSave} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-black mb-3">
-                    Post Title
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={editingPost.title || ""}
-                    onChange={(e) =>
-                      setEditingPost({ ...editingPost, title: e.target.value })
-                    }
-                    className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
-                    placeholder="Enter blog title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-black mb-3">
-                    URL Slug
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={editingPost.slug || ""}
-                    onChange={(e) =>
-                      setEditingPost({
-                        ...editingPost,
-                        slug: e.target.value
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, "-")
-                          .replace(/(^-|-$)/g, ""),
-                      })
-                    }
-                    className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
-                    placeholder="post-url-slug"
-                  />
-                </div>
+            Monthly Finance Tracker
+          </button>
+          <button
+            onClick={() => {
+              setActiveAdminTab("blogs");
+              setEditingPost(null);
+            }}
+            className={`py-4 px-6 font-bold uppercase tracking-widest text-xs border-b-2 transition-all shrink-0 ${
+              activeAdminTab === "blogs"
+                ? "border-secondary text-primary border-b-2"
+                : "border-transparent text-gray-400 hover:text-primary"
+            }`}
+          >
+            Manage Blog Posts
+          </button>
+        </div>
+
+        {activeAdminTab === "blogs" ? (
+          editingPost ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white p-8 md:p-12 border border-border mb-12"
+            >
+              <div className="flex justify-between items-center mb-10">
+                <h2 className="text-2xl text-primary">
+                  {editingPost.id ? "Edit Post" : "Create New Post"}
+                </h2>
+                <button
+                  onClick={() => setEditingPost(null)}
+                  className="text-black hover:text-primary transition-colors flex items-center space-x-2 uppercase text-xs tracking-widest"
+                >
+                  <span>Discard Changes</span>
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-8">
+              <form onSubmit={handleSave} className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
                     <label className="block text-xs uppercase tracking-widest text-black mb-3">
-                      Category
+                      Post Title
                     </label>
                     <input
                       required
                       type="text"
-                      value={editingPost.category || ""}
+                      value={editingPost.title || ""}
                       onChange={(e) =>
-                        setEditingPost({
-                          ...editingPost,
-                          category: e.target.value,
-                        })
+                        setEditingPost({ ...editingPost, title: e.target.value })
                       }
                       className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
-                      placeholder="Taxation, Business, AI etc."
+                      placeholder="Enter blog title"
                     />
                   </div>
                   <div>
                     <label className="block text-xs uppercase tracking-widest text-black mb-3">
-                      Post Date
+                      URL Slug
                     </label>
                     <input
                       required
-                      type="date"
-                      value={(() => {
-                        if (!editingPost.date) return "";
-                        const d = new Date(editingPost.date);
-                        return isNaN(d.getTime())
-                          ? ""
-                          : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                      })()}
-                      onChange={(e) => {
-                        const dateVal = e.target.value;
-                        if (dateVal) {
-                          const formattedDate = new Date(
-                            dateVal + "T12:00:00",
-                          ).toLocaleDateString("en-US", {
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric",
-                          });
-                          setEditingPost({
-                            ...editingPost,
-                            date: formattedDate,
-                          });
-                        } else {
-                          setEditingPost({ ...editingPost, date: "" });
-                        }
-                      }}
-                      className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-col h-full">
-                  <label className="block text-xs uppercase tracking-widest text-black mb-3">
-                    Excerpt
-                  </label>
-                  <textarea
-                    required
-                    value={editingPost.excerpt || ""}
-                    onChange={(e) =>
-                      setEditingPost({
-                        ...editingPost,
-                        excerpt: e.target.value,
-                      })
-                    }
-                    className="w-full bg-accent border-none p-4 font-normal text-primary focus:ring-2 focus:ring-primary outline-none h-full min-h-[12rem]"
-                    placeholder="Brief summary shown on the listing page"
-                  />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-xs uppercase tracking-widest text-black">
-                    Content
-                  </label>
-                  <div className="flex items-center space-x-4">
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingPost({ ...editingPost, format: "html" })
-                        }
-                        className={`px-3 py-1.5 text-[10px] uppercase tracking-widest font-bold rounded-md transition-all ${!editingPost.format || editingPost.format === "html" ? "bg-white shadow text-primary" : "text-slate-500 hover:text-black"}`}
-                      >
-                        Rich Text
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingPost({ ...editingPost, format: "markdown" })
-                        }
-                        className={`px-3 py-1.5 text-[10px] uppercase tracking-widest font-bold rounded-md transition-all ${editingPost.format === "markdown" ? "bg-white shadow text-primary" : "text-slate-500 hover:text-black"}`}
-                      >
-                        Markdown
-                      </button>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        id="image-upload"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                        disabled={uploadingImage}
-                      />
-                      <label
-                        htmlFor="image-upload"
-                        className={`flex items-center space-x-2 text-xs font-medium uppercase tracking-widest cursor-pointer hover:text-primary transition-colors ${uploadingImage ? "text-primary" : "text-black"}`}
-                      >
-                        {uploadingImage ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <ImageIcon className="h-4 w-4" />
-                        )}
-                        <span>
-                          {uploadingImage
-                            ? "Uploading..."
-                            : "Upload Image (Appends to end)"}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="mb-2 text-xs text-black bg-slate-50 p-3 rounded border border-slate-100">
-                  <strong>Document Editor:</strong>{" "}
-                  {editingPost.format === "markdown"
-                    ? "Use standard Markdown syntax to format your content."
-                    : "Use the MS Word/Google Docs style toolbar to format your content."}{" "}
-                  <br />
-                  If you upload an image via the "Upload Image" button above, it
-                  will be uploaded to your Firebase Storage and its URL will be
-                  appended as an `&lt;img&gt;` tag at the end of the post (or
-                  markdown image tag). You can also paste images directly.
-                </div>
-                <div className="bg-slate-100 shadow-inner border border-slate-200">
-                  {editingPost.format === "markdown" ? (
-                    <textarea
-                      value={editingPost.content || ""}
+                      type="text"
+                      value={editingPost.slug || ""}
                       onChange={(e) =>
                         setEditingPost({
                           ...editingPost,
-                          content: e.target.value,
+                          slug: e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, "-")
+                            .replace(/(^-|-$)/g, ""),
                         })
                       }
-                      className="w-full bg-white border-none p-4 font-mono text-sm text-primary focus:ring-2 focus:ring-primary outline-none min-h-[600px]"
-                      placeholder="# Start writing your markdown here..."
+                      className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
+                      placeholder="post-url-slug"
                     />
-                  ) : (
-                    <SunEditor
-                      setContents={editingPost.content || ""}
-                      onChange={(newContent) =>
-                        setEditingPost({ ...editingPost, content: newContent })
-                      }
-                      onImageUploadBefore={handleEditorImageUpload}
-                      setOptions={{
-                        minHeight: "600px",
-                        stickyToolbar: 80,
-                        mode: "classic",
-                        placeholder:
-                          "Start writing your blog here. Use the alignment tools in the toolbar to justify or align text.",
-                        buttonList: [
-                          ["undo", "redo"],
-                          ["font", "fontSize", "formatBlock"],
-                          [
-                            "bold",
-                            "underline",
-                            "italic",
-                            "strike",
-                            "subscript",
-                            "superscript",
-                          ],
-                          ["removeFormat"],
-                          "/",
-                          ["fontColor", "hiliteColor"],
-                          ["outdent", "indent"],
-                          ["align", "horizontalRule", "list", "lineHeight"],
-                          ["table", "link", "image", "video"],
-                          ["fullScreen", "showBlocks", "codeView"],
-                        ],
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  className="bg-primary text-white px-12 py-5 uppercase tracking-[0.2em] hover:bg-secondary transition-all flex items-center space-x-3 rounded-md"
-                >
-                  <Save className="h-5 w-5" />
-                  <span>Publish to Website</span>
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        ) : (
-          <div className="bg-white border border-border divide-y divide-border">
-            {posts.length === 0 ? (
-              <div className="p-20 text-center">
-                <p className="text-black font-medium italic">
-                  No blogs published via database yet. Use "Sync Defaults" to
-                  migrate your existing content.
-                </p>
-              </div>
-            ) : (
-              posts.map((post) => (
-                <div
-                  key={post.id}
-                  className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-slate-50 transition-colors"
-                >
-                  <div className="max-w-2xl">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <span className="text-xs text-secondary uppercase tracking-widest">
-                        {post.category}
-                      </span>
-                      <span className="h-1 w-1 bg-slate-300 rounded-full"></span>
-                      <span className="text-xs font-medium text-black uppercase tracking-widest">
-                        {post.date}
-                      </span>
-                    </div>
-                    <h3 className="text-xl text-primary tracking-tight">
-                      {post.title}
-                    </h3>
-                    <p className="font-medium text-base text-black mt-2 line-clamp-1">
-                      {post.excerpt ||
-                        (post.content
-                          ? post.content
-                              .replace(/<[^>]*>?/gm, "")
-                              .substring(0, 160) + "..."
-                          : "")}
-                    </p>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <button
-                      onClick={() => setEditingPost(post)}
-                      className="p-3 text-black hover:text-primary transition-colors flex items-center space-x-2 border border-transparent hover:border-slate-200"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
-                    {confirmDeleteId === post.id ? (
-                      <div className="flex items-center space-x-2 mr-2">
-                        <span className="text-xs font-medium text-red-500 mr-2">
-                          Confirm?
-                        </span>
-                        <button
-                          onClick={() => handleDelete(post.id)}
-                          className="px-3 py-1 bg-red-500 text-white font-medium text-xs"
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(null)}
-                          className="px-3 py-1 bg-slate-200 text-black font-medium text-xs"
-                        >
-                          No
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmDeleteId(post.id)}
-                        className="p-3 text-black hover:text-red-500 transition-colors"
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-8">
+                    <div>
+                      <label className="block text-xs uppercase tracking-widest text-black mb-3">
+                        Category
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={editingPost.category || ""}
+                        onChange={(e) =>
+                          setEditingPost({
+                            ...editingPost,
+                            category: e.target.value,
+                          })
+                        }
+                        className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
+                        placeholder="Taxation, Business, AI etc."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-widest text-black mb-3">
+                        Post Date
+                      </label>
+                      <input
+                        required
+                        type="date"
+                        value={(() => {
+                          if (!editingPost.date) return "";
+                          const d = new Date(editingPost.date);
+                          return isNaN(d.getTime())
+                            ? ""
+                            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                        })()}
+                        onChange={(e) => {
+                          const dateVal = e.target.value;
+                          if (dateVal) {
+                            const formattedDate = new Date(
+                              dateVal + "T12:00:00",
+                            ).toLocaleDateString("en-US", {
+                              month: "long",
+                              day: "numeric",
+                              year: "numeric",
+                            });
+                            setEditingPost({
+                              ...editingPost,
+                              date: formattedDate,
+                            });
+                          } else {
+                            setEditingPost({ ...editingPost, date: "" });
+                          }
+                        }}
+                        className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col h-full">
+                    <label className="block text-xs uppercase tracking-widest text-black mb-3">
+                      Excerpt
+                    </label>
+                    <textarea
+                      required
+                      value={editingPost.excerpt || ""}
+                      onChange={(e) =>
+                        setEditingPost({
+                          ...editingPost,
+                          excerpt: e.target.value,
+                        })
+                      }
+                      className="w-full bg-accent border-none p-4 font-normal text-primary focus:ring-2 focus:ring-primary outline-none h-full min-h-[12rem]"
+                      placeholder="Brief summary shown on the listing page"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-xs uppercase tracking-widest text-black">
+                      Content
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="editor-image-upload"
+                        disabled={uploadingImage}
+                      />
+                      <label
+                        htmlFor="editor-image-upload"
+                        className="text-xs font-semibold uppercase tracking-widest text-primary hover:text-secondary cursor-pointer flex items-center space-x-2"
                       >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
+                        {uploadingImage ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Uploading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ImageIcon className="h-4 w-4" />
+                            <span>Insert Image</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none text-left">
+                    {SunEditor && (
+                      <SunEditor
+                        setContents={editingPost.content || ""}
+                        onChange={(content) =>
+                          setEditingPost({ ...editingPost, content })
+                        }
+                        setOptions={{
+                          buttonList: [
+                            ["undo", "redo"],
+                            ["font", "fontSize", "formatBlock"],
+                            ["paragraphStyle", "blockquote"],
+                            [
+                              "bold",
+                              "underline",
+                              "italic",
+                              "strike",
+                              "subscript",
+                              "superscript",
+                            ],
+                            ["fontColor", "hiliteColor"],
+                            ["outdent", "indent"],
+                            ["align", "horizontalRule", "list", "lineHeight"],
+                            ["table", "link", "image", "video"],
+                            ["fullScreen", "showBlocks", "codeView"],
+                          ],
+                        }}
+                      />
                     )}
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    className="bg-primary text-white px-12 py-5 uppercase tracking-[0.2em] hover:bg-secondary transition-all flex items-center space-x-3 rounded-md"
+                  >
+                    <Save className="h-5 w-5" />
+                    <span>Publish to Website</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          ) : (
+            <div className="bg-white border border-border divide-y divide-border">
+              {posts.length === 0 ? (
+                <div className="p-20 text-center">
+                  <p className="text-black font-medium italic">
+                    No blogs published via database yet. Use "Sync Defaults" to
+                    migrate your existing content.
+                  </p>
+                </div>
+              ) : (
+                posts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="max-w-2xl">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <span className="text-xs text-secondary uppercase tracking-widest">
+                          {post.category}
+                        </span>
+                        <span className="h-1 w-1 bg-slate-300 rounded-full"></span>
+                        <span className="text-xs font-medium text-black uppercase tracking-widest">
+                          {post.date}
+                        </span>
+                      </div>
+                      <h3 className="text-xl text-primary tracking-tight">
+                        {post.title}
+                      </h3>
+                      <p className="font-medium text-base text-black mt-2 line-clamp-1">
+                        {post.excerpt ||
+                          (post.content
+                            ? post.content
+                                .replace(/<[^>]*>?/gm, "")
+                                .substring(0, 160) + "..."
+                            : "")}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <button
+                        onClick={() => setEditingPost(post)}
+                        className="p-3 text-black hover:text-primary transition-colors flex items-center space-x-2 border border-transparent hover:border-slate-200"
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                      {confirmDeleteId === post.id ? (
+                        <div className="flex items-center space-x-2 mr-2">
+                          <span className="text-xs font-medium text-red-500 mr-2">
+                            Confirm?
+                          </span>
+                          <button
+                            onClick={() => handleDelete(post.id)}
+                            className="px-3 py-1 bg-red-500 text-white font-medium text-xs"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-3 py-1 bg-slate-200 text-black font-medium text-xs"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(post.id)}
+                          className="p-3 text-black hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )
+        ) : (
+          <FinanceTracker />
         )}
       </div>
     </main>

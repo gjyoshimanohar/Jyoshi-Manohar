@@ -1,0 +1,151 @@
+import { 
+  collection, 
+  getDocs, 
+  getDoc, 
+  doc, 
+  query, 
+  setDoc,
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  orderBy,
+  limit
+} from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { FinanceRecord, PaymentAccount } from '../types';
+
+const COLLECTION_NAME = 'finances';
+const ACCOUNTS_COLLECTION = 'payment_accounts';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+export const financeService = {
+  async getAllRecords(): Promise<FinanceRecord[]> {
+    try {
+      const q = query(collection(db, COLLECTION_NAME), orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinanceRecord));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
+      return [];
+    }
+  },
+
+  async createRecord(record: Omit<FinanceRecord, 'id' | 'createdAt'>): Promise<FinanceRecord> {
+    try {
+      const financeRef = collection(db, COLLECTION_NAME);
+      const newDocRef = doc(financeRef); // auto-generate ID
+      const newRecord: FinanceRecord = {
+        ...record,
+        id: newDocRef.id,
+        createdAt: Date.now()
+      };
+      await setDoc(newDocRef, newRecord);
+      return newRecord;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, COLLECTION_NAME);
+      throw error;
+    }
+  },
+
+  async updateRecord(id: string, record: Partial<FinanceRecord>): Promise<void> {
+    try {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      await updateDoc(docRef, record);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${COLLECTION_NAME}/${id}`);
+      throw error;
+    }
+  },
+
+  async deleteRecord(id: string): Promise<void> {
+    try {
+      const docRef = doc(db, COLLECTION_NAME, id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${id}`);
+      throw error;
+    }
+  },
+
+  async getAllPaymentAccounts(): Promise<PaymentAccount[]> {
+    try {
+      const q = query(collection(db, ACCOUNTS_COLLECTION), orderBy('createdAt', 'asc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentAccount));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, ACCOUNTS_COLLECTION);
+      return [];
+    }
+  },
+
+  async createPaymentAccount(account: Omit<PaymentAccount, 'id' | 'createdAt'>): Promise<PaymentAccount> {
+    try {
+      const accountsRef = collection(db, ACCOUNTS_COLLECTION);
+      const newDocRef = doc(accountsRef);
+      const newAccount: PaymentAccount = {
+        ...account,
+        id: newDocRef.id,
+        createdAt: Date.now()
+      };
+      await setDoc(newDocRef, newAccount);
+      return newAccount;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, ACCOUNTS_COLLECTION);
+      throw error;
+    }
+  },
+
+  async updatePaymentAccount(id: string, account: Partial<PaymentAccount>): Promise<void> {
+    try {
+      const docRef = doc(db, ACCOUNTS_COLLECTION, id);
+      await updateDoc(docRef, account);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `${ACCOUNTS_COLLECTION}/${id}`);
+      throw error;
+    }
+  },
+
+  async deletePaymentAccount(id: string): Promise<void> {
+    try {
+      const docRef = doc(db, ACCOUNTS_COLLECTION, id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${ACCOUNTS_COLLECTION}/${id}`);
+      throw error;
+    }
+  }
+};

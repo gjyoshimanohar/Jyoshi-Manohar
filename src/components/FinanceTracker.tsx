@@ -1,0 +1,1796 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { db, auth } from "../lib/firebase";
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  orderBy 
+} from "firebase/firestore";
+import { FinanceRecord, PaymentAccount } from "../types";
+import { financeService } from "../services/financeService";
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Calendar,
+  Tag,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  Trash2,
+  Edit3,
+  Plus,
+  Search,
+  Filter,
+  Sparkles,
+  Download,
+  RefreshCw,
+  PlusCircle,
+  User,
+  X,
+  PieChart as PieIcon,
+  BarChart3,
+  Check,
+  Building,
+  CreditCard,
+  Wallet
+} from "lucide-react";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
+
+// Income Categories for CA Firm
+const INCOME_CATEGORIES = [
+  "Auditing Fees",
+  "Tax Consulting",
+  "GST Filing",
+  "Corporate Advisory",
+  "Incorporate Services",
+  "Other Services"
+];
+
+// Expense Categories for CA Firm
+const EXPENSE_CATEGORIES = [
+  "Office Rent",
+  "Salaries",
+  "Software Licensing",
+  "Utilities",
+  "Marketing & Website",
+  "Office Supplies",
+  "Travel & Conveyance",
+  "Miscellaneous"
+];
+
+// Personal Income Categories
+const PERSONAL_INCOME_CATEGORIES = [
+  "Salary / Drawings",
+  "Dividends & Investments",
+  "Cashback & Rewards",
+  "Gifts & Allowances",
+  "Other Income"
+];
+
+// Personal Expense Categories
+const PERSONAL_EXPENSE_CATEGORIES = [
+  "Groceries & Food",
+  "Rent & Housing",
+  "Fuel & Transport",
+  "Utilities & Bills",
+  "Insurance & SIP",
+  "Shopping & Leisure",
+  "Health & Wellness",
+  "Miscellaneous Personal"
+];
+
+const COLORS = [
+  "#1a2b58", // Navy
+  "#AD8D3E", // Gold
+  "#0ea5e9", // Sky Blue
+  "#10b981", // Emerald
+  "#ec4899", // Pink
+  "#f59e0b", // Amber
+  "#6366f1", // Indigo
+  "#8b5cf6", // Purple
+];
+
+interface ClientUser {
+  uid: string;
+  email: string;
+  displayName?: string;
+}
+
+export default function FinanceTracker() {
+  const [records, setRecords] = useState<FinanceRecord[]>([]);
+  const [clients, setClients] = useState<ClientUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  // Filters
+  const [selectedYear, setSelectedYear] = useState<string>("2026");
+  const [selectedMonth, setSelectedMonth] = useState<string>("All");
+  const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
+  const [selectedType, setSelectedType] = useState<"all" | "income" | "expense">("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Modal / Form States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<FinanceRecord | null>(null);
+  
+  // Transaction Form fields
+  const [formScope, setFormScope] = useState<"business" | "personal">("business");
+  const [formType, setFormType] = useState<"income" | "expense">("income");
+  const [formCategory, setFormCategory] = useState("");
+  const [formAmount, setFormAmount] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formDate, setFormDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [formStatus, setFormStatus] = useState<"paid" | "pending" | "overdue">("paid");
+  const [formClientId, setFormClientId] = useState("");
+  const [formCustomClientName, setFormCustomClientName] = useState("");
+
+  // Confirmation Dialogue
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Payment Accounts State
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+
+  // New Payment Account Form Fields
+  const [accountName, setAccountName] = useState("");
+  const [accountType, setAccountType] = useState<'bank_account' | 'credit_card'>("bank_account");
+  const [accountOpeningBalance, setAccountOpeningBalance] = useState("");
+
+  // Payment fields in the Transaction Form
+  const [formPaymentMode, setFormPaymentMode] = useState<string>("Cash");
+  const [formPaymentAccountId, setFormPaymentAccountId] = useState<string>("");
+
+  // Fetch Finance Records, Clients, & Payment Accounts list
+  useEffect(() => {
+    setLoading(true);
+    
+    // Subscribe to finance records
+    const qFinances = query(collection(db, "finances"), orderBy("date", "desc"));
+    const unsubscribeFinances = onSnapshot(qFinances, (snapshot) => {
+      const recordsList: FinanceRecord[] = [];
+      snapshot.forEach((docRef) => {
+        recordsList.push({ id: docRef.id, ...docRef.data() } as FinanceRecord);
+      });
+      setRecords(recordsList);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error listening to finances: ", error);
+      setLoading(false);
+    });
+
+    // Subscribe to client list (users collection)
+    const qClients = collection(db, "users");
+    const unsubscribeClients = onSnapshot(qClients, (snapshot) => {
+      const clientList: ClientUser[] = [];
+      snapshot.forEach((docRef) => {
+        const data = docRef.data();
+        if (data.email !== "gjyoshimanohar@gmail.com") {
+          clientList.push({
+            uid: docRef.id,
+            email: data.email || "",
+            displayName: data.displayName || ""
+          });
+        }
+      });
+      setClients(clientList);
+    }, (error) => {
+      console.error("Error listening to clients list: ", error);
+    });
+
+    // Subscribe to payment accounts list
+    const qAccounts = query(collection(db, "payment_accounts"), orderBy("createdAt", "asc"));
+    const unsubscribeAccounts = onSnapshot(qAccounts, (snapshot) => {
+      const accountsList: PaymentAccount[] = [];
+      snapshot.forEach((docRef) => {
+        accountsList.push({ id: docRef.id, ...docRef.data() } as PaymentAccount);
+      });
+      setPaymentAccounts(accountsList);
+    }, (error) => {
+      console.error("Error listening to payment accounts: ", error);
+    });
+
+    return () => {
+      unsubscribeFinances();
+      unsubscribeClients();
+      unsubscribeAccounts();
+    };
+  }, []);
+
+  // Autofill Category default when formType or formScope changes
+  useEffect(() => {
+    if (!editingRecord) {
+      if (formScope === "business") {
+        if (formType === "income") {
+          setFormCategory(INCOME_CATEGORIES[0]);
+        } else {
+          setFormCategory(EXPENSE_CATEGORIES[0]);
+        }
+      } else {
+        if (formType === "income") {
+          setFormCategory(PERSONAL_INCOME_CATEGORIES[0]);
+        } else {
+          setFormCategory(PERSONAL_EXPENSE_CATEGORIES[0]);
+        }
+      }
+    }
+  }, [formType, formScope, editingRecord]);
+
+  // Handle open modal for new transaction
+  const handleOpenAddModal = () => {
+    setEditingRecord(null);
+    const initialScope = selectedScope === "all" ? "business" : selectedScope;
+    setFormScope(initialScope);
+    setFormType("expense"); // Standard default is expense (since users track expenses more actively)
+    
+    if (initialScope === "business") {
+      setFormCategory(EXPENSE_CATEGORIES[0]);
+    } else {
+      setFormCategory(PERSONAL_EXPENSE_CATEGORIES[0]);
+    }
+    
+    setFormAmount("");
+    setFormDescription("");
+    setFormDate(new Date().toISOString().split("T")[0]);
+    setFormStatus("paid");
+    setFormClientId("");
+    setFormCustomClientName("");
+    setFormPaymentMode("Cash");
+    setFormPaymentAccountId("");
+    setIsModalOpen(true);
+  };
+
+  // Handle open modal for edit
+  const handleOpenEditModal = (rec: FinanceRecord) => {
+    setEditingRecord(rec);
+    const recScope = rec.scope || "business";
+    setFormScope(recScope);
+    setFormType(rec.type);
+    setFormCategory(rec.category);
+    setFormAmount(rec.amount.toString());
+    setFormDescription(rec.description || "");
+    setFormDate(rec.date);
+    setFormStatus(rec.status);
+    setFormClientId(rec.clientId || "");
+    setFormCustomClientName(rec.clientName || "");
+    setFormPaymentMode(rec.paymentMode || "Cash");
+    setFormPaymentAccountId(rec.paymentAccountId || "");
+    setIsModalOpen(true);
+  };
+
+  // Handle Submit Form
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formAmount || isNaN(parseFloat(formAmount))) {
+      alert("Please enter a valid amount.");
+      return;
+    }
+
+    const linkedClient = clients.find(c => c.uid === formClientId);
+    const clientName = linkedClient 
+      ? (linkedClient.displayName || linkedClient.email)
+      : formCustomClientName || "";
+
+    const transactionPayload = {
+      type: formType,
+      category: formCategory,
+      amount: parseFloat(formAmount),
+      description: formDescription,
+      date: formDate,
+      status: formStatus,
+      clientName,
+      clientId: formClientId || "",
+      scope: formScope,
+      paymentMode: formPaymentMode,
+      paymentAccountId: formPaymentAccountId
+    };
+
+    try {
+      setSyncing(true);
+      if (editingRecord) {
+        await financeService.updateRecord(editingRecord.id, transactionPayload);
+      } else {
+        await financeService.createRecord(transactionPayload);
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("Failed to save finance transaction", err);
+      alert("Failed to save transaction. Please verify you are logged in as admin.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Delete Transaction
+  const handleDeleteTransaction = async (id: string) => {
+    try {
+      setSyncing(true);
+      await financeService.deleteRecord(id);
+      setConfirmDeleteId(null);
+    } catch (err) {
+      console.error("Failed to delete transaction", err);
+      alert("Failed to delete. Access restricted.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Extract years and months dynamically for filters
+  const yearsList = useMemo(() => {
+    const yearsSet = new Set<string>(["2026"]);
+    records.forEach(rec => {
+      const yr = rec.date.split("-")[0];
+      if (yr && yr.length === 4) yearsSet.add(yr);
+    });
+    return Array.from(yearsSet).sort();
+  }, [records]);
+
+  // Demo Data Seeding Engine for Admins
+  const handleSeedDemoFinances = async () => {
+    const confirmSeed = window.confirm(
+      "Would you like to seed 6 months of realistic transaction data for CA Jyoshi Manohar office, along with 3 configured payment sources (Bank Accounts & Credit Cards) to populate the stats?"
+    );
+    if (!confirmSeed) return;
+
+    try {
+      setSyncing(true);
+
+      // Create payment accounts first
+      const sbiAcc = await financeService.createPaymentAccount({
+        name: "SBI Current Account (Office)",
+        type: "bank_account",
+        openingBalance: 250000
+      });
+      const hdfcAcc = await financeService.createPaymentAccount({
+        name: "HDFC Savings Account (Private)",
+        type: "bank_account",
+        openingBalance: 85000
+      });
+      const iciciAcc = await financeService.createPaymentAccount({
+        name: "ICICI Visa Credit Card",
+        type: "credit_card",
+        openingBalance: 0
+      });
+
+      const demoDataList: Omit<FinanceRecord, "id" | "createdAt">[] = [
+        // January 2026
+        { type: "income", category: "Auditing Fees", amount: 45000, description: "Annual Statutory Audit - Techcorp Private Ltd", date: "2026-01-15", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Tax Consulting", amount: 12000, description: "Personal Income Tax planning - High Net Worth Individual", date: "2026-01-20", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Office Rent", amount: 25000, description: "January Office Rental - CBD Plaza", date: "2026-01-02", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Salaries", amount: 42000, description: "Stipends for 3 article assistants and office secretary", date: "2026-01-31", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Software Licensing", amount: 6500, description: "Computax and Tally quarterly subscription renewal", date: "2026-01-10", status: "paid", scope: "business", paymentMode: "Credit Card", paymentAccountId: iciciAcc.id },
+        // January Personal
+        { type: "income", category: "Salary / Drawings", amount: 50000, description: "Monthly Drawings from CA Firm", date: "2026-01-01", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Rent & Housing", amount: 15000, description: "Personal Apartment Rent", date: "2026-01-02", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Groceries & Food", amount: 8500, description: "Monthly groceries - Nature's Basket", date: "2026-01-05", status: "paid", scope: "personal", paymentMode: "UPI", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Insurance & SIP", amount: 10000, description: "Mutual Fund SIP Auto-debit", date: "2026-01-10", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+  
+        // February 2026
+        { type: "income", category: "GST Filing", amount: 18500, description: "Monthly GSTR-1 and GSTR-3B filings for 5 retail clients", date: "2026-02-10", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Corporate Advisory", amount: 35000, description: "Due Diligence Consulting for Mergers", date: "2026-02-18", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Office Rent", amount: 25000, description: "February Office Rental - CBD Plaza", date: "2026-02-02", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Salaries", amount: 42000, description: "Stipends for staff", date: "2026-02-28", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Utilities", amount: 4200, description: "Office high-speed fiber internet and electricity invoice", date: "2026-02-12", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        // February Personal
+        { type: "income", category: "Salary / Drawings", amount: 50000, description: "Monthly Drawings from CA Firm", date: "2026-02-01", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Groceries & Food", amount: 7200, description: "Supermarket items & pantry stock", date: "2026-02-05", status: "paid", scope: "personal", paymentMode: "UPI", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Shopping & Leisure", amount: 6000, description: "Aesthetic home decor & books shopping", date: "2026-02-14", status: "paid", scope: "personal", paymentMode: "Credit Card", paymentAccountId: iciciAcc.id },
+        { type: "expense", category: "Fuel & Transport", amount: 3500, description: "Personal Sedan petrol fill-ups", date: "2026-02-18", status: "paid", scope: "personal", paymentMode: "UPI", paymentAccountId: hdfcAcc.id },
+  
+        // March 2026
+        { type: "income", category: "Auditing Fees", amount: 62000, description: "Internal Audits for Zenith Retail Chains", date: "2026-03-12", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Incorporate Services", amount: 15000, description: "Company Registration & LLP Incorporation - Spark Bio Ltd", date: "2026-03-24", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Tax Consulting", amount: 8500, description: "TDS Returns filings quarter 4", date: "2026-03-30", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Office Rent", amount: 25000, description: "March Office Rental - CBD Plaza", date: "2026-03-02", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Salaries", amount: 42000, description: "March Office Salaries & Stipends", date: "2026-03-31", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Miscellaneous", amount: 3500, description: "CA Firm registration renewal dues with ICAI board", date: "2026-03-15", status: "paid", scope: "business", paymentMode: "Credit Card", paymentAccountId: iciciAcc.id },
+        // March Personal
+        { type: "income", category: "Salary / Drawings", amount: 55000, description: "Drawings - Client Project Increment", date: "2026-03-01", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "income", category: "Dividends & Investments", amount: 4800, description: "Quarterly Index Fund Dividends", date: "2026-03-15", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Groceries & Food", amount: 9200, description: "Monthly grocery basket restock", date: "2026-03-05", status: "paid", scope: "personal", paymentMode: "UPI", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Utilities & Bills", amount: 4500, description: "Home high-speed Wi-Fi & electricity bills", date: "2026-03-08", status: "paid", scope: "personal", paymentMode: "UPI", paymentAccountId: hdfcAcc.id },
+  
+        // April 2026
+        { type: "income", category: "GST Filing", amount: 22000, description: "GST compliance retainer retainer services", date: "2026-04-10", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Corporate Advisory", amount: 50000, description: "Transfer Pricing study & documentation project", date: "2026-04-20", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Tax Consulting", amount: 15000, description: "Advance Tax calculation advisory - Zenith Retail", date: "2026-04-25", status: "pending", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Office Rent", amount: 25000, description: "April Office Rental - CBD Plaza", date: "2026-04-02", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Salaries", amount: 42000, description: "April salaries", date: "2026-04-30", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Office Supplies", amount: 2800, description: "Cartridges, audit file folders, printing paper supplies", date: "2026-04-05", status: "paid", scope: "business", paymentMode: "Cash", paymentAccountId: "" },
+        // April Personal
+        { type: "income", category: "Salary / Drawings", amount: 55000, description: "Monthly Drawings", date: "2026-04-01", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Rent & Housing", amount: 15000, description: "Personal Apartment Rent", date: "2026-04-02", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Health & Wellness", amount: 4800, description: "Premium dental checkup & vitamins", date: "2026-04-12", status: "paid", scope: "personal", paymentMode: "Credit Card", paymentAccountId: iciciAcc.id },
+  
+        // May 2026
+        { type: "income", category: "Auditing Fees", amount: 75000, description: "Statutory Tax Audit - Apex Logistics Pvt Ltd", date: "2026-05-15", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "GST Filing", amount: 19800, description: "GST Annual Return GSTR-9 filings", date: "2026-05-22", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Office Rent", amount: 25000, description: "May Office Rental - CBD Plaza", date: "2026-05-02", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Salaries", amount: 45000, description: "May Salaries (including bonus)", date: "2026-05-31", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Marketing & Website", amount: 8000, description: "Domain, business hosting, professional SEO marketing", date: "2026-05-10", status: "paid", scope: "business", paymentMode: "Credit Card", paymentAccountId: iciciAcc.id },
+        { type: "expense", category: "Travel & Conveyance", amount: 5600, description: "Client site audits taxi reimbursement", date: "2026-05-25", status: "paid", scope: "business", paymentMode: "Cash", paymentAccountId: "" },
+        // May Personal
+        { type: "income", category: "Salary / Drawings", amount: 60000, description: "Monthly drawings - bonus increment", date: "2026-05-01", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Groceries & Food", amount: 8100, description: "Artisanal food and grocery purchases", date: "2026-05-05", status: "paid", scope: "personal", paymentMode: "UPI", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Shopping & Leisure", amount: 12000, description: "Premium weekend apparel & luggage shopping", date: "2026-05-18", status: "paid", scope: "personal", paymentMode: "Credit Card", paymentAccountId: iciciAcc.id },
+  
+        // June 2026
+        { type: "income", category: "Tax Consulting", amount: 45000, description: "NRI Income Tax structuring consultancy retainer", date: "2026-06-08", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "GST Filing", amount: 24000, description: "GST advisory and appeal representation service", date: "2026-06-14", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Incorporate Services", amount: 18000, description: "Startup incubation corporate setup advisory", date: "2026-06-25", status: "pending", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Office Rent", amount: 25000, description: "June Office Rental - CBD Plaza", date: "2026-06-02", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Salaries", amount: 45000, description: "June Staff salaries", date: "2026-06-30", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "expense", category: "Utilities", amount: 4900, description: "Office AC electricity bill and phone charges", date: "2026-06-18", status: "paid", scope: "business", paymentMode: "UPI", paymentAccountId: sbiAcc.id },
+        // June Personal
+        { type: "income", category: "Salary / Drawings", amount: 60000, description: "Monthly Drawings from CA Firm", date: "2026-06-01", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Utilities & Bills", amount: 5200, description: "Home high-speed Wi-Fi, postpaid and water bills", date: "2026-06-08", status: "paid", scope: "personal", paymentMode: "UPI", paymentAccountId: hdfcAcc.id },
+        { type: "expense", category: "Insurance & SIP", amount: 12000, description: "Mutual Fund SIP automatic transfer", date: "2026-06-10", status: "paid", scope: "personal", paymentMode: "Bank Transfer", paymentAccountId: hdfcAcc.id },
+  
+        // July 2026
+        { type: "income", category: "Tax Consulting", amount: 95000, description: "FY 2025-26 Comprehensive Income Tax audit & filings", date: "2026-07-01", status: "paid", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id },
+        { type: "income", category: "Auditing Fees", amount: 55000, description: "Bank Concurrent Audit retainer - TrustBank Branch", date: "2026-07-04", status: "pending", scope: "business", paymentMode: "Bank Transfer", paymentAccountId: sbiAcc.id }
+      ];
+
+      for (const item of demoDataList) {
+        await financeService.createRecord(item);
+      }
+      alert("Successfully seeded 3 payment accounts and 6 months of financial transaction logs!");
+    } catch (err) {
+      console.error("Failed seeding demo finances: ", err);
+      alert("Failed to seed. Please make sure database is online and rules are deployed.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Create new Payment Account
+  const handleAddAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountName.trim() || !accountOpeningBalance || isNaN(parseFloat(accountOpeningBalance))) {
+      alert("Please enter a valid name and opening balance.");
+      return;
+    }
+    try {
+      setSyncing(true);
+      await financeService.createPaymentAccount({
+        name: accountName.trim(),
+        type: accountType,
+        openingBalance: parseFloat(accountOpeningBalance)
+      });
+      setAccountName("");
+      setAccountOpeningBalance("");
+      setIsAccountModalOpen(false);
+    } catch (err) {
+      console.error("Failed to add payment account", err);
+      alert("Error creating payment account.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Delete Payment Account
+  const handleDeleteAccount = async (id: string, name: string) => {
+    const confirmDelete = window.confirm(`Are you sure you want to delete "${name}"? Transactions linked to this account will remain, but will lose their account link.`);
+    if (!confirmDelete) return;
+    try {
+      setSyncing(true);
+      await financeService.deletePaymentAccount(id);
+    } catch (err) {
+      console.error("Failed to delete account", err);
+      alert("Failed to delete account.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Filter Logic
+  const filteredRecords = useMemo(() => {
+    return records.filter(rec => {
+      // Scope Filter (default legacy records to 'business')
+      const recScope = rec.scope || "business";
+      if (selectedScope !== "all" && recScope !== selectedScope) return false;
+
+      const recYear = rec.date.split("-")[0];
+      const recMonth = rec.date.split("-")[1]; // '01', '02', etc.
+
+      // Year Filter
+      if (recYear !== selectedYear) return false;
+
+      // Month Filter
+      if (selectedMonth !== "All") {
+        const monthNum = {
+          "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04",
+          "May": "05", "Jun": "06", "Jul": "07", "Aug": "08",
+          "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+        }[selectedMonth];
+        if (recMonth !== monthNum) return false;
+      }
+
+      // Type Filter
+      if (selectedType !== "all" && rec.type !== selectedType) return false;
+
+      // Category Filter
+      if (selectedCategory !== "All" && rec.category !== selectedCategory) return false;
+
+      // Search Query
+      if (searchQuery.trim() !== "") {
+        const queryLower = searchQuery.toLowerCase();
+        const descMatch = rec.description?.toLowerCase().includes(queryLower);
+        const catMatch = rec.category.toLowerCase().includes(queryLower);
+        const clientMatch = rec.clientName?.toLowerCase().includes(queryLower);
+        if (!descMatch && !catMatch && !clientMatch) return false;
+      }
+
+      return true;
+    });
+  }, [records, selectedYear, selectedMonth, selectedScope, selectedType, selectedCategory, searchQuery]);
+
+  // Dynamic current balances for each account
+  const accountBalances = useMemo(() => {
+    const balances: Record<string, { income: number; expense: number; current: number }> = {};
+    
+    // Initialize with opening balances
+    paymentAccounts.forEach(acc => {
+      balances[acc.id] = {
+        income: 0,
+        expense: 0,
+        current: acc.openingBalance
+      };
+    });
+
+    // Accumulate transactions
+    records.forEach(rec => {
+      if (rec.paymentAccountId && balances[rec.paymentAccountId] && rec.status === "paid") {
+        if (rec.type === "income") {
+          balances[rec.paymentAccountId].income += rec.amount;
+          balances[rec.paymentAccountId].current += rec.amount;
+        } else {
+          balances[rec.paymentAccountId].expense += rec.amount;
+          balances[rec.paymentAccountId].current -= rec.amount;
+        }
+      }
+    });
+
+    return balances;
+  }, [paymentAccounts, records]);
+
+  // Aggregate Metrics based on ALL records for selected month, year, and scope (ignores type/category filters for context)
+  const metrics = useMemo(() => {
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let pendingInvoicesVal = 0;
+
+    records.forEach(rec => {
+      // Scope filter matching
+      const recScope = rec.scope || "business";
+      if (selectedScope !== "all" && recScope !== selectedScope) return;
+
+      const recYear = rec.date.split("-")[0];
+      const recMonth = rec.date.split("-")[1];
+
+      // Check month matches if selected
+      let monthMatch = true;
+      if (selectedMonth !== "All") {
+        const monthNum = {
+          "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04",
+          "May": "05", "Jun": "06", "Jul": "07", "Aug": "08",
+          "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+        }[selectedMonth];
+        monthMatch = recMonth === monthNum;
+      }
+
+      if (recYear === selectedYear && monthMatch) {
+        if (rec.type === "income") {
+          totalIncome += rec.amount;
+          if (rec.status === "pending" || rec.status === "overdue") {
+            pendingInvoicesVal += rec.amount;
+          }
+        } else {
+          totalExpense += rec.amount;
+        }
+      }
+    });
+
+    const balance = totalIncome - totalExpense;
+
+    return {
+      totalIncome,
+      totalExpense,
+      balance,
+      pendingInvoicesVal
+    };
+  }, [records, selectedYear, selectedMonth, selectedScope]);
+
+  // Generate data for Recharts Bar/Area Chart (Grouped by Month & Scope)
+  const chartData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    
+    return months.map((m, index) => {
+      const monthStr = String(index + 1).padStart(2, "0");
+      let income = 0;
+      let expense = 0;
+
+      records.forEach(rec => {
+        const recScope = rec.scope || "business";
+        if (selectedScope !== "all" && recScope !== selectedScope) return;
+
+        const recYear = rec.date.split("-")[0];
+        const recMonth = rec.date.split("-")[1];
+        if (recYear === selectedYear && recMonth === monthStr) {
+          if (rec.type === "income") income += rec.amount;
+          else expense += rec.amount;
+        }
+      });
+
+      return {
+        month: m,
+        Income: income,
+        Expense: expense,
+        Net: income - expense
+      };
+    });
+  }, [records, selectedYear, selectedScope]);
+
+  // Category Breakdown for Pie Charts (Current Filters applied)
+  const categoryChartData = useMemo(() => {
+    const categoryTotals: { [name: string]: number } = {};
+    filteredRecords.forEach(rec => {
+      categoryTotals[rec.category] = (categoryTotals[rec.category] || 0) + rec.amount;
+    });
+
+    return Object.keys(categoryTotals).map(catName => ({
+      name: catName,
+      value: categoryTotals[catName]
+    }));
+  }, [filteredRecords]);
+
+  // Export CSV of Filtered Records
+  const handleExportCSV = () => {
+    if (filteredRecords.length === 0) {
+      alert("No transactions available to export.");
+      return;
+    }
+
+    const headers = ["ID", "Type", "Category", "Amount", "Description", "Date", "Status", "Client Name"];
+    const rows = filteredRecords.map(rec => [
+      rec.id,
+      rec.type,
+      rec.category,
+      rec.amount,
+      `"${(rec.description || "").replace(/"/g, '""')}"`,
+      rec.date,
+      rec.status,
+      `"${(rec.clientName || "").replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `CA_Manohar_Finances_${selectedMonth}_${selectedYear}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-8 text-left font-sans animate-fade-in">
+      
+      {/* Upper Title and Seeder / Exporter Toolbar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border pb-5">
+        <div>
+          <h2 className="text-3xl font-bold text-primary tracking-tight">Monthly Finance Tracker</h2>
+          <p className="text-gray-500 font-medium mt-1">
+            Real-time corporate accounts audits, invoicing logs, income streams, and overhead trackers.
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-3">
+          {records.length === 0 && (
+            <button
+              onClick={handleSeedDemoFinances}
+              className="flex items-center space-x-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150"
+            >
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>Seed Demo Finances</span>
+            </button>
+          )}
+          
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150"
+          >
+            <Download className="w-4 h-4 text-slate-600" />
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            onClick={handleOpenAddModal}
+            className="flex items-center space-x-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Transaction</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Finance Dimension Selector Tabs */}
+      <div className="border-b border-slate-100 pb-px">
+        <div className="flex space-x-6">
+          <button
+            onClick={() => {
+              setSelectedScope("business");
+              setSelectedCategory("All");
+            }}
+            className={`pb-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 relative ${
+              selectedScope === "business"
+                ? "border-[#AD8D3E] text-[#AD8D3E]"
+                : "border-transparent text-slate-500 hover:text-primary"
+            }`}
+          >
+            <Building className="w-4 h-4" />
+            <span>💼 Professional Office Finances</span>
+          </button>
+          
+          <button
+            onClick={() => {
+              setSelectedScope("personal");
+              setSelectedCategory("All");
+            }}
+            className={`pb-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 relative ${
+              selectedScope === "personal"
+                ? "border-[#AD8D3E] text-[#AD8D3E]"
+                : "border-transparent text-slate-500 hover:text-primary"
+            }`}
+          >
+            <TrendingDown className="w-4 h-4 text-red-500" />
+            <span>🌸 Personal Expenses & Savings</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setSelectedScope("all");
+              setSelectedCategory("All");
+            }}
+            className={`pb-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 relative ${
+              selectedScope === "all"
+                ? "border-[#AD8D3E] text-[#AD8D3E]"
+                : "border-transparent text-slate-500 hover:text-primary"
+            }`}
+          >
+            <Check className="w-4 h-4 text-green-600" />
+            <span>📊 Consolidated View</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Global Filter Dashboard Banner */}
+      <div className="bg-white border border-border p-4 rounded-xl flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Year select */}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Fiscal Year</span>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+            >
+              {yearsList.map(yr => (
+                <option key={yr} value={yr}>{yr}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month select */}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Audit Month</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="All">All Months</option>
+              {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Type filter buttons */}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Transaction Category</span>
+            <div className="bg-accent border border-slate-200 rounded-lg p-0.5 flex space-x-1">
+              {(["all", "income", "expense"] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setSelectedType(t)}
+                  className={`px-3 py-1 text-xs rounded-md font-semibold capitalize transition-all ${
+                    selectedType === t 
+                      ? "bg-primary text-white shadow-sm" 
+                      : "text-slate-600 hover:text-primary"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Category filter */}
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Specific Stream</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary min-w-[120px]"
+            >
+              <option value="All">All Categories</option>
+              {(selectedScope === "all" || selectedScope === "business") && (
+                <>
+                  <optgroup label="💼 Corporate Revenue">
+                    {INCOME_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="💼 Operating Expense">
+                    {EXPENSE_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </optgroup>
+                </>
+              )}
+              {(selectedScope === "all" || selectedScope === "personal") && (
+                <>
+                  <optgroup label="🌸 Personal Inflow">
+                    {PERSONAL_INCOME_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🌸 Personal Expenses">
+                    {PERSONAL_EXPENSE_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </optgroup>
+                </>
+              )}
+            </select>
+          </div>
+        </div>
+
+        {/* Search Field */}
+        <div className="relative w-full sm:w-64 mt-2 sm:mt-0">
+          <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search className="h-4 w-4 text-gray-400" />
+          </span>
+          <input
+            type="text"
+            placeholder="Search descriptions/clients..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-accent border border-slate-200 rounded-lg py-2 pl-9 pr-4 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 flex items-center pr-3"
+            >
+              <X className="h-3 w-3 text-gray-400 hover:text-primary" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Bento Grid Stats Panel */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        
+        {/* Metric 1: Income */}
+        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500" />
+          <div>
+            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+              {selectedScope === "business"
+                ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : "Annual Revenue")
+                : selectedScope === "personal"
+                  ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : "Annual Private Inflow")
+                  : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : "Combined Annual Income")
+              }
+            </span>
+            <span className="text-2xl font-bold text-primary block mt-1.5">
+              ₹{metrics.totalIncome.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-1">
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>
+                {selectedScope === "business"
+                  ? "Office client billings"
+                  : selectedScope === "personal"
+                    ? "Salary, SIP, drawings"
+                    : "All combined inflows"
+                }
+              </span>
+            </span>
+          </div>
+          <div className="p-3 bg-green-50 rounded-xl text-green-600">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Metric 2: Expenses */}
+        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-red-400" />
+          <div>
+            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+              {selectedScope === "business"
+                ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : "Annual Overheads")
+                : selectedScope === "personal"
+                  ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : "Annual Private Outlay")
+                  : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : "Annual Outflows")
+              }
+            </span>
+            <span className="text-2xl font-bold text-primary block mt-1.5">
+              ₹{metrics.totalExpense.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[11px] text-red-500 font-semibold flex items-center gap-1 mt-1">
+              <TrendingDown className="w-3.5 h-3.5" />
+              <span>
+                {selectedScope === "business"
+                  ? "Operating overheads"
+                  : selectedScope === "personal"
+                    ? "Groceries, Rent, Leisure"
+                    : "Total operating & private costs"
+                }
+              </span>
+            </span>
+          </div>
+          <div className="p-3 bg-red-50 rounded-xl text-red-500">
+            <TrendingDown className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Metric 3: Profit / Net Margin */}
+        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
+          <div className={`absolute top-0 left-0 w-1.5 h-full ${metrics.balance >= 0 ? "bg-[#AD8D3E]" : "bg-rose-500"}`} />
+          <div>
+            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+              {selectedScope === "business"
+                ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : "Annual Profit Margin")
+                : selectedScope === "personal"
+                  ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : "Net Annual Savings")
+                  : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : "Consolidated Surplus")
+              }
+            </span>
+            <span className="text-2xl font-bold text-primary block mt-1.5">
+              ₹{metrics.balance.toLocaleString("en-IN")}
+            </span>
+            <span className={`text-[11px] font-semibold flex items-center gap-1 mt-1 ${
+              metrics.balance >= 0 ? "text-[#AD8D3E]" : "text-rose-500"
+            }`}>
+              <DollarSign className="w-3.5 h-3.5" />
+              <span>
+                {selectedScope === "business"
+                  ? "Net Operating Margin"
+                  : selectedScope === "personal"
+                    ? "Private savings surplus"
+                    : "Combined retained earnings"
+                }
+              </span>
+            </span>
+          </div>
+          <div className={`p-3 rounded-xl ${metrics.balance >= 0 ? "bg-amber-50 text-[#AD8D3E]" : "bg-rose-50 text-rose-500"}`}>
+            <BarChart3 className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Metric 4: Pending Invoices / Accounts Receivable */}
+        <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
+          <div>
+            <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
+              {selectedScope === "business"
+                ? "Outstanding Receivables"
+                : selectedScope === "personal"
+                  ? "Pending Outlays"
+                  : "Consolidated Receivables"
+              }
+            </span>
+            <span className="text-2xl font-bold text-primary block mt-1.5">
+              ₹{metrics.pendingInvoicesVal.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[11px] text-blue-500 font-semibold flex items-center gap-1 mt-1">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>
+                {selectedScope === "business"
+                  ? "Pending Client Fees"
+                  : selectedScope === "personal"
+                    ? "Pending bills & SIPs"
+                    : "Total Unresolved Outlays"
+                }
+              </span>
+            </span>
+          </div>
+          <div className="p-3 bg-blue-50 rounded-xl text-blue-500">
+            <FileText className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Linked Payment Accounts & Ledgers */}
+      <div className="bg-white border border-border p-6 rounded-2xl shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-primary tracking-tight">🏦 Payment Sources & Live Ledgers</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Active bank accounts and credit cards with automated dynamic ledger balance computation.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsAccountModalOpen(true)}
+            className="flex items-center space-x-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+          >
+            <Plus className="w-4 h-4 text-slate-600" />
+            <span>Add Source Account</span>
+          </button>
+        </div>
+
+        {paymentAccounts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+            <Wallet className="w-8 h-8 text-slate-400 mb-2" />
+            <h4 className="text-xs font-bold text-slate-700">No Payment Accounts Configured</h4>
+            <p className="text-[11px] text-gray-400 max-w-sm mt-1">
+              Add a bank account or credit card to link transactions, track live available funds, and monitor overhead offsets.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paymentAccounts.map((acc) => {
+              const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+              const isBank = acc.type === "bank_account";
+              return (
+                <div key={acc.id} className="border border-border p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/50">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        {isBank ? (
+                          <Wallet className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <CreditCard className="w-4 h-4 text-amber-500" />
+                        )}
+                        <span className="font-semibold text-slate-800 text-sm">{acc.name}</span>
+                      </div>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        isBank ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100"
+                      }`}>
+                        {isBank ? "🏦 Bank Account" : "💳 Credit Card"}
+                      </span>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all p-1"
+                      title="Delete payment account"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <span className="text-xs text-gray-400 block font-medium">Dynamic Ledger Balance</span>
+                    <span className={`text-xl font-bold tracking-tight block mt-0.5 ${
+                      b.current >= 0 ? "text-emerald-700" : "text-amber-700"
+                    }`}>
+                      ₹{b.current.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
+                    <div>
+                      <span className="text-gray-400 block">Opening</span>
+                      <span className="font-semibold text-slate-700">₹{acc.openingBalance.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div>
+                      <span className="text-green-500 block">Inflows</span>
+                      <span className="font-semibold text-green-700">+{b.income.toLocaleString("en-IN")}</span>
+                    </div>
+                    <div>
+                      <span className="text-red-400 block">Outflows</span>
+                      <span className="font-semibold text-red-600">-{b.expense.toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Visual Analytics Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Recharts Area Chart: Annual Inflow & Overhead trends */}
+        <div className="lg:col-span-2 bg-white border border-border p-6 rounded-2xl shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight">Income &amp; Expense Trends</h3>
+              <p className="text-xs text-gray-400">Comparing professional fees vs operating expenses over year {selectedYear}.</p>
+            </div>
+            <div className="flex space-x-3 text-xs">
+              <span className="flex items-center gap-1 font-semibold text-primary">
+                <span className="w-3 h-3 bg-[#1a2b58] rounded" /> Inflow
+              </span>
+              <span className="flex items-center gap-1 font-semibold text-primary">
+                <span className="w-3 h-3 bg-[#AD8D3E] rounded" /> Outflow
+              </span>
+            </div>
+          </div>
+
+          <div className="h-72 w-full text-xs font-medium">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#1a2b58" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#1a2b58" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#AD8D3E" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#AD8D3E" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", border: "none", color: "#fff" }}
+                  itemStyle={{ color: "#fff" }}
+                />
+                <Area type="monotone" dataKey="Income" stroke="#1a2b58" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIncome)" />
+                <Area type="monotone" dataKey="Expense" stroke="#AD8D3E" strokeWidth={2.5} fillOpacity={1} fill="url(#colorExpense)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Category breakdown sidebar widget */}
+        <div className="bg-white border border-border p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="text-base font-bold text-primary tracking-tight mb-1">Specific Distribution</h3>
+            <p className="text-xs text-gray-400 mb-4">Percentage allocation based on current filtered scopes.</p>
+            
+            {categoryChartData.length === 0 ? (
+              <div className="py-12 text-center text-gray-400 italic text-xs border border-dashed rounded-xl mt-4">
+                No categorical data matches active filters.
+              </div>
+            ) : (
+              <div className="h-44 w-full relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {categoryChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `₹${value}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-[10px] uppercase font-bold text-gray-400">Filtered</span>
+                  <span className="text-sm font-bold text-primary">{categoryChartData.length} Keys</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Custom Category List legend */}
+          <div className="mt-4 space-y-2 max-h-[160px] overflow-y-auto pr-1">
+            {categoryChartData.slice(0, 5).map((entry, index) => {
+              const totalVal = categoryChartData.reduce((acc, curr) => acc + curr.value, 0);
+              const percentage = totalVal > 0 ? Math.round((entry.value / totalVal) * 100) : 0;
+              return (
+                <div key={entry.name} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                    <span className="font-semibold text-primary truncate max-w-[120px]">{entry.name}</span>
+                  </div>
+                  <div className="text-gray-500 font-semibold">
+                    ₹{entry.value.toLocaleString("en-IN")} <span className="text-[10px] font-bold text-[#AD8D3E]">({percentage}%)</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Transaction Records Table Container */}
+      <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
+        
+        {/* Table Header toolbar */}
+        <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 className="text-base font-bold text-primary tracking-tight">Financial Ledger Logs</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} total logged transactions.</p>
+          </div>
+        </div>
+
+        {/* Real Table */}
+        <div className="overflow-x-auto">
+          {filteredRecords.length === 0 ? (
+            <div className="p-20 text-center flex flex-col items-center">
+              <Building className="w-10 h-10 text-gray-300 mb-3" />
+              <p className="text-slate-600 font-semibold italic text-sm">No transaction records match active filters.</p>
+              <button
+                onClick={handleOpenAddModal}
+                className="mt-4 flex items-center space-x-1.5 bg-primary text-white text-xs px-4 py-2 rounded-lg font-bold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Log first transaction</span>
+              </button>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                  <th className="py-4 px-6">Date</th>
+                  <th className="py-4 px-6">Description</th>
+                  <th className="py-4 px-6">Category</th>
+                  <th className="py-4 px-6">Client / Vendor</th>
+                  <th className="py-4 px-6">Status</th>
+                  <th className="py-4 px-6 text-right">Amount</th>
+                  <th className="py-4 px-6 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="text-xs divide-y divide-border font-medium">
+                {filteredRecords.map((rec) => {
+                  const isIncome = rec.type === "income";
+                  return (
+                    <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
+                      {/* Date */}
+                      <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
+                        {new Date(rec.date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric"
+                        })}
+                      </td>
+                      
+                      {/* Description */}
+                      <td className="py-4 px-6 font-semibold text-primary max-w-sm truncate" title={rec.description}>
+                        {rec.description || "N/A"}
+                      </td>
+
+                      {/* Category */}
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                          isIncome 
+                            ? "bg-indigo-50/80 text-primary" 
+                            : "bg-amber-50/80 text-amber-800"
+                        }`}>
+                          <Tag className="w-3 h-3 shrink-0" />
+                          {rec.category}
+                        </span>
+                      </td>
+
+                      {/* Client Name */}
+                      <td className="py-4 px-6 text-gray-600 truncate max-w-[150px]">
+                        {rec.clientName ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="p-1 bg-slate-100 rounded-full text-slate-500">
+                              <User className="w-3 h-3" />
+                            </span>
+                            <span className="truncate">{rec.clientName}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 italic">Self Overheads</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          rec.status === "paid" 
+                            ? "bg-green-50 text-green-700 border border-green-200" 
+                            : rec.status === "overdue"
+                              ? "bg-red-50 text-red-700 border border-red-200"
+                              : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                        }`}>
+                          {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                          {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                          {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                          {rec.status}
+                        </span>
+                      </td>
+
+                      {/* Amount */}
+                      <td className={`py-4 px-6 text-right font-bold text-sm ${
+                        isIncome ? "text-green-600" : "text-primary"
+                      }`}>
+                        {isIncome ? "+" : "-"} ₹{rec.amount.toLocaleString("en-IN")}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-4 px-6 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          <button
+                            onClick={() => handleOpenEditModal(rec)}
+                            className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-lg transition"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          
+                          {confirmDeleteId === rec.id ? (
+                            <div className="flex items-center space-x-1.5 z-10 bg-slate-50 border p-1 rounded-md">
+                              <span className="text-[10px] font-bold text-red-500">Confirm?</span>
+                              <button 
+                                onClick={() => handleDeleteTransaction(rec.id)} 
+                                className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold"
+                              >
+                                Yes
+                              </button>
+                              <button 
+                                onClick={() => setConfirmDeleteId(null)} 
+                                className="px-1.5 py-0.5 bg-slate-300 text-slate-800 rounded text-[9px] font-bold"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(rec.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Slide-over Form Drawer Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          
+          {/* Backdrop */}
+          <div 
+            onClick={() => setIsModalOpen(false)}
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity" 
+          />
+
+          {/* Dialog Body */}
+          <div className="relative bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-6">
+              <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-[#AD8D3E]" />
+                {editingRecord ? "Edit Transaction" : "Log New Transaction"}
+              </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-primary transition p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-5 flex-grow">
+              
+              {/* Scope Selector */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Filing Scope / Book *
+                </label>
+                <div className="grid grid-cols-2 gap-3 p-1 bg-slate-50 border border-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setFormScope("business")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                      formScope === "business"
+                        ? "bg-white text-[#AD8D3E] shadow-sm border border-slate-100"
+                        : "text-slate-500 hover:text-primary"
+                    }`}
+                  >
+                    <Building className="w-3.5 h-3.5" />
+                    <span>Office / Corporate</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormScope("personal")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                      formScope === "personal"
+                        ? "bg-white text-red-700 shadow-sm border border-slate-100"
+                        : "text-slate-500 hover:text-primary"
+                    }`}
+                  >
+                    <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                    <span>Personal Expense</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Type selector toggle */}
+              <div className="grid grid-cols-2 gap-3 p-1 bg-slate-50 border border-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setFormType("income")}
+                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                    formType === "income"
+                      ? "bg-white text-green-700 shadow-sm border border-slate-100"
+                      : "text-slate-600 hover:text-primary"
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>{formScope === "business" ? "Office Revenue" : "Personal Inflow / Drawings"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormType("expense")}
+                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                    formType === "expense"
+                      ? "bg-white text-amber-800 shadow-sm border border-slate-100"
+                      : "text-slate-600 hover:text-primary"
+                  }`}
+                >
+                  <TrendingDown className="w-4 h-4" />
+                  <span>{formScope === "business" ? "Overhead / Expense" : "Personal Expense"}</span>
+                </button>
+              </div>
+
+              {/* Amount and Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Transaction Amount (INR) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none font-bold text-slate-400">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      required
+                      placeholder="0.00"
+                      value={formAmount}
+                      onChange={(e) => setFormAmount(e.target.value)}
+                      className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Filing / Invoicing Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  />
+                </div>
+              </div>
+
+              {/* Category and Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Account Category *
+                  </label>
+                  <select
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  >
+                    {formScope === "business"
+                      ? (formType === "income" 
+                          ? INCOME_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                          : EXPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                        )
+                      : (formType === "income"
+                          ? PERSONAL_INCOME_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                          : PERSONAL_EXPENSE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)
+                        )
+                    }
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Invoice Status *
+                  </label>
+                  <select
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value as any)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  >
+                    <option value="paid">Paid</option>
+                    <option value="pending">Pending Receipt</option>
+                    <option value="overdue">Overdue Invoicing</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Client Linking (Only for Office/Business expenses) */}
+              {formScope === "business" && (
+                <div className="bg-slate-50/60 border border-slate-100 p-4 rounded-xl space-y-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Link Registered Client Account
+                      </label>
+                      <span className="text-[10px] text-gray-400 font-semibold italic">Optional</span>
+                    </div>
+                    <select
+                      value={formClientId}
+                      onChange={(e) => {
+                        setFormClientId(e.target.value);
+                        if (e.target.value !== "") {
+                          setFormCustomClientName(""); // clear free-text
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">-- No Client Account Linked --</option>
+                      {clients.map(c => (
+                        <option key={c.uid} value={c.uid}>{c.displayName || c.email}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {!formClientId && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                        Or Custom Client / Vendor Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Acme Builders Co"
+                        value={formCustomClientName}
+                        onChange={(e) => setFormCustomClientName(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Payment Mode and Source Account */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Payment Mode *
+                  </label>
+                  <select
+                    value={formPaymentMode}
+                    onChange={(e) => setFormPaymentMode(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Source / Payment Account
+                  </label>
+                  <select
+                    value={formPaymentAccountId}
+                    onChange={(e) => setFormPaymentAccountId(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  >
+                    <option value="">-- None (Hand Cash / Direct) --</option>
+                    {paymentAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} ({acc.type === "bank_account" ? "Bank" : "Credit Card"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Narration / Notes
+                </label>
+                <textarea
+                  placeholder="Provide transaction details or invoice reference number..."
+                  rows={2}
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 px-3.5 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-5 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={syncing}
+                  className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                >
+                  {syncing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{editingRecord ? "Save Updates" : "Log Record"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Payment Account Modal */}
+      {isAccountModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            onClick={() => setIsAccountModalOpen(false)}
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity" 
+          />
+
+          {/* Dialog Body */}
+          <div className="relative bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[85vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
+              <h3 className="text-lg font-bold text-primary flex items-center gap-2">
+                <PlusCircle className="w-5 h-5 text-[#AD8D3E]" />
+                <span>Configure Payment Source</span>
+              </h3>
+              <button 
+                onClick={() => setIsAccountModalOpen(false)}
+                className="text-slate-400 hover:text-primary transition p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddAccount} className="space-y-4">
+              {/* Account Name */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Account / Card Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. SBI Current Account (Office)"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                />
+              </div>
+
+              {/* Account Type */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Payment Account Type *
+                </label>
+                <div className="grid grid-cols-2 gap-3 p-1 bg-slate-50 border border-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("bank_account")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                      accountType === "bank_account"
+                        ? "bg-white text-emerald-700 shadow-sm border border-slate-100"
+                        : "text-slate-500 hover:text-primary"
+                    }`}
+                  >
+                    <Wallet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Bank Account</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("credit_card")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                      accountType === "credit_card"
+                        ? "bg-white text-amber-700 shadow-sm border border-slate-100"
+                        : "text-slate-500 hover:text-primary"
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Credit Card</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Opening Balance */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Opening Balance (INR) *
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none font-bold text-slate-400">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    required
+                    placeholder="0.00"
+                    value={accountOpeningBalance}
+                    onChange={(e) => setAccountOpeningBalance(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  For credit cards, enter a negative value if there is a starting outstanding balance, or 0 if empty.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-border mt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsAccountModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={syncing}
+                  className="px-5 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                >
+                  {syncing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Configure Account</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

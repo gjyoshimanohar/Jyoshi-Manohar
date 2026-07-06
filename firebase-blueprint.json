@@ -139,6 +139,39 @@
         "type": { "type": "string", "enum": ["request", "document", "general", "chat"] }
       },
       "required": ["userId", "title", "message", "createdAt", "read", "type"]
+    },
+    "FinanceRecord": {
+      "title": "Finance Record",
+      "description": "An income or expense transaction log for CA admin financial management",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["paid", "pending", "overdue"] },
+        "createdAt": { "type": "number" },
+        "clientName": { "type": "string" },
+        "clientId": { "type": "string" },
+        "paymentMode": { "type": "string" },
+        "paymentAccountId": { "type": "string" }
+      },
+      "required": ["id", "type", "category", "amount", "date", "status", "createdAt"]
+    },
+    "PaymentAccount": {
+      "title": "Payment Account",
+      "description": "A payment account like a bank account or credit card for tracking funds and transactions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["bank_account", "credit_card"] },
+        "openingBalance": { "type": "number" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "type", "openingBalance", "createdAt"]
     }
   },
   "firestore": {
@@ -173,6 +206,14 @@
     "notifications/{notificationId}": {
       "schema": "PortalNotification",
       "description": "System operational context notifications displayed inside notifications bell UI"
+    },
+    "finances/{financeId}": {
+      "schema": "FinanceRecord",
+      "description": "Financial transaction logs for the CA administration"
+    },
+    "payment_accounts/{accountId}": {
+      "schema": "PaymentAccount",
+      "description": "Bank accounts and credit cards registered for payment sources"
     }
   }
 }

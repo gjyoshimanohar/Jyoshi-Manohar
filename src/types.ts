@@ -102,3 +102,27 @@ export interface Project {
   createdAt: number;
   isPinned?: boolean;
 }
+
+export interface PaymentAccount {
+  id: string;
+  name: string;
+  type: 'bank_account' | 'credit_card';
+  openingBalance: number;
+  createdAt: number;
+}
+
+export interface FinanceRecord {
+  id: string;
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+  description: string;
+  date: string; // YYYY-MM-DD
+  status: 'paid' | 'pending' | 'overdue';
+  createdAt: number;
+  clientName?: string;
+  clientId?: string;
+  scope?: 'business' | 'personal';
+  paymentMode?: string;
+  paymentAccountId?: string;
+}
