@@ -1376,7 +1376,7 @@ export default function FinanceTracker() {
       </div>
 
       {/* Bento Grid Stats Panel */}
-      {activeTab === "dashboard" && (
+      {activeTab !== "account" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           
           {/* Metric 1: Income */}
@@ -1537,6 +1537,53 @@ export default function FinanceTracker() {
               <Plus className="w-4 h-4 text-white" />
               <span>Add Account / Asset / Liability</span>
             </button>
+          </div>
+
+          {/* Real-time Net Worth & Liquidity Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            {/* Net Worth */}
+            <div className="bg-[#1a2b58] text-white p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <Building className="w-16 h-16" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#AD8D3E]">Net Worth (Balance Sheet)</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1">
+                ₹{balanceSheetMetrics.netWorth.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-slate-300 block mt-2 font-medium">
+                Assets less outstanding liabilities
+              </span>
+            </div>
+
+            {/* Total Assets */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <TrendingUp className="w-16 h-16 text-green-600" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Assets</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-emerald-700">
+                ₹{balanceSheetMetrics.totalAssets.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-green-600 block mt-2 font-medium flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                {assets.length} Active asset sources
+              </span>
+            </div>
+
+            {/* Total Liabilities */}
+            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
+              <div className="absolute top-0 right-0 p-3 opacity-10">
+                <TrendingDown className="w-16 h-16 text-rose-600" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Liabilities</span>
+              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-amber-700">
+                ₹{balanceSheetMetrics.totalLiabilities.toLocaleString("en-IN")}
+              </span>
+              <span className="text-[10px] text-amber-600 block mt-2 font-medium flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                {liabilities.length} Debt / credit streams
+              </span>
+            </div>
           </div>
 
           {paymentAccounts.length === 0 ? (
@@ -1722,57 +1769,6 @@ export default function FinanceTracker() {
             </div>
           )}
         </div>
-      )}
-
-      {activeTab === "dashboard" && (
-        <>
-          {/* Real-time Net Worth & Liquidity Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            {/* Net Worth */}
-            <div className="bg-[#1a2b58] text-white p-5 rounded-xl relative overflow-hidden shadow-sm">
-              <div className="absolute top-0 right-0 p-3 opacity-10">
-                <Building className="w-16 h-16" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#AD8D3E]">Net Worth (Balance Sheet)</span>
-              <span className="text-2xl font-extrabold tracking-tight block mt-1">
-                ₹{balanceSheetMetrics.netWorth.toLocaleString("en-IN")}
-              </span>
-              <span className="text-[10px] text-slate-300 block mt-2 font-medium">
-                Assets less outstanding liabilities
-              </span>
-            </div>
-
-            {/* Total Assets */}
-            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
-              <div className="absolute top-0 right-0 p-3 opacity-10">
-                <TrendingUp className="w-16 h-16 text-green-600" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Assets</span>
-              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-emerald-700">
-                ₹{balanceSheetMetrics.totalAssets.toLocaleString("en-IN")}
-              </span>
-              <span className="text-[10px] text-green-600 block mt-2 font-medium flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                {assets.length} Active asset sources
-              </span>
-            </div>
-
-            {/* Total Liabilities */}
-            <div className="bg-white border border-slate-200 p-5 rounded-xl relative overflow-hidden shadow-sm">
-              <div className="absolute top-0 right-0 p-3 opacity-10">
-                <TrendingDown className="w-16 h-16 text-rose-600" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Liabilities</span>
-              <span className="text-2xl font-extrabold tracking-tight block mt-1 text-amber-700">
-                ₹{balanceSheetMetrics.totalLiabilities.toLocaleString("en-IN")}
-              </span>
-              <span className="text-[10px] text-amber-600 block mt-2 font-medium flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                {liabilities.length} Debt / credit streams
-              </span>
-            </div>
-          </div>
-        </>
       )}
 
       {/* Visual Analytics Row */}
@@ -2015,6 +2011,89 @@ export default function FinanceTracker() {
       </div>
 
       
+      {/* Category Management Modal */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="text-lg font-bold text-primary">Manage Categories</h3>
+              <button
+                onClick={() => setIsCategoryModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Select List to Edit
+                </label>
+                <select
+              value={categoryManageType}
+              onChange={(e) => setCategoryManageType(e.target.value as any)}
+              className="w-full bg-slate-50/50 border border-slate-200 hover:border-slate-300 hover:shadow-sm rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                >
+                  <option value="businessIncome">Office / Corporate - Income</option>
+                  <option value="businessExpense">Office / Corporate - Expense</option>
+                  <option value="personalIncome">Personal - Income</option>
+                  <option value="personalExpense">Personal - Expense</option>
+                </select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Current Categories
+                </label>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
+                  {customCategories[categoryManageType].map((cat, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg">
+                      <span className="text-sm font-medium text-slate-700">{cat}</span>
+                      <button
+                        onClick={() => handleRemoveCategory(cat)}
+                        className="text-red-400 hover:text-red-600 transition p-1"
+                        title="Remove category"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {customCategories[categoryManageType].length === 0 && (
+                    <p className="text-xs text-slate-500 italic text-center py-2">No categories found.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Add New Category
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddCategory();
+                    }}
+                    placeholder="E.g., Software Subscriptions"
+                    className="flex-1 bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryName.trim()}
+                    className="bg-primary hover:bg-primary-hover disabled:opacity-50 text-white px-4 rounded-xl text-sm font-semibold transition"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Slide-over Form Drawer Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -2189,7 +2268,8 @@ export default function FinanceTracker() {
                       </label>
                       <button
                         type="button"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCategoryManageType(
+                        onClick={() => {
+                          setCategoryManageType(
                             formScope === "business" 
                               ? (formType === "income" ? "businessIncome" : "businessExpense")
                               : (formType === "income" ? "personalIncome" : "personalExpense")
