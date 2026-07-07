@@ -11,13 +11,15 @@ import {
  Settings, FileSpreadsheet, Download, Lock, ListTodo, LayoutGrid
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
-import { FileText, MessageSquare, CornerDownRight } from 'lucide-react';
+import { FileText, MessageSquare, CornerDownRight, Key } from 'lucide-react';
 import { Todo, Project, Folder as FolderType, TaskActivity } from '../types';
 import { auth } from '../lib/firebase';
 import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears, formatDistanceToNow } from 'date-fns';
 import EmojiPicker from 'emoji-picker-react';
 import { DayPicker } from 'react-day-picker';
 import CustomSelect from './CustomSelect';
+import ProfileDropdown from './ProfileDropdown';
+import UserProfileModal from './UserProfileModal';
 import { signOut } from 'firebase/auth';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -26,6 +28,7 @@ import EisenhowerMatrix from './EisenhowerMatrix';
 import HabitsTracker from './HabitsTracker';
 import GuidePopup from './GuidePopup';
 import { determineProjectByTitle } from '../utils/autoCategorize';
+import ChangePasswordModal from './ChangePasswordModal';
 
 const PROJECT_ICONS: Record<string, React.ElementType> = {
  Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Smile, Circle
@@ -324,6 +327,8 @@ export default function WorkspaceApp() {
 
  // Sidebar controls
  const [viewMode, setViewMode] = useState<ViewMode>('today');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -1842,10 +1847,7 @@ export default function WorkspaceApp() {
  </div>
 
  <div className="mt-12 border-t border-gray-200 pt-4">
- <button onClick={handleLogout} className="w-full flex items-center space-x-2 p-2 rounded-lg text-xs text-red-600 hover:bg-red-50 transition-colors font-medium select-none justify-center border border-transparent hover:border-red-100 shadow-sm bg-white">
- <LogOut className="w-4 h-4 shrink-0" />
- <span>Log out Account</span>
- </button>
+ 
  </div>
  </div>
  </motion.aside>
@@ -1884,7 +1886,9 @@ export default function WorkspaceApp() {
  </AnimatePresence>
 
  {/* CORE DISPLAY WINDOW VIEW */}
- <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-24 md:pb-6 relative h-full">
+ <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
+      <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
+      <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-24 md:pb-6 relative h-full">
  {/* Header container */}
  <div className="w-full max-w-[900px] px-6 py-5 md:py-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
  <div className="flex items-center">
@@ -2055,6 +2059,7 @@ export default function WorkspaceApp() {
  </div>
  )}
  </div>
+ <ProfileDropdown onLogout={handleLogout} onChangePassword={() => setShowPasswordModal(true)} onViewProfile={() => setShowProfileModal(true)} className="ml-1" />
  </div>
  </div>
 

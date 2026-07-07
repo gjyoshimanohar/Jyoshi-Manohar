@@ -127,3 +127,16 @@ export interface FinanceRecord {
   paymentAccountId?: string;
   transferToAccountId?: string;
 }
+
+export interface UserProfile {
+  id: string; // same as auth.currentUser.uid
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  companyName: string;
+  displayName: string;
+  mobileNo: string;
+  email: string; // This should mirror auth email, but we store it for display
+  createdAt: number;
+  passwordLastChanged?: number;
+}

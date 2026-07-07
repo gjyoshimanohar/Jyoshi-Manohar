@@ -4,6 +4,9 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import CustomSelect from "../components/CustomSelect";
+import ChangePasswordModal from "../components/ChangePasswordModal";
+import ProfileDropdown from "../components/ProfileDropdown";
+import UserProfileModal from "../components/UserProfileModal";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -358,6 +361,8 @@ export default function ClientDashboard() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Admin Check
   const [isAdmin, setIsAdmin] = useState(false);
@@ -3411,6 +3416,9 @@ Stewardship, Accuracy, Legacy.
 
   // SIGNED IN VIEW
   return (
+    <>
+      <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
+      <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={isAdmin} />
     <main className="min-h-screen pt-28 pb-20 bg-[#FDFDFD]">
       <div className="w-full px-4 sm:px-6 lg:px-8">
         {/* Banner Notification feedback messages */}
@@ -3632,13 +3640,7 @@ Stewardship, Accuracy, Legacy.
                   <span>New Request</span>
                 </button>
               )}
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-primary transition-all whitespace-nowrap cursor-pointer"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span>Sign Out</span>
-              </button>
+              <ProfileDropdown onLogout={handleLogout} onChangePassword={() => setShowPasswordModal(true)} onViewProfile={() => setShowProfileModal(true)} />
             </div>
             {isAdmin && (
               <div
@@ -8175,5 +8177,6 @@ Stewardship, Accuracy, Legacy.
         )}
       </AnimatePresence>
     </main>
+    </>
   );
 }

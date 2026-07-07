@@ -12,6 +12,7 @@ const BlogPost = lazy(() => import('./pages/BlogPost'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
+const UserProfile = lazy(() => import('./pages/UserProfile'));
 const UnderConstruction = lazy(() => import('./pages/UnderConstruction'));
 
 function ScrollToTop() {
@@ -77,6 +78,7 @@ export default function App() {
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/dashboard" element={<ClientDashboard />} />
+                <Route path="/profile" element={<UserProfile />} />
               </Routes>
             </Suspense>
           </div>

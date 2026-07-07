@@ -9,12 +9,16 @@ import {
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { blogService } from "../services/blogService";
+import ChangePasswordModal from "../components/ChangePasswordModal";
+import ProfileDropdown from "../components/ProfileDropdown";
+import UserProfileModal from "../components/UserProfileModal";
+// import ProfileDropdown from "../components/ProfileDropdown";
 import { BlogPost } from "../types";
 import { blogPosts as staticPosts } from "../data";
 import {
   Plus,
   Trash2,
-  LogOut,
+  LogOut, Key,
   ChevronRight,
   Save,
   X,
@@ -41,6 +45,8 @@ export default function Admin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activeAdminTab, setActiveAdminTab] = useState<"blogs" | "finances">("finances");
 
@@ -299,7 +305,10 @@ export default function Admin() {
   }
 
   return (
-    <main className="pt-32 pb-24 bg-accent min-h-screen text-left">
+    <>
+      <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
+      <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
+      <main className="pt-32 pb-24 bg-accent min-h-screen text-left">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
@@ -357,15 +366,7 @@ export default function Admin() {
                 <span>New Post</span>
               </button>
             )}
-            <button
-              onClick={handleLogout}
-              className="p-3 text-black hover:text-primary transition-colors flex items-center space-x-2"
-            >
-              <span className="text-xs font-medium uppercase tracking-widest hidden sm:inline">
-                Logout
-              </span>
-              <LogOut className="h-5 w-5" />
-            </button>
+            <ProfileDropdown onLogout={handleLogout} onChangePassword={() => setShowPasswordModal(true)} onViewProfile={() => setShowProfileModal(true)} />
           </div>
         </header>
 
@@ -686,5 +687,6 @@ export default function Admin() {
         )}
       </div>
     </main>
+    </>
   );
 }
