@@ -126,6 +126,7 @@ export interface FinanceRecord {
   paymentMode?: string;
   paymentAccountId?: string;
   transferToAccountId?: string;
+  isReceivableFromClient?: boolean;
 }
 
 export interface UserProfile {

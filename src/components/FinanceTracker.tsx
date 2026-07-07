@@ -214,6 +214,7 @@ export default function FinanceTracker() {
   const [formStatus, setFormStatus] = useState<"paid" | "pending" | "overdue">("paid");
   const [formClientId, setFormClientId] = useState("");
   const [formCustomClientName, setFormCustomClientName] = useState("");
+  const [formIsReceivableFromClient, setFormIsReceivableFromClient] = useState(false);
 
   // Confirmation Dialogue
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -369,6 +370,7 @@ export default function FinanceTracker() {
     setFormStatus("paid");
     setFormClientId("");
     setFormCustomClientName("");
+    setFormIsReceivableFromClient(false);
     setFormPaymentMode("Cash");
     setFormPaymentAccountId("");
     setFormTransferToAccountId("");
@@ -434,7 +436,8 @@ export default function FinanceTracker() {
       scope: formScope,
       paymentMode: formPaymentMode,
       paymentAccountId: formPaymentAccountId,
-      transferToAccountId: formType === "transfer" ? formTransferToAccountId : ""
+      transferToAccountId: formType === "transfer" ? formTransferToAccountId : "",
+      isReceivableFromClient: formIsReceivableFromClient
     };
 
     try {
@@ -751,9 +754,21 @@ export default function FinanceTracker() {
     return balances;
   }, [paymentAccounts, records]);
 
+  // Compute pending reimbursements from client
+  const pendingReimbursementsBalance = useMemo(() => {
+    let balance = 0;
+    records.forEach(rec => {
+      if (rec.isReceivableFromClient) {
+        if (rec.type === 'expense') balance += rec.amount;
+        else if (rec.type === 'income') balance -= rec.amount;
+      }
+    });
+    return balance;
+  }, [records]);
+
   // Compute Assets, Liabilities, and Net Worth
   const balanceSheetMetrics = useMemo(() => {
-    let assetsSum = 0;
+    let assetsSum = pendingReimbursementsBalance;
     let liabilitiesSum = 0;
 
     paymentAccounts.forEach(acc => {
@@ -786,8 +801,19 @@ export default function FinanceTracker() {
       }
     });
 
+    // Add virtual asset for Pending Reimbursements
+    if (pendingReimbursementsBalance !== 0) {
+      assList.push({
+        id: 'virtual_pending_reimbursements',
+        name: 'Pending Reimbursements (Client)',
+        type: 'other_asset',
+        openingBalance: pendingReimbursementsBalance,
+        createdAt: 0
+      });
+    }
+
     return { assets: assList, liabilities: liabList };
-  }, [paymentAccounts]);
+  }, [paymentAccounts, pendingReimbursementsBalance]);
 
   // Aggregate Metrics based on ALL records for selected month, year, and scope (ignores type/category filters for context)
   const metrics = useMemo(() => {
@@ -1153,6 +1179,24 @@ export default function FinanceTracker() {
           </button>
         </div>
       </div>
+
+      {/* Pending Receivables Summary Bar */}
+      {pendingReimbursementsBalance > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in">
+           <div className="flex items-center gap-3">
+             <div className="p-2 bg-amber-100 rounded-lg">
+               <AlertCircle className="w-5 h-5 text-amber-700" />
+             </div>
+             <div>
+               <h3 className="text-amber-900 font-bold tracking-tight">Total Pending Receivables</h3>
+               <p className="text-amber-700/80 text-sm font-medium">Reimbursements pending from clients</p>
+             </div>
+           </div>
+           <div className="text-2xl font-extrabold text-amber-900 tracking-tight">
+             ₹{pendingReimbursementsBalance.toLocaleString("en-IN")}
+           </div>
+        </div>
+      )}
 
       {/* Two-Column Sidebar Layout */}
       <div className="flex flex-col lg:flex-row gap-8 items-start relative">
@@ -1611,20 +1655,24 @@ export default function FinanceTracker() {
                             </div>
                             
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                              <button
-                                onClick={() => handleOpenEditAccountModal(acc)}
-                                className="text-slate-400 hover:text-slate-700 transition p-1"
-                                title="Edit asset account"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteAccount(acc.id, acc.name)}
-                                className="text-slate-400 hover:text-red-500 transition p-1"
-                                title="Delete asset account"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {acc.id !== 'virtual_pending_reimbursements' && (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenEditAccountModal(acc)}
+                                    className="text-slate-400 hover:text-slate-700 transition p-1"
+                                    title="Edit asset account"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                                    className="text-slate-400 hover:text-red-500 transition p-1"
+                                    title="Delete asset account"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
 
@@ -1860,7 +1908,11 @@ export default function FinanceTracker() {
                 </div>
               ) : (
                 <div className="h-44 w-full relative">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Filtered</span>
+                    <span className="text-sm font-bold text-primary">{categoryChartData.length} Keys</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height="100%" className="relative z-10">
                     <PieChart>
                       <Pie
                         data={categoryChartData}
@@ -1878,10 +1930,6 @@ export default function FinanceTracker() {
                       <Tooltip formatter={(value) => `₹${value}`} />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-[10px] uppercase font-bold text-gray-400">Filtered</span>
-                    <span className="text-sm font-bold text-primary">{categoryChartData.length} Keys</span>
-                  </div>
                 </div>
               )}
             </div>
@@ -2433,6 +2481,21 @@ export default function FinanceTracker() {
                       />
                     </div>
                   )}
+
+                  {/* Is it receivable from client */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      {formType === 'expense' ? 'Is it receivable from client?' : 'Is it a reimbursement from client?'}
+                    </label>
+                    <select
+                      value={formIsReceivableFromClient ? "yes" : "no"}
+                      onChange={(e) => setFormIsReceivableFromClient(e.target.value === "yes")}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
+                    </select>
+                  </div>
                 </div>
               )}
 
