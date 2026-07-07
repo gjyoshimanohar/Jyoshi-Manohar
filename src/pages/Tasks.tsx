@@ -24,8 +24,8 @@ export default function Tasks() {
  try {
  await signInWithEmailAndPassword(auth, email, password);
  } catch (error: any) {
- console.error("Login failed", error);
- alert(error.message || "Login failed");
+ // Supress confusing firebase errors in console\n      console.error("Login failed: ", error.code === "auth/invalid-credential" ? "Invalid credentials" : error.message);
+ alert(error.code === "auth/invalid-credential" ? "Invalid email or password." : (error.message || "Login failed"));
  }
  };
 

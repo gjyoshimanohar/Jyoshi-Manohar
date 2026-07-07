@@ -1650,8 +1650,8 @@ export default function ClientDashboard() {
         await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (error: any) {
-      console.error("Auth error: ", error);
-      setAuthError(error.message || "Authentication process failed.");
+      // Supress confusing firebase errors in console\n      console.error("Auth error: ", error.code === "auth/invalid-credential" ? "Invalid credentials" : error.message);
+      setAuthError(error.code === "auth/invalid-credential" ? "Invalid email or password. Please try again." : (error.message || "Authentication process failed."));
     } finally {
       setAuthLoading(false);
     }
@@ -2205,7 +2205,7 @@ Stewardship, Accuracy, Legacy.
       case "EPFO Portal":
         return "https://unifiedportal-emp.epfindia.gov.in/epfo/";
       case "TRACES Portal":
-        return "https://www.tdscpc.gov.in/app/login.xhtml";
+        return "https://traces.tdscpc.gov.in/auth/login/loginScreen";
       case "ESI Portal":
         return "https://www.esic.in/ESICInsurance1/ESICInsurancePortal/PortalLogin.aspx";
       default:
@@ -2218,6 +2218,10 @@ Stewardship, Accuracy, Legacy.
 
     if (url !== "#") {
       // Broadcast the autofill intent to the browser extension (using CustomEvent)
+      // Open window synchronously to avoid popup blocker
+      const newWindow = window.open("", "_blank");
+      
+      // Broadcast the autofill intent to the browser extension (using CustomEvent)
       document.dispatchEvent(
         new CustomEvent("PORTAL_LOGIN_AUTOFILL", {
           detail: {
@@ -2229,7 +2233,14 @@ Stewardship, Accuracy, Legacy.
         }),
       );
 
-      window.open(url, "_blank");
+      // Give the extension a moment to store the credentials before loading the new page
+      setTimeout(() => {
+        if (newWindow) {
+          newWindow.location.href = url;
+        } else {
+          window.open(url, "_blank");
+        }
+      }, 400);
     }
 
     if (login.password) {
