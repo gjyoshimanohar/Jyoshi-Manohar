@@ -8,11 +8,24 @@ import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
 import { BlogPost as IBlogPost } from '../types';
 import { ArrowRight, Award, Quote, Loader2, Target, Lightbulb, Users, LineChart, CheckCircle2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function Home() {
  const [recentPosts, setRecentPosts] = React.useState<IBlogPost[]>(staticPosts.slice(0, 3));
  const [loadingPosts, setLoadingPosts] = React.useState(true);
+ const location = useLocation();
+
+ React.useEffect(() => {
+   if (location.hash) {
+     const id = location.hash.substring(1);
+     setTimeout(() => {
+       const el = document.getElementById(id);
+       if (el) {
+         el.scrollIntoView({ behavior: 'smooth' });
+       }
+     }, 100);
+   }
+ }, [location.hash]);
 
  React.useEffect(() => {
  async function fetchRecentPosts() {

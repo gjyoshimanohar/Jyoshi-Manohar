@@ -130,12 +130,12 @@ export default function Navbar() {
                   </Link>
                 );
               })}
-              <Link
-                to="/#contact"
+              <a
+                href="/#contact"
                 className="bg-primary text-white px-5 lg:px-8 py-3 text-xs font-medium uppercase tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 whitespace-nowrap shrink-0"
               >
                 Get Started
-              </Link>
+              </a>
             </div>
 
             <div className="md:hidden flex items-center">
@@ -244,13 +244,13 @@ export default function Navbar() {
                   );
                 })}
                 <div className="pt-4 px-3">
-                  <Link
-                    to="/#contact"
+                  <a
+                    href="/#contact"
                     onClick={() => setIsOpen(false)}
                     className="block w-full text-center bg-primary text-white px-6 py-3 rounded-full shadow-sm text-base font-medium"
                   >
                     Book a Consultation
-                  </Link>
+                  </a>
                 </div>
               </div>
             </motion.div>

@@ -16,12 +16,9 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@google/genai": "^1.29.0",
-    "@tailwindcss/vite": "^4.1.14",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.4",
-    "autoprefixer": "^10.4.21",
     "axios": "^1.16.1",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
@@ -45,13 +42,16 @@
     "recharts": "^3.8.1",
     "suneditor": "^2.47.8",
     "suneditor-react": "^3.6.1",
-    "tailwind-merge": "^3.6.0",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.22.4",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
-  },
-  "devDependencies": {
-    "esbuild": "^0.28.1"
   }
 }

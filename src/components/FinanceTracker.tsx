@@ -193,6 +193,8 @@ export default function FinanceTracker() {
 
   const [categoryManageType, setCategoryManageType] = useState<"businessIncome" | "businessExpense" | "personalIncome" | "personalExpense">("businessIncome");
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modal / Form States
@@ -325,6 +327,23 @@ export default function FinanceTracker() {
         [categoryManageType]: prev[categoryManageType].filter(c => c !== catName)
       }));
     }
+  };
+
+  const handleSaveEditCategory = (index: number) => {
+    if (!editingCategoryName.trim()) {
+      setEditingCategoryIndex(null);
+      return;
+    }
+    setCustomCategories(prev => {
+      const updatedList = [...prev[categoryManageType]];
+      updatedList[index] = editingCategoryName.trim();
+      return {
+        ...prev,
+        [categoryManageType]: updatedList
+      };
+    });
+    setEditingCategoryIndex(null);
+    setEditingCategoryName("");
   };
 
   // Handle open modal for new transaction
@@ -2061,14 +2080,61 @@ export default function FinanceTracker() {
                   <div className="h-48 overflow-y-auto space-y-2 pr-2 bg-white border border-slate-200 rounded-xl p-2">
                     {customCategories[categoryManageType].map((cat, idx) => (
                       <div key={idx} className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg">
-                        <span className="text-sm font-medium text-slate-700">{cat}</span>
-                        <button
-                          onClick={(e) => { e.preventDefault(); handleRemoveCategory(cat); }}
-                          className="text-red-400 hover:text-red-600 transition p-1"
-                          title="Remove category"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {editingCategoryIndex === idx ? (
+                          <div className="flex w-full items-center gap-2">
+                            <input
+                              type="text"
+                              value={editingCategoryName}
+                              onChange={(e) => setEditingCategoryName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveEditCategory(idx);
+                                }
+                              }}
+                              autoFocus
+                              className="flex-1 bg-white border border-slate-200 rounded py-1 px-2 text-sm text-primary outline-none focus:ring-1 focus:ring-primary"
+                            />
+                            <button
+                              onClick={(e) => { e.preventDefault(); handleSaveEditCategory(idx); }}
+                              className="text-green-500 hover:text-green-600 p-1"
+                              title="Save changes"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.preventDefault(); setEditingCategoryIndex(null); }}
+                              className="text-slate-400 hover:text-slate-600 p-1"
+                              title="Cancel"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-sm font-medium text-slate-700">{cat}</span>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={(e) => { 
+                                  e.preventDefault(); 
+                                  setEditingCategoryIndex(idx);
+                                  setEditingCategoryName(cat);
+                                }}
+                                className="text-slate-400 hover:text-blue-500 transition p-1"
+                                title="Edit category"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.preventDefault(); handleRemoveCategory(cat); }}
+                                className="text-red-400 hover:text-red-600 transition p-1"
+                                title="Remove category"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ))}
                     {customCategories[categoryManageType].length === 0 && (

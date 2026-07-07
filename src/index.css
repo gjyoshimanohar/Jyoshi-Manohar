@@ -248,3 +248,4 @@
 .sun-editor-editable * {
   font-family: var(--font-sans) !important;
 }
+html { scroll-behavior: smooth; }
