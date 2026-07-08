@@ -11,7 +11,7 @@ import {
  Settings, FileSpreadsheet, Download, Lock, ListTodo, LayoutGrid
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
-import { FileText, MessageSquare, CornerDownRight, Key } from 'lucide-react';
+import { FileText, MessageSquare, CornerDownRight, Key, Network } from 'lucide-react';
 import { Todo, Project, Folder as FolderType, TaskActivity } from '../types';
 import { auth } from '../lib/firebase';
 import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears, formatDistanceToNow } from 'date-fns';
@@ -29,6 +29,7 @@ import HabitsTracker from './HabitsTracker';
 import GuidePopup from './GuidePopup';
 import { determineProjectByTitle } from '../utils/autoCategorize';
 import ChangePasswordModal from './ChangePasswordModal';
+import DependencyTree from "./DependencyTree";
 
 const PROJECT_ICONS: Record<string, React.ElementType> = {
  Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Smile, Circle
@@ -359,7 +360,7 @@ export default function WorkspaceApp() {
 
  // Far-Left Nav Dock Tab Selection
  // 'tasks' (default checklist), 'matrix' (Kanban quadrants), 'habits' (streaks), 'focus' (sound timers), 'starred' (P1 values), 'search' (extended filters)
- const [activeAppTab, setActiveAppTab] = useState<'tasks' | 'matrix' | 'habits' | 'focus' | 'starred' | 'search' | 'settings'>('tasks');
+ const [activeAppTab, setActiveAppTab] = useState<'tasks' | 'matrix' | 'habits' | 'focus' | 'starred' | 'search' | 'settings' | 'dependencies'>('tasks');
 
  // Sidebar controls
  const [viewMode, setViewMode] = useState<ViewMode>('today');
@@ -912,7 +913,20 @@ export default function WorkspaceApp() {
  setEditingProjectId(null);
  };
 
- const handleToggleTodo = async (todo: Todo) => {
+ 
+  const getActiveDependenciesCount = (todo: Todo) => {
+    if (!todo.blockedBy || todo.blockedBy.length === 0) return 0;
+    return todo.blockedBy.filter(id => {
+      const dep = todos.find(t => t.id === id);
+      return dep && !dep.completed;
+    }).length;
+  };
+
+  const handleToggleTodo = async (todo: Todo) => {
+    if (!todo.completed && getActiveDependenciesCount(todo) > 0) {
+      alert('Cannot complete this task. It is blocked by ' + getActiveDependenciesCount(todo) + ' active task(s).');
+      return;
+    }
  const isCompleting = !todo.completed;
  const now = Date.now();
  const newActivity = {
@@ -1689,56 +1703,65 @@ export default function WorkspaceApp() {
  </div>
 
  {/* MOBILE APP TABS BOTTOM NAVIGATION (Aesthetic excellence) */}
- <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-2 grid grid-cols-7 gap-0.5 z-[100] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+ <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-2 grid grid-cols-8 gap-0.5 z-[100] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
 	<button 
 	onClick={() => setActiveAppTab('settings')}
 	className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'settings' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
 	>
 	<Settings className="w-5 h-5" />
-	<span className="text-xs font-medium mt-1">Settings</span>
+	<span className="text-[10px] sm:text-xs font-medium mt-1">Settings</span>
 	</button>
  <button 
  onClick={() => { setActiveAppTab('tasks'); setViewMode('today'); }}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'tasks' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <ShieldCheck className="w-5 h-5" />
- <span className="text-xs font-medium mt-1">Checklist</span>
+ <span className="text-[10px] sm:text-xs font-medium mt-1">Checklist</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('matrix')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'matrix' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <GripVertical className="w-5 h-5" />
- <span className="text-xs font-medium mt-1">Matrix</span>
+ <span className="text-[10px] sm:text-xs font-medium mt-1">Matrix</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('habits')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'habits' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Target className="w-5 h-5" />
- <span className="text-xs font-medium mt-1">Habits</span>
+ <span className="text-[10px] sm:text-xs font-medium mt-1">Habits</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('focus')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'focus' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Clock className="w-5 h-5" />
- <span className="text-xs font-medium mt-1">Focus</span>
+ <span className="text-[10px] sm:text-xs font-medium mt-1">Focus</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('starred')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'starred' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Star className="w-5 h-5" />
- <span className="text-xs font-medium mt-1">Starred</span>
+ <span className="text-[10px] sm:text-xs font-medium mt-1">Starred</span>
  </button>
  <button 
  onClick={() => setActiveAppTab('search')}
  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'search' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
  >
  <Search className="w-5 h-5" />
- <span className="text-xs font-medium mt-1">Search</span>
+ <span className="text-[10px] sm:text-xs font-medium mt-1">Search</span>
  </button>
+
+<button 
+  onClick={() => setActiveAppTab('dependencies')}
+  className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === 'dependencies' ? 'text-[#1a2b58] bg-[#1a2b58]/5' : 'text-gray-400'}`}
+>
+  <Network className="w-5 h-5" />
+  <span className="text-[10px] font-medium mt-1">Tree</span>
+</button>
+
  </div>
 
  {/* MIDDLE SIDEBAR - LIST SELECTORS & MAIN CONTROLS (Only holds active tasks hierarchy) */}
@@ -2792,7 +2815,14 @@ export default function WorkspaceApp() {
  <div className="min-w-0 flex-1">
  <span className="text-xs font-medium text-gray-800 break-words leading-relaxed leading-snug flex items-center gap-1">
  {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
- {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+ {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+) : null}
  {todo.title}
  </span>
  {todo.description && (
@@ -2910,7 +2940,14 @@ export default function WorkspaceApp() {
  <div className="min-w-0 flex-1">
  <span className="text-xs font-medium text-gray-400 line-through truncate block flex items-center gap-1.5 mt-0.5">
  {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
- {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+ {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-gray-500 bg-gray-100 px-1 py-[1px] rounded shrink-0">
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" />
+) : null}
  {todo.title}
  </span>
  <div className="text-xs text-gray-400 font-medium tracking-wide mt-0.5">
@@ -3459,7 +3496,14 @@ export default function WorkspaceApp() {
  onClick={() => setSelectedTodoId(todo.id)}
  >
  {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
- {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+ {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+) : null}
  {todo.title}
  </span>
  </div>
@@ -3563,7 +3607,14 @@ export default function WorkspaceApp() {
                       <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
                         <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
                           {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
-                          {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+                          {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+) : null}
                           {todo.title}
                         </span>
                         {todo.description && (
@@ -3634,7 +3685,14 @@ export default function WorkspaceApp() {
             <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
               <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
                 {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
-                {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+                {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+) : null}
                 {todo.title}
               </span>
               {todo.description && (
@@ -3761,7 +3819,14 @@ export default function WorkspaceApp() {
                     <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
                       <span className="text-xs sm:text-sm text-gray-400 line-through font-normal leading-relaxed truncate block flex items-center gap-1.5">
                         {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
-                        {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+                        {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-gray-500 bg-gray-100 px-1 py-[1px] rounded shrink-0">
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" />
+) : null}
                         {todo.title}
                       </span>
                     </div>
@@ -3808,7 +3873,14 @@ export default function WorkspaceApp() {
           <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
             <span className="text-xs sm:text-sm text-gray-400 line-through font-normal leading-relaxed truncate block flex items-center gap-1.5">
               {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
-              {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-gray-400 flex-shrink-0" />}
+              {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-gray-500 bg-gray-100 px-1 py-[1px] rounded shrink-0">
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" />
+) : null}
               {todo.title}
             </span>
           </div>
@@ -3923,7 +3995,14 @@ export default function WorkspaceApp() {
  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
  <span className="text-xs font-medium text-gray-800 flex items-center gap-1.5">
  {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
- {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+ {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+) : null}
  {todo.title}
  </span>
  </div>
@@ -3940,7 +4019,12 @@ export default function WorkspaceApp() {
  </div>
  )}
 
- {/* 8. SECTOR: SEARCH AND FILTER PARAMETERS TAB */}
+ 
+{activeAppTab === 'dependencies' && (
+  <DependencyTree todos={todos} />
+)}
+
+{/* 8. SECTOR: SEARCH AND FILTER PARAMETERS TAB */}
  {activeAppTab === 'settings' && (
 		<div className="text-left w-full h-full max-w-3xl mx-auto py-2 focus:outline-none">
 			<div className="mb-6 flex items-center justify-between">
@@ -4096,7 +4180,14 @@ export default function WorkspaceApp() {
  <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3 bg-white border border-gray-100 hover:border-[#1a2b58] cursor-pointer rounded-xl flex justify-between items-center">
  <span className="text-xs font-medium flex items-center gap-1.5">
  {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
- {(todo.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
+ {getActiveDependenciesCount(todo) > 0 ? (
+  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
+    <Lock className="w-[10px] h-[10px]" />
+    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+  </span>
+) : (todo.blockedBy?.length || 0) > 0 ? (
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+) : null}
  {todo.title}
  </span>
  <span className={`text-xs px-2 py-0.5 font-medium rounded-full ${todo.completed ? 'bg-gray-100 text-gray-400' : 'bg-green-100 text-green-700'}`}>
