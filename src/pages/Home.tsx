@@ -51,7 +51,7 @@ export default function Home() {
  <section id="about" className="bg-[#FDFDFD] overflow-hidden py-5 lg:py-8">
  <div className="max-w-7xl mx-auto px-6 lg:px-12">
  <div className="flex flex-col justify-start">
- <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-max">
+ <div className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-fit">
  <span>The Strategic Partner</span>
  </div>
  <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">
@@ -118,7 +118,7 @@ export default function Home() {
  </p>
  </div>
 
- <div className="inline-block bg-white px-6 lg:px-8 py-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/60 transition-all duration-300 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 w-[fit-content]">
+ <div className="inline-block bg-white px-6 lg:px-8 py-5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/60 transition-all duration-300 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 w-fit">
  <span className="text-xs font-bold uppercase tracking-[0.2em] text-secondary">
  Part-time retainers | Freelance projects | Advisory roles | Speaking engagements
  </span>

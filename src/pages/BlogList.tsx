@@ -46,7 +46,7 @@ export default function BlogList() {
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}
  >
- <div className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-max">
+ <div className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-fit">
  <span>Financial Intelligence</span>
  </div>
  <h1 className="text-5xl md:text-[100px] leading-[0.95] text-primary uppercase font-bold tracking-tighter mb-4"><span className="text-3xl md:text-6xl align-baseline mr-1 md:mr-2">THE</span>LEDGER</h1>

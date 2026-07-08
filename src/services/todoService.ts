@@ -147,7 +147,7 @@ export const todoService = {
  id: doc.id,
  ...doc.data()
  })) as Project[];
- projects.sort((a, b) => a.createdAt - b.createdAt);
+ projects.sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
  callback(projects);
  }, (error) => {
  if (errorCallback) {
@@ -207,7 +207,7 @@ export const todoService = {
  id: doc.id,
  ...doc.data()
  })) as Folder[];
- folders.sort((a, b) => a.createdAt - b.createdAt);
+ folders.sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
  callback(folders);
  }, (error) => {
  if (errorCallback) {

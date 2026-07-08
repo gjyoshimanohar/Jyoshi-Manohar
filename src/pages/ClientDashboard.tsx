@@ -3464,7 +3464,7 @@ Stewardship, Accuracy, Legacy.
           <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-50">
             <div className="flex items-start gap-4">
               <div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary text-[10px] uppercase font-bold tracking-widest rounded-full w-max border border-primary/10">
+                <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary text-[10px] uppercase font-bold tracking-widest rounded-full w-fit border border-primary/10">
                   <Shield className="h-3 w-3" />
                   <span>Secure CA Terminal</span>
                 </div>
@@ -5454,7 +5454,7 @@ Stewardship, Accuracy, Legacy.
                             and certification letters.
                           </p>
                         </div>
-                        <div className="flex bg-slate-100 rounded-xl p-1 w-max border self-start">
+                        <div className="flex bg-slate-100 rounded-xl p-1 w-fit border self-start">
                           <button
                             onClick={() => setServiceFilter("All")}
                             className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${serviceFilter === "All" ? "bg-white text-primary shadow-sm" : "text-slate-600"}`}

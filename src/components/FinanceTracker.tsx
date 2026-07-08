@@ -969,7 +969,7 @@ export default function FinanceTracker() {
               </button>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto"><table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
                   <th className="py-4 px-6">Date</th>
@@ -1133,7 +1133,7 @@ export default function FinanceTracker() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>
@@ -1987,7 +1987,7 @@ export default function FinanceTracker() {
                 <p className="text-slate-600 font-semibold italic text-sm">No recent transactions recorded.</p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto"><table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
                     <th className="py-4 px-6">Date</th>
@@ -2078,7 +2078,7 @@ export default function FinanceTracker() {
                     );
                   })}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         </div>

@@ -107,7 +107,7 @@ export default function Contact() {
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-4">
  <div className="flex flex-col justify-between relative">
  <div className="relative z-10">
- <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-base px-4 py-2 rounded-full mb-4 shadow-sm w-max">
+ <p className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-base px-4 py-2 rounded-full mb-4 shadow-sm w-fit">
  Strategic Partnership
  </p>
  <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">

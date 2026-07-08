@@ -60,6 +60,7 @@ export interface Todo {
 	completed: boolean;
 	createdAt: number;
  isPinned?: boolean;
+  order?: number;
 	dueDate?: number | null;
 	deadline?: number | null;
 	priority?: number; // 1, 2, 3, 4
@@ -86,6 +87,7 @@ export interface Folder {
  userId: string;
  name: string;
  isExpanded?: boolean;
+  order?: number;
  color?: string;
  createdAt: number;
 }

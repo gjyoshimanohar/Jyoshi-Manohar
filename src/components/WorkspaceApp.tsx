@@ -170,10 +170,46 @@ export default function WorkspaceApp() {
     );
   };
   
+  const handleFolderDragStart = (e: React.DragEvent, folderId: string) => {
+    e.dataTransfer.setData('folderId', folderId);
+  };
+  
   const handleDragStart = (e: React.DragEvent, projectId: string) => {
     e.dataTransfer.setData('projectId', projectId);
   };
   
+  const handleFolderDrop = async (e: React.DragEvent, targetFolderId: string) => {
+    e.preventDefault();
+    const draggedFolderId = e.dataTransfer.getData('folderId');
+    if (draggedFolderId && draggedFolderId !== targetFolderId) {
+      const draggedFolder = folders.find(f => f.id === draggedFolderId);
+      const targetFolder = folders.find(f => f.id === targetFolderId);
+      if (draggedFolder && targetFolder) {
+        // Swap or move orders
+        const draggedOrder = draggedFolder.order ?? draggedFolder.createdAt;
+        const targetOrder = targetFolder.order ?? targetFolder.createdAt;
+        
+        await todoService.updateFolder(draggedFolderId, { order: targetOrder - 1 });
+      }
+    }
+  };
+
+  const handleProjectDropReorder = async (e: React.DragEvent, targetProjectId: string) => {
+    e.preventDefault();
+    const draggedProjectId = e.dataTransfer.getData('projectId');
+    if (draggedProjectId && draggedProjectId !== targetProjectId) {
+      const draggedProject = projects.find(p => p.id === draggedProjectId);
+      const targetProject = projects.find(p => p.id === targetProjectId);
+      if (draggedProject && targetProject) {
+        const targetOrder = targetProject.order ?? targetProject.createdAt;
+        await todoService.updateProject(draggedProjectId, { 
+          order: targetOrder - 1, 
+          folderId: targetProject.folderId // move to same folder
+        });
+      }
+    }
+  };
+
   const handleDropToFolder = async (e: React.DragEvent, folderId: string | null) => {
     e.preventDefault();
     const projectId = e.dataTransfer.getData('projectId');
@@ -1342,7 +1378,7 @@ export default function WorkspaceApp() {
  setActiveAppTab('tasks');
  if (window.innerWidth < 768) setIsSidebarOpen(false);
  }}
- className={`flex-grow flex items-center justify-between p-1.5 rounded-lg text-xs transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+ className={`flex-grow flex items-center justify-between px-1 py-0.5 rounded-lg text-xs transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
  >
  <div className="flex items-center space-x-2.5 truncate text-[#333333]">
  {/* Colored bullet circle dot mimicking TickTick */}
@@ -1385,9 +1421,20 @@ export default function WorkspaceApp() {
  );
 
  const renderProjectList = () => (
- <div className="space-y-0.5 mt-2">
+ <div className="space-y-0 mt-0">
  {folders.map(folder => (
- <div key={folder.id} className="mb-2.5 bg-gray-50/50 rounded-xl p-1.5 relative border border-gray-100/40">
+ <div 
+        key={folder.id} 
+        draggable
+        onDragStart={(e) => handleFolderDragStart(e, folder.id)}
+        onDragOver={handleDragOver}
+        onDrop={(e) => {
+          const draggedFolderId = e.dataTransfer.getData('folderId');
+          if (draggedFolderId) {
+            handleFolderDrop(e, folder.id);
+          }
+        }}
+        className="mb-0 bg-gray-50/50 rounded-xl p-0.5 relative border border-gray-100/40 cursor-grab active:cursor-grabbing">
  {editingFolderId === folder.id ? (
  <form onSubmit={(e) => handleSaveEditFolder(folder.id, e)} className="flex items-center space-x-1 p-1 bg-white border border-gray-100 rounded-lg shadow-sm">
  <div className="relative flex-1">
@@ -1433,7 +1480,7 @@ export default function WorkspaceApp() {
  </button>
  </form>
  ) : (
- <div className="flex items-center justify-between p-1 rounded group" onDrop={(e) => handleDropToFolder(e, folder.id)} onDragOver={handleDragOver}>
+ <div className="flex items-center justify-between p-0.5 rounded group" onDrop={(e) => handleDropToFolder(e, folder.id)} onDragOver={handleDragOver}>
  <div className="flex items-center space-x-1 w-full cursor-pointer" onClick={() => {
   setViewMode('folder');
   setSelectedFolderId(folder.id);
@@ -1473,7 +1520,7 @@ export default function WorkspaceApp() {
  )}
  {/* Subproject listings inside Folder */}
   {expandedFolders.includes(folder.id) && (
- <div className="pl-3.5 border-l border-gray-200 ml-3.5 mt-1 space-y-0.5">
+ <div className="pl-3.5 border-l border-gray-200 ml-3.5 mt-0 space-y-0">
  {projects.filter(p => p.folderId === folder.id).map(renderProjectItem)}
  {projects.filter(p => p.folderId === folder.id).length === 0 && (
  <div className="text-xs text-gray-400 pl-1 py-1 italic">Empty folders list</div>
@@ -1750,8 +1797,8 @@ export default function WorkspaceApp() {
  <div className="h-px bg-gray-200/60 my-4" />
 
  {/* Lists section heading */}
- <div className="mb-2">
- <div className="flex items-center justify-between px-2 text-gray-400 text-xs uppercase tracking-widest mb-2 group">
+ <div className="mb-1">
+ <div className="flex items-center justify-between px-2 text-gray-400 text-xs uppercase tracking-widest mb-1 group">
  <span>Projects</span>
 							<button onClick={() => { 
     setEditingProjectIdInModal(null);
