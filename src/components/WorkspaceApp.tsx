@@ -416,6 +416,31 @@ export default function WorkspaceApp() {
  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
  const [detailTab, setDetailTab] = useState<'details' | 'activity'>('details');
  const [initialTitle, setInitialTitle] = useState<string>('');
+ const [inlineEditTaskId, setInlineEditTaskId] = useState<string | null>(null);
+ const [inlineEditTitle, setInlineEditTitle] = useState<string>('');
+
+ const handleInlineEditSubmit = () => {
+  if (inlineEditTaskId && inlineEditTitle.trim()) {
+    const todo = todos.find(t => t.id === inlineEditTaskId);
+    if (todo && todo.title !== inlineEditTitle.trim()) {
+      todoService.updateTodo(inlineEditTaskId, { title: inlineEditTitle.trim() });
+    }
+  }
+  setInlineEditTaskId(null);
+  setInlineEditTitle('');
+ };
+
+ const handleInlineEditKeyDown = (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    e.stopPropagation();
+    handleInlineEditSubmit();
+  } else if (e.key === 'Escape') {
+    setInlineEditTaskId(null);
+    setInlineEditTitle('');
+  }
+ };
+
 
  useEffect(() => {
    if (selectedTodoId) {
@@ -2823,7 +2848,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
 ) : null}
- {todo.title}
+ {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
  </span>
  {todo.description && (
  <p className="text-base text-gray-400 font-medium leading-relaxed mt-0.5 line-clamp-2">
@@ -2948,7 +2995,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" />
 ) : null}
- {todo.title}
+ {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
  </span>
  <div className="text-xs text-gray-400 font-medium tracking-wide mt-0.5">
  Completed {formatCardDate(todo.dueDate) || "Today"}
@@ -3504,7 +3573,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
 ) : null}
- {todo.title}
+ {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
  </span>
  </div>
 
@@ -3615,7 +3706,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
 ) : null}
-                          {todo.title}
+                          {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
                         </span>
                         {todo.description && (
                           <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
@@ -3693,7 +3806,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
 ) : null}
-                {todo.title}
+                {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
               </span>
               {todo.description && (
                 <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
@@ -3827,7 +3962,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" />
 ) : null}
-                        {todo.title}
+                        {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
                       </span>
                     </div>
                   </div>
@@ -3881,7 +4038,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" />
 ) : null}
-              {todo.title}
+              {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
             </span>
           </div>
         </div>
@@ -4003,7 +4182,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
 ) : null}
- {todo.title}
+ {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
  </span>
  </div>
  <span className="text-xs bg-red-100/75 text-red-700 font-medium px-2 py-0.5 rounded-full uppercase">P1 High Target</span>
@@ -4188,7 +4389,29 @@ export default function WorkspaceApp() {
 ) : (todo.blockedBy?.length || 0) > 0 ? (
   <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
 ) : null}
- {todo.title}
+ {inlineEditTaskId === todo.id ? (
+  <input
+    autoFocus
+    type="text"
+    value={inlineEditTitle}
+    onChange={(e) => setInlineEditTitle(e.target.value)}
+    onBlur={handleInlineEditSubmit}
+    onKeyDown={handleInlineEditKeyDown}
+    onClick={(e) => e.stopPropagation()}
+    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+  />
+) : (
+  <span 
+    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+    onClick={(e) => {
+      e.stopPropagation();
+      setInlineEditTaskId(todo.id);
+      setInlineEditTitle(todo.title);
+    }}
+  >
+    {todo.title}
+  </span>
+)}
  </span>
  <span className={`text-xs px-2 py-0.5 font-medium rounded-full ${todo.completed ? 'bg-gray-100 text-gray-400' : 'bg-green-100 text-green-700'}`}>
  {todo.completed ? 'Completed' : 'Active'}

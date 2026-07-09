@@ -896,6 +896,18 @@ export default function FinanceTracker() {
     return balance;
   }, [records]);
 
+  const pendingInvoicesBalance = useMemo(() => {
+    let balance = 0;
+    records.forEach(rec => {
+      if (rec.type === 'income' && (rec.status === 'pending' || rec.status === 'overdue')) {
+        balance += rec.amount;
+      }
+    });
+    return balance;
+  }, [records]);
+
+  const totalReceivables = pendingReimbursementsBalance + pendingInvoicesBalance;
+
   // Compute Assets, Liabilities, and Net Worth
   const balanceSheetMetrics = useMemo(() => {
     let assetsSum = pendingReimbursementsBalance;
@@ -1000,6 +1012,8 @@ export default function FinanceTracker() {
       const monthStr = String(index + 1).padStart(2, "0");
       let income = 0;
       let expense = 0;
+      let pendingInvoices = 0;
+      let pendingReimbursements = 0;
 
       records.forEach(rec => {
         const recScope = rec.scope || "business";
@@ -1008,8 +1022,18 @@ export default function FinanceTracker() {
         const recYear = rec.date.split("-")[0];
         const recMonth = rec.date.split("-")[1];
         if (recYear === selectedYear && recMonth === monthStr) {
-          if (rec.type === "income") income += rec.amount;
-          else if (rec.type === "expense") expense += rec.amount;
+          if (rec.type === "income") {
+            income += rec.amount;
+            if (rec.status === "pending" || rec.status === "overdue") {
+              pendingInvoices += rec.amount;
+            }
+          }
+          else if (rec.type === "expense") {
+            expense += rec.amount;
+            if (rec.isReceivableFromClient) {
+              pendingReimbursements += rec.amount;
+            }
+          }
         }
       });
 
@@ -1017,7 +1041,10 @@ export default function FinanceTracker() {
         month: m,
         Income: income,
         Expense: expense,
-        Net: income - expense
+        Net: income - expense,
+        PendingInvoices: pendingInvoices,
+        PendingReimbursements: pendingReimbursements,
+        TotalPending: pendingInvoices + pendingReimbursements
       };
     });
   }, [records, selectedYear, selectedScope]);
@@ -1372,19 +1399,28 @@ export default function FinanceTracker() {
       </div>
 
       {/* Pending Receivables Summary Bar */}
-      {pendingReimbursementsBalance > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in">
+      {totalReceivables > 0 && (
+        <div 
+          onClick={() => {
+            setActiveTab("receivables");
+            if (window.innerWidth < 1024) setIsSidebarOpen(false);
+          }}
+          className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in cursor-pointer hover:bg-amber-100 transition-colors group"
+        >
            <div className="flex items-center gap-3">
-             <div className="p-2 bg-amber-100 rounded-lg">
+             <div className="p-2 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
                <AlertCircle className="w-5 h-5 text-amber-700" />
              </div>
              <div>
                <h3 className="text-amber-900 font-bold tracking-tight">Total Pending Receivables</h3>
-               <p className="text-amber-700/80 text-sm font-medium">Reimbursements pending from clients</p>
+               <p className="text-amber-700/80 text-sm font-medium">₹{pendingInvoicesBalance.toLocaleString("en-IN")} Invoices + ₹{pendingReimbursementsBalance.toLocaleString("en-IN")} Reimbursements</p>
              </div>
            </div>
-           <div className="text-2xl font-extrabold text-amber-900 tracking-tight">
-             ₹{pendingReimbursementsBalance.toLocaleString("en-IN")}
+           <div className="flex items-center gap-2">
+             <div className="text-2xl font-extrabold text-amber-900 tracking-tight group-hover:scale-105 transition-transform">
+               ₹{totalReceivables.toLocaleString("en-IN")}
+             </div>
+             <ArrowLeftRight className="w-5 h-5 text-amber-600 opacity-50 group-hover:opacity-100 group-hover:-rotate-12 transition-all" />
            </div>
         </div>
       )}
@@ -1642,7 +1678,13 @@ export default function FinanceTracker() {
           
           {/* Metric 1: Income */}
           {(activeTab === "dashboard" || activeTab === "incomes") && (
-            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+            <div 
+              onClick={() => {
+                setActiveTab("incomes");
+                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+              }}
+              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-green-50/30 transition-colors"
+            >
               <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500" />
               <div>
                 <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
@@ -1676,7 +1718,13 @@ export default function FinanceTracker() {
 
           {/* Metric 2: Expenses */}
           {(activeTab === "dashboard" || activeTab === "expenses") && (
-            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+            <div 
+              onClick={() => {
+                setActiveTab("expenses");
+                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+              }}
+              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-red-50/30 transition-colors"
+            >
               <div className="absolute top-0 left-0 w-1.5 h-full bg-red-400" />
               <div>
                 <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
@@ -1710,7 +1758,13 @@ export default function FinanceTracker() {
 
           {/* Metric 3: Profit / Net Margin */}
           {(activeTab === "dashboard" || activeTab === "expenses") && (
-            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+            <div 
+              onClick={() => {
+                setActiveTab("account");
+                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+              }}
+              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-amber-50/30 transition-colors"
+            >
               <div className={`absolute top-0 left-0 w-1.5 h-full ${metrics.balance >= 0 ? "bg-[#AD8D3E]" : "bg-rose-500"}`} />
               <div>
                 <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
@@ -1746,7 +1800,13 @@ export default function FinanceTracker() {
 
           {/* Metric 4: Pending Invoices / Accounts Receivable */}
           {(activeTab === "dashboard" || activeTab === "incomes") && (
-            <div className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1">
+            <div 
+              onClick={() => {
+                setActiveTab("receivables");
+                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+              }}
+              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-blue-50/30 transition-colors"
+            >
               <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
               <div>
                 <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
@@ -2144,6 +2204,67 @@ export default function FinanceTracker() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Receivables Analytics Row */}
+      {activeTab === "dashboard" && (
+        <div className="mt-6 bg-white border border-border p-6 rounded-2xl shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight">Pending Receivables Trend</h3>
+              <p className="text-xs text-gray-400">Monthly breakdown of pending invoices and reimbursements for {selectedYear}.</p>
+            </div>
+            <div className="flex space-x-3 text-xs">
+              <span className="flex items-center gap-1 font-semibold text-primary">
+                <span className="w-3 h-3 bg-blue-500 rounded" /> Invoices
+              </span>
+              <span className="flex items-center gap-1 font-semibold text-primary">
+                <span className="w-3 h-3 bg-amber-500 rounded" /> Reimbursements
+              </span>
+            </div>
+          </div>
+
+          <div className="h-72 w-full text-xs font-medium">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                <Tooltip 
+                  cursor={{ fill: 'transparent' }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const total = payload.reduce((sum, entry) => sum + (entry.value || 0), 0);
+                      return (
+                        <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-lg">
+                          <p className="text-white font-bold text-sm mb-2">{label} {selectedYear}</p>
+                          {payload.map((entry, index) => (
+                            <div key={index} className="flex justify-between items-center gap-4 mb-1 text-xs">
+                              <div className="flex items-center gap-1.5 text-slate-300">
+                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                                {entry.name === "PendingInvoices" ? "Pending Invoices" : "Reimbursements"}
+                              </div>
+                              <span className="font-semibold text-white">
+                                ₹{Number(entry.value).toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          ))}
+                          <div className="border-t border-slate-700 mt-2 pt-2 flex justify-between items-center text-xs">
+                            <span className="text-slate-400 font-medium">Total Pending</span>
+                            <span className="text-white font-bold">₹{total.toLocaleString("en-IN")}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="PendingInvoices" stackId="a" fill="#3b82f6" radius={[0, 0, 4, 4]} />
+                <Bar dataKey="PendingReimbursements" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
