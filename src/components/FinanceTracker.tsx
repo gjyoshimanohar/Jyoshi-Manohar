@@ -794,10 +794,10 @@ export default function FinanceTracker() {
   const filteredRecords = useMemo(() => {
     return records.filter(rec => {
       // Tab pre-filters
-      if (activeTab === "incomes" && rec.type !== "income") return false;
+      if (activeTab === "incomes" && (rec.type !== "income" || rec.category === "Reimbursement")) return false;
       if (activeTab === "expenses" && rec.type !== "expense" && rec.type !== "transfer") return false;
       if (activeTab === "receivables") {
-        const isPendingInvoice = rec.type === "income" && (rec.status === "pending" || rec.status === "overdue");
+        const isPendingInvoice = rec.type === "income" && rec.category !== "Reimbursement" && (rec.status === "pending" || rec.status === "overdue");
         const isPendingReimbursement = rec.type === "expense" && rec.isReceivableFromClient;
         if (!isPendingInvoice && !isPendingReimbursement) return false;
       }
@@ -825,6 +825,7 @@ export default function FinanceTracker() {
       // Type Filter (only relevant if we are on dashboard tab)
       if (activeTab === "dashboard") {
         if (selectedType !== "all" && rec.type !== selectedType) return false;
+        if (selectedType === "income" && rec.category === "Reimbursement") return false;
       }
 
       // Category Filter
@@ -984,9 +985,11 @@ export default function FinanceTracker() {
 
       if (recYear === selectedYear && monthMatch) {
         if (rec.type === "income") {
-          totalIncome += rec.amount;
-          if (rec.status === "pending" || rec.status === "overdue") {
-            pendingInvoicesVal += rec.amount;
+          if (rec.category !== "Reimbursement") {
+            totalIncome += rec.amount;
+            if (rec.status === "pending" || rec.status === "overdue") {
+              pendingInvoicesVal += rec.amount;
+            }
           }
         } else if (rec.type === "expense") {
           totalExpense += rec.amount;
@@ -1023,9 +1026,11 @@ export default function FinanceTracker() {
         const recMonth = rec.date.split("-")[1];
         if (recYear === selectedYear && recMonth === monthStr) {
           if (rec.type === "income") {
-            income += rec.amount;
-            if (rec.status === "pending" || rec.status === "overdue") {
-              pendingInvoices += rec.amount;
+            if (rec.category !== "Reimbursement") {
+              income += rec.amount;
+              if (rec.status === "pending" || rec.status === "overdue") {
+                pendingInvoices += rec.amount;
+              }
             }
           }
           else if (rec.type === "expense") {
