@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { db, auth } from "../lib/firebase";
 import { 
   collection, 
@@ -170,7 +171,7 @@ export default function FinanceTracker() {
   };
 
   // Filters
-  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account" | "settings" | "receivables">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
   const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
@@ -218,6 +219,33 @@ export default function FinanceTracker() {
 
   // Confirmation Dialogue
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [undoAction, setUndoAction] = useState<(() => void) | null>(null);
+  const [receiveModalOpen, setReceiveModalOpen] = useState(false);
+  const [receiveModalRecords, setReceiveModalRecords] = useState<FinanceRecord[]>([]);
+  const [receiveModalAccountId, setReceiveModalAccountId] = useState("");
+
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showUndoToast = (message: string, onUndo: () => void) => {
+    setToastMessage(message);
+    setUndoAction(() => {
+      return () => {
+        onUndo();
+        setToastMessage(null);
+        setUndoAction(null);
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      };
+    });
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null);
+      setUndoAction(null);
+    }, 5000);
+  };
+
+
 
   // Payment Accounts State
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
@@ -394,6 +422,103 @@ export default function FinanceTracker() {
     setFormPaymentAccountId(rec.paymentAccountId || "");
     setFormTransferToAccountId(rec.transferToAccountId || "");
     setIsModalOpen(true);
+  };
+
+  
+  
+  const handleBulkMarkAsPaid = () => {
+    const recordsToMark = records.filter(r => selectedRecordIds.includes(r.id));
+    setReceiveModalRecords(recordsToMark);
+    setReceiveModalAccountId("");
+    setReceiveModalOpen(true);
+  };
+
+  const handleMarkAsPaid = (rec: FinanceRecord) => {
+    setReceiveModalRecords([rec]);
+    setReceiveModalAccountId("");
+    setReceiveModalOpen(true);
+  };
+
+  const confirmMarkAsReceived = async () => {
+    if (!receiveModalAccountId) {
+      alert("Please select the account where the funds were received.");
+      return;
+    }
+    
+    try {
+      setSyncing(true);
+      const recordsToProcess = receiveModalRecords.filter(rec => 
+        (rec.type === 'expense' && rec.isReceivableFromClient) || 
+        rec.status === 'pending' || 
+        rec.status === 'overdue'
+      );
+      
+      const prevStatuses = recordsToProcess.map(r => ({ 
+        id: r.id, 
+        status: r.status, 
+        isReceivableFromClient: r.isReceivableFromClient,
+        paymentAccountId: r.paymentAccountId
+      }));
+      
+      let createdRecordIds: string[] = [];
+      
+      for (const rec of recordsToProcess) {
+        if (rec.type === 'expense' && rec.isReceivableFromClient) {
+          await financeService.updateRecord(rec.id, { isReceivableFromClient: false });
+          const newRec = await financeService.createRecord({
+            type: 'income',
+            amount: rec.amount,
+            category: 'Reimbursement',
+            description: `Reimbursement for: ${rec.description || 'Expense'}`,
+            date: new Date().toISOString().split("T")[0],
+            status: 'paid',
+            clientId: rec.clientId || "",
+            clientName: rec.clientName || "",
+            scope: rec.scope || "business",
+            paymentAccountId: receiveModalAccountId,
+            paymentMode: "Transfer"
+          });
+          createdRecordIds.push(newRec.id);
+        } else {
+          await financeService.updateRecord(rec.id, { status: "paid", paymentAccountId: receiveModalAccountId });
+        }
+      }
+      
+      const _records = await financeService.getAllRecords();
+      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      
+      const count = recordsToProcess.length;
+      showUndoToast(`Marked ${count} record(s) as Received`, async () => {
+        try {
+          setSyncing(true);
+          await Promise.all(prevStatuses.map(ps => financeService.updateRecord(ps.id, { 
+            status: ps.status,
+            isReceivableFromClient: ps.isReceivableFromClient,
+            paymentAccountId: ps.paymentAccountId
+          })));
+          
+          if (createdRecordIds.length > 0) {
+            await Promise.all(createdRecordIds.map(id => financeService.deleteRecord(id)));
+          }
+          
+          const _revRecords = await financeService.getAllRecords();
+          setRecords(_revRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        } catch (e) {
+          console.error(e);
+          alert("Failed to undo.");
+        } finally {
+          setSyncing(false);
+        }
+      });
+      
+      setSelectedRecordIds([]);
+      setReceiveModalOpen(false);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to process.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   // Handle Submit Form
@@ -671,6 +796,11 @@ export default function FinanceTracker() {
       // Tab pre-filters
       if (activeTab === "incomes" && rec.type !== "income") return false;
       if (activeTab === "expenses" && rec.type !== "expense" && rec.type !== "transfer") return false;
+      if (activeTab === "receivables") {
+        const isPendingInvoice = rec.type === "income" && (rec.status === "pending" || rec.status === "overdue");
+        const isPendingReimbursement = rec.type === "expense" && rec.isReceivableFromClient;
+        if (!isPendingInvoice && !isPendingReimbursement) return false;
+      }
 
       // Scope Filter (default legacy records to 'business')
       const recScope = rec.scope || "business";
@@ -947,12 +1077,33 @@ export default function FinanceTracker() {
       <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
         
         {/* Table Header toolbar */}
-        <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <h3 className="text-base font-bold text-primary tracking-tight">{title}</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} total logged transactions.</p>
+        {selectedRecordIds.length > 0 ? (
+          <div className="px-6 py-4 border-b border-border bg-indigo-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <span className="text-indigo-700 font-bold text-sm">{selectedRecordIds.length} record(s) selected</span>
+            <div className="flex gap-2">
+              <button
+                onClick={handleBulkMarkAsPaid}
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Mark as Received
+              </button>
+              <button
+                onClick={() => setSelectedRecordIds([])}
+                className="px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold transition"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight">{title}</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} total logged transactions.</p>
+            </div>
+          </div>
+        )}
 
         {/* Real Table */}
         <div className="overflow-x-auto">
@@ -972,6 +1123,20 @@ export default function FinanceTracker() {
             <div className="overflow-x-auto"><table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                  <th className="py-4 px-4 w-12 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                      checked={filteredRecords.length > 0 && selectedRecordIds.length === filteredRecords.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedRecordIds(filteredRecords.map(r => r.id));
+                        } else {
+                          setSelectedRecordIds([]);
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="py-4 px-6">Date</th>
                   <th className="py-4 px-6 text-center">Book</th>
                   <th className="py-4 px-6">Category</th>
@@ -990,7 +1155,22 @@ export default function FinanceTracker() {
                   const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "--";
 
                   return (
-                    <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr key={rec.id} className={`transition-colors ${selectedRecordIds.includes(rec.id) ? 'bg-indigo-50/50' : 'hover:bg-slate-50/80'}`}>
+                      {/* Selection */}
+                      <td className="py-4 px-4 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                          checked={selectedRecordIds.includes(rec.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedRecordIds(prev => [...prev, rec.id]);
+                            } else {
+                              setSelectedRecordIds(prev => prev.filter(id => id !== rec.id));
+                            }
+                          }}
+                        />
+                      </td>
                       {/* Date */}
                       <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
                         <span className="flex items-center gap-1.5">
@@ -1047,18 +1227,29 @@ export default function FinanceTracker() {
 
                       {/* Status */}
                       <td className="py-4 px-6 text-center">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          rec.status === "paid" 
-                            ? "bg-green-50 text-green-700 border border-green-200" 
-                            : rec.status === "overdue"
-                              ? "bg-red-50 text-red-700 border border-red-200"
-                              : "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                        }`}>
-                          {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
-                          {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
-                          {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
-                          {rec.status}
-                        </span>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            rec.status === "paid" 
+                              ? "bg-green-50 text-green-700 border border-green-200" 
+                              : rec.status === "overdue"
+                                ? "bg-red-50 text-red-700 border border-red-200"
+                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                          }`}>
+                            {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                            {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                            {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                            {rec.status}
+                          </span>
+                          {((rec.status === "pending" || rec.status === "overdue") || (rec.type === "expense" && rec.isReceivableFromClient)) && (
+                            <button
+                              onClick={() => handleMarkAsPaid(rec)}
+                              title="Mark as Received"
+                              className="p-1 rounded-full text-green-600 hover:bg-green-100 hover:text-green-700 transition"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* Method / Source */}
@@ -1233,6 +1424,7 @@ export default function FinanceTracker() {
           <div className="flex flex-col gap-1.5 overflow-y-auto scrollbar-none pb-4 lg:pb-0">
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, desc: "Overview & Analytics" },
+              { id: "receivables", label: "Receivables", icon: AlertCircle, desc: "Pending Payments" },
               { id: "incomes", label: "Incomes", icon: TrendingUp, desc: "Professional Inflows" },
               { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
               { id: "account", label: "Account", icon: Wallet, desc: "Assets & Liabilities" },
@@ -1957,6 +2149,7 @@ export default function FinanceTracker() {
       )}
 
       {/* Tab-Specific Ledger Content */}
+      {activeTab === "receivables" && renderLedgerLogsTable("Pending Receivables", "All outstanding invoices and reimbursements")}
       {activeTab === "incomes" && renderLedgerLogsTable("Professional Income Streams", "Inflows of professional billings & fee drawings", "income")}
       {activeTab === "expenses" && renderLedgerLogsTable("Firm Operating Expenses", "Operating overheads, staff drawdowns, and equipment purchases", "expense")}
 
@@ -1990,6 +2183,23 @@ export default function FinanceTracker() {
               <div className="overflow-x-auto"><table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                    <th className="py-4 px-4 w-12 text-center">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                        checked={records.slice(-5).length > 0 && selectedRecordIds.length === records.slice(-5).length && records.slice(-5).every(r => selectedRecordIds.includes(r.id))}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const newIds = new Set(selectedRecordIds);
+                            records.slice(-5).forEach(r => newIds.add(r.id));
+                            setSelectedRecordIds(Array.from(newIds));
+                          } else {
+                            const idsToRemove = new Set(records.slice(-5).map(r => r.id));
+                            setSelectedRecordIds(prev => prev.filter(id => !idsToRemove.has(id)));
+                          }
+                        }}
+                      />
+                    </th>
                     <th className="py-4 px-6">Date</th>
                     <th className="py-4 px-6 text-center">Book</th>
                     <th className="py-4 px-6">Category</th>
@@ -2004,7 +2214,21 @@ export default function FinanceTracker() {
                     const isTransfer = rec.type === "transfer";
                     
                     return (
-                      <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr key={rec.id} className={`transition-colors ${selectedRecordIds.includes(rec.id) ? 'bg-indigo-50/50' : 'hover:bg-slate-50/80'}`}>
+                        <td className="py-4 px-4 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                            checked={selectedRecordIds.includes(rec.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedRecordIds(prev => [...prev, rec.id]);
+                              } else {
+                                setSelectedRecordIds(prev => prev.filter(id => id !== rec.id));
+                              }
+                            }}
+                          />
+                        </td>
                         <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
                           <span className="flex items-center gap-1.5">
                             <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -2052,18 +2276,29 @@ export default function FinanceTracker() {
                           )}
                         </td>
                         <td className="py-4 px-6 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            rec.status === "paid" 
-                              ? "bg-green-50 text-green-700 border border-green-200" 
-                              : rec.status === "overdue"
-                                ? "bg-red-50 text-red-700 border border-red-200"
-                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                          }`}>
-                            {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
-                            {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
-                            {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
-                            {rec.status}
-                          </span>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              rec.status === "paid" 
+                                ? "bg-green-50 text-green-700 border border-green-200" 
+                                : rec.status === "overdue"
+                                  ? "bg-red-50 text-red-700 border border-red-200"
+                                  : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                            }`}>
+                              {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                              {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                              {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                              {rec.status}
+                            </span>
+                            {((rec.status === "pending" || rec.status === "overdue") || (rec.type === "expense" && rec.isReceivableFromClient)) && (
+                              <button
+                                onClick={() => handleMarkAsPaid(rec)}
+                                title="Mark as Received"
+                                className="p-1 rounded-full text-green-600 hover:bg-green-100 hover:text-green-700 transition"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className={`py-4 px-6 text-right font-extrabold text-sm whitespace-nowrap ${
                           isTransfer 
@@ -2234,7 +2469,98 @@ export default function FinanceTracker() {
       </div>
 
       
-      {/* Slide-over Form Drawer Modal */}
+      
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl"
+          >
+            <span className="text-sm font-medium">{toastMessage}</span>
+            <div className="h-4 w-px bg-gray-700 mx-1"></div>
+            {undoAction && (
+              <button
+                onClick={undoAction}
+                className="text-indigo-300 hover:text-indigo-200 text-sm font-bold tracking-wide uppercase px-2 py-1 bg-white/10 hover:bg-white/20 rounded transition-colors"
+              >
+                Undo
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mark as Received Account Selection Modal */}
+      <AnimatePresence>
+        {receiveModalOpen && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setReceiveModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 overflow-hidden flex flex-col max-h-full"
+            >
+              <div className="px-6 py-5 border-b border-border bg-slate-50 flex items-center justify-between sticky top-0 z-10">
+                <h3 className="text-lg font-bold text-primary tracking-tight">Mark as Received</h3>
+                <button 
+                  onClick={() => setReceiveModalOpen(false)}
+                  className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto">
+                <p className="text-sm text-slate-600 mb-4">
+                  You are marking {receiveModalRecords.length} record(s) as received. Please select the account where the funds were credited.
+                </p>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Credit to Account
+                  </label>
+                  <select
+                    value={receiveModalAccountId}
+                    onChange={(e) => setReceiveModalAccountId(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm"
+                  >
+                    <option value="" disabled>Select receiving account...</option>
+                    {paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(acc => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} (₹{acc.openingBalance.toLocaleString("en-IN")})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0">
+                <button
+                  onClick={() => setReceiveModalOpen(false)}
+                  className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmMarkAsReceived}
+                  className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Confirm
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+{/* Slide-over Form Drawer Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           
