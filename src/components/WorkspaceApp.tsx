@@ -485,7 +485,7 @@ export default function WorkspaceApp() {
  const [showDetailPriorityPicker, setShowDetailPriorityPicker] = useState(false);
  const [showDetailRepeatPicker, setShowDetailRepeatPicker] = useState(false);
  const [showDetailBlockingPicker, setShowDetailBlockingPicker] = useState(false);
- const [isNotesPreviewMode, setIsNotesPreviewMode] = useState(false);
+ const [isNotesPreviewMode, setIsNotesPreviewMode] = useState(true);
 
  // Collapsible Checked Category State (Replicates visual checked list expander)
  const [isCompletedSectionExpanded, setIsCompletedSectionExpanded] = useState(true);
@@ -504,6 +504,7 @@ export default function WorkspaceApp() {
  const [activeAddingSection, setActiveAddingSection] = useState<string | null>(null);
  const [newTaskTitleInline, setNewTaskTitleInline] = useState('');
  const [newTaskDescInline, setNewTaskDescInline] = useState('');
+	const [showInlineNotes, setShowInlineNotes] = useState(false);
  const [newTaskSubtasksInline, setNewTaskSubtasksInline] = useState<string[]>([]);
  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
  const [draggingOverSection, setDraggingOverSection] = useState<string | null>(null);
@@ -2662,26 +2663,40 @@ export default function WorkspaceApp() {
  className="w-full text-xs font-medium border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400"
  autoFocus
  />
- <textarea
- rows={2}
- placeholder="Add detailed notes or description (optional)"
- value={newTaskDescInline}
- onChange={(e) => setNewTaskDescInline(e.target.value)}
- onKeyDown={async (e) => {
- if (e.key === 'Enter' && !e.shiftKey && newTaskTitleInline.trim()) {
- e.preventDefault();
- await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline, newTaskSubtasksInline);
- setNewTaskTitleInline('');
- setNewTaskTagsInline('');
- setNewTaskDescInline('');
- setNewTaskSubtasksInline([]);
- setActiveAddingSection(null);
- } else if (e.key === 'Escape') {
- setActiveAddingSection(null);
- }
- }}
- className="w-full text-xs font-medium border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400 mt-1.5 resize-none"
- />
+ {!showInlineNotes ? (
+   <button
+     type="button"
+     onClick={() => setShowInlineNotes(true)}
+     className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#1a2b58] font-medium transition-colors bg-gray-50/50 hover:bg-gray-100 border border-gray-100 rounded-lg p-2 w-full justify-center cursor-pointer"
+   >
+     <Plus className="w-3.5 h-3.5 text-gray-400" />
+     <span>Add notes</span>
+   </button>
+ ) : (
+   <textarea
+     rows={2}
+     placeholder="Add detailed notes or description (optional)"
+     value={newTaskDescInline}
+     onChange={(e) => setNewTaskDescInline(e.target.value)}
+     onKeyDown={async (e) => {
+       if (e.key === "Enter" && !e.shiftKey && newTaskTitleInline.trim()) {
+         e.preventDefault();
+         await handleAddTaskToSection(sectionName, newTaskTitleInline, newTaskTagsInline, newTaskDescInline, newTaskSubtasksInline);
+         setNewTaskTitleInline("");
+         setNewTaskTagsInline("");
+         setNewTaskDescInline("");
+         setNewTaskSubtasksInline([]);
+         setActiveAddingSection(null);
+         setShowInlineNotes(false);
+       } else if (e.key === "Escape") {
+         setActiveAddingSection(null);
+         setShowInlineNotes(false);
+       }
+     }}
+     className="w-full text-xs font-medium border border-gray-100 focus:outline-none focus:border-blue-400 rounded-lg p-2 bg-gray-50/50 text-black placeholder:text-gray-400 mt-1.5 resize-none"
+     autoFocus
+   />
+ )}
  {newTaskSubtasksInline.length > 0 && (
  <div className="mt-1 space-y-1">
  {newTaskSubtasksInline.map((st, i) => (
@@ -4981,19 +4996,37 @@ export default function WorkspaceApp() {
  </div>
  </div>
 
- {isNotesPreviewMode ? (
- <div 
- className="text-xs w-full bg-gray-50 border border-gray-200 p-3 rounded-xl min-h-[90px] max-h-[250px] overflow-y-auto leading-relaxed select-text text-gray-800"
- dangerouslySetInnerHTML={{ __html: parseMarkdown(todo.description || '') || '<em class="text-gray-400 font-sans">No notes written. Use markdown formatting like **bold**, *lists*, and [links](url)!</em>' }}
- />
- ) : (
- <textarea
- placeholder="Add detailed parameters or Markdown logs..."
- className="text-xs w-full bg-gray-50/50 hover:bg-gray-50 border focus:bg-white focus:border-primary p-3 rounded-xl min-h-[90px] outline-none transition"
- value={todo.description || ''}
- onChange={(e) => todoService.updateTodo(todo.id, { description: e.target.value })}
- />
- )}
+		{isNotesPreviewMode ? (
+			!todo.description ? (
+				<button
+					type="button"
+					onClick={() => setIsNotesPreviewMode(false)}
+					className="flex items-center justify-center gap-1.5 w-full py-4 border border-dashed border-gray-200 hover:border-[#1a2b58]/40 rounded-xl text-xs text-gray-500 hover:text-[#1a2b58] hover:bg-gray-50/50 transition duration-150 cursor-pointer"
+				>
+					<Plus className="w-4 h-4 text-gray-400" />
+					<span>Add Notes</span>
+				</button>
+			) : (
+				<div 
+					className="text-xs w-full bg-gray-50 border border-gray-200 p-3 rounded-xl min-h-[90px] max-h-[250px] overflow-y-auto leading-relaxed select-text text-gray-800 text-left"
+					dangerouslySetInnerHTML={{ __html: parseMarkdown(todo.description || "") }}
+				/>
+			)
+		) : (
+			<textarea
+				placeholder="Add detailed parameters or Markdown logs..."
+				className="text-xs w-full bg-gray-50/50 hover:bg-gray-50 border focus:bg-white focus:border-primary p-3 rounded-xl min-h-[90px] outline-none transition resize-y"
+				value={todo.description || ""}
+				onChange={(e) => todoService.updateTodo(todo.id, { description: e.target.value })}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" && !e.shiftKey) {
+						e.preventDefault();
+						setIsNotesPreviewMode(true);
+						e.currentTarget.blur();
+					}
+				}}
+			/>
+		)}
  </div>
 
 
