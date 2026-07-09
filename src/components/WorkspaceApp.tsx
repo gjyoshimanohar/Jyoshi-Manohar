@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { 
- Check, Trash2, Plus, GripVertical, Calendar as CalendarIcon, Inbox, 
+ Check, Trash2, Sun, Plus, GripVertical, Calendar as CalendarIcon, Inbox, 
  MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, 
  CalendarDays, Search, Folder, Briefcase, Code, Map, Music, 
  Camera, Book, Heart, Star, Zap, Circle, BarChart2, Clock, Timer,
@@ -1811,10 +1811,10 @@ export default function WorkspaceApp() {
  <nav className="space-y-0.5">
  <button
  onClick={() => { setViewMode('today'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <CalendarIcon className="w-4 h-4 text-green-600" />
+ <Sun className="w-4 h-4 text-slate-500" />
  <span>Today</span>
  </div>
  {todayCount > 0 && <span className="text-xs font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{todayCount}</span>}
@@ -1822,20 +1822,20 @@ export default function WorkspaceApp() {
 
  <button
  onClick={() => { setViewMode('upcoming'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#1a2b58] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#1a2b58] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <CalendarDays className="w-4 h-4 text-purple-600" />
- <span>Next 7 Days</span>
+ <CalendarIcon className="w-4 h-4 text-slate-500" />
+ <span>Next 7 days</span>
  </div>
  </button>
 
  <button
  onClick={() => { setViewMode('inbox'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <Inbox className="w-4 h-4 text-[#1a2b58]" />
+ <Inbox className="w-4 h-4 text-slate-500" />
  <span>Inbox</span>
  </div>
  {inboxCount > 0 && <span className="text-xs font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{inboxCount}</span>}
@@ -1923,7 +1923,7 @@ export default function WorkspaceApp() {
  <div className="space-y-0.5">
  <button
  onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Check className="w-4 h-4 text-green-500" />
@@ -1932,7 +1932,7 @@ export default function WorkspaceApp() {
  </button>
  <button
  onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Trash2 className="w-4 h-4 text-red-400" />
