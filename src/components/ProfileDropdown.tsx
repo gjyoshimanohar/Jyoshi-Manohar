@@ -76,21 +76,21 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden z-50 origin-top-right"
+            className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 p-1.5 z-50 origin-top-right"
           >
-            <div className="p-4 bg-slate-50 border-b border-slate-100">
+            <div className="p-3 mb-1 bg-slate-50 border border-slate-100 rounded-xl">
               <p className="text-sm font-semibold text-slate-800 truncate">{displayName}</p>
               <p className="text-xs text-slate-500 mt-0.5 truncate">{user?.email}</p>
             </div>
             
-            <div className="p-2 space-y-1">
+            <div className="space-y-0.5">
               <button
                 onClick={() => {
                   setIsOpen(false);
                   navigate('/profile');
                   if (onViewProfile) onViewProfile();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors font-medium"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors text-slate-700 hover:text-primary hover:bg-slate-50 rounded-lg"
               >
                 <User className="w-4 h-4" />
                 View Profile
@@ -101,20 +101,20 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
                   setIsOpen(false);
                   onChangePassword();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors font-medium"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors text-slate-700 hover:text-primary hover:bg-slate-50 rounded-lg"
               >
                 <Key className="w-4 h-4" />
                 Change Password
               </button>
             </div>
             
-            <div className="p-2 border-t border-slate-100">
+            <div className="pt-1 mt-1 border-t border-slate-100">
               <button
                 onClick={() => {
                   setIsOpen(false);
                   onLogout();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg"
               >
                 <LogOut className="w-4 h-4" />
                 Sign Out

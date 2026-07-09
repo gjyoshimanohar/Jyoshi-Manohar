@@ -1,47 +1,15 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/components/ProfileDropdown.tsx', 'utf-8');
 
-const importTarget = `import { auth } from '../lib/firebase';`;
-const importReplacement = `import { auth, db } from '../lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';`;
+code = code.replace(/<div className="p-2 space-y-1">/g, '<div className="py-2">');
+code = code.replace(/<div className="p-2 border-t border-slate-100">/g, '<div className="py-2 border-t border-slate-100">');
 
-const componentStart = `export default function ProfileDropdown({ onLogout, onChangePassword, onViewProfile, className = '' }: ProfileDropdownProps) {
-  const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  const user = auth.currentUser;
-  const initial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';`;
-  
-const componentStartReplacement = `export default function ProfileDropdown({ onLogout, onChangePassword, onViewProfile, className = '' }: ProfileDropdownProps) {
-  const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [profileName, setProfileName] = useState('');
-  
-  const user = auth.currentUser;
-  
-  useEffect(() => {
-    if (!user) return;
-    const docRef = doc(db, 'users', user.uid);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.displayName) {
-          setProfileName(data.displayName);
-        } else if (data.firstName) {
-          setProfileName(data.firstName + (data.lastName ? ' ' + data.lastName : ''));
-        }
-      }
-    });
-    return () => unsubscribe();
-  }, [user]);
+const oldBtn = 'className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors font-medium"';
+const newBtn = 'className="w-full flex items-center gap-2.5 px-5 py-2.5 text-sm font-semibold transition-colors text-slate-700 hover:text-primary hover:bg-slate-50"';
+code = code.replace(new RegExp(oldBtn, 'g'), newBtn);
 
-  const displayName = profileName || user?.displayName || user?.email?.split('@')[0] || 'User';
-  const initial = displayName.charAt(0).toUpperCase();`;
-
-code = code.replace(importTarget, importReplacement);
-code = code.replace(componentStart, componentStartReplacement);
-code = code.replace(/\{user\?\.displayName \|\| user\?\.email\?\.split\('\@'\)\[0\] \|\| 'User'\}/g, '{displayName}');
+const oldRedBtn = 'className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"';
+const newRedBtn = 'className="w-full flex items-center gap-2.5 px-5 py-2.5 text-sm font-semibold transition-colors text-red-600 hover:bg-red-50 hover:text-red-700"';
+code = code.replace(new RegExp(oldRedBtn, 'g'), newRedBtn);
 
 fs.writeFileSync('src/components/ProfileDropdown.tsx', code);

@@ -49,7 +49,7 @@ export default function Home() {
  
  {/* About Section */}
  <section id="about" className="bg-[#FDFDFD] overflow-hidden py-5 lg:py-8">
- <div className="max-w-7xl mx-auto px-6 lg:px-12">
+ <div className="w-[98%] mx-auto px-3 sm:px-6 lg:px-8">
  <div className="flex flex-col justify-start">
  <div className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-fit">
  <span>The Strategic Partner</span>
@@ -131,7 +131,7 @@ export default function Home() {
 
  {/* Blog Preview Section */}
  <section className="bg-white pb-5">
- <div className="max-w-7xl mx-auto px-6">
+ <div className="w-[98%] mx-auto px-3 sm:px-6">
  <div className="flex flex-col md:flex-row md:items-end justify-between mb-3 lg:mb-4 gap-4">
  <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">Insights.</h2>
  <Link 

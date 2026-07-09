@@ -18,7 +18,7 @@ export default function Footer() {
  </svg>
  </div>
 
- <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+ <div className="relative z-10 w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
  
  {/* Highlight CTA Box */}
  <div className="bg-blue-900 rounded-2xl p-10 md:p-12 mb-12 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 shadow-xl">

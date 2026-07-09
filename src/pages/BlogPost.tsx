@@ -98,7 +98,7 @@ export default function BlogPost() {
    <meta name="twitter:title" content={`${post.title} | CA Jyoshi Manohar`} />
    <meta name="twitter:description" content={seoExcerpt} />
  </Helmet>
- <article className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 border-x border-border">
+ <article className="w-[96%] mx-auto px-2 sm:px-4 lg:px-6 border-x border-border">
  <motion.div
  initial={{ opacity: 0 }}
  animate={{ opacity: 1 }}

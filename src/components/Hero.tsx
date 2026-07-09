@@ -6,7 +6,7 @@ export default function Hero() {
  <section className="relative pt-14 pb-8 lg:pt-20 lg:pb-12 overflow-hidden bg-white border-b border-border">
  <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-primary/[0.03] -z-0"></div>
  
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+ <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6 relative">
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mt-12 lg:mt-20">
  <div className="max-w-xl lg:max-w-none">
  <motion.div

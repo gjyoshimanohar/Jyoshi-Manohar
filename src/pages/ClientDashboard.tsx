@@ -3281,7 +3281,7 @@ Stewardship, Accuracy, Legacy.
   // LOGOUT OR NOT SIGNED IN VIEW
   if (!user) {
     return (
-      <div className="min-h-screen pt-32 pb-24 bg-gradient-to-b from-slate-50 to-white flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen pt-32 pb-24 bg-gradient-to-b from-slate-50 to-white flex items-center justify-center px-2 sm:px-4 lg:px-6">
         <div className="max-w-md w-full">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -3442,7 +3442,7 @@ Stewardship, Accuracy, Legacy.
         isAdmin={isAdmin}
       />
       <main className="min-h-screen pt-28 pb-20 bg-[#FDFDFD]">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
           {/* Banner Notification feedback messages */}
           <AnimatePresence>
             {feedback && (

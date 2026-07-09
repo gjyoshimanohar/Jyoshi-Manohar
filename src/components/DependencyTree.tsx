@@ -50,7 +50,7 @@ export default function DependencyTree({ todos }: DependencyTreeProps) {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl mx-auto w-full text-left">
+    <div className="p-4 sm:p-8 w-[96%] mx-auto w-full text-left">
       <div className="mb-8 pl-4 border-l-4 border-primary">
         <h2 className="text-2xl font-semibold text-gray-900 flex items-center gap-2 mb-1">
           Dependency Tree

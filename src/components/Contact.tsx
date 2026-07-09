@@ -103,7 +103,7 @@ export default function Contact() {
 
   return (
  <section id="contact" className="bg-[#FDFDFD] py-5 lg:py-8">
- <div className="max-w-7xl mx-auto px-6 lg:px-12">
+ <div className="w-[98%] mx-auto px-3 sm:px-6 lg:px-8">
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 mt-4">
  <div className="flex flex-col justify-between relative">
  <div className="relative z-10">

@@ -1385,7 +1385,7 @@ export default function WorkspaceApp() {
  autoFocus
  value={editProjectName}
  onChange={(e) => setEditProjectName(e.target.value)}
- className="text-xs focus:ring-1 focus:ring-primary rounded border px-1.5 py-1 w-full outline-none text-black"
+ className="text-sm focus:ring-1 focus:ring-primary rounded border px-1.5 py-1 w-full outline-none text-black"
  />
  <button type="submit" disabled={!editProjectName.trim()} className="p-1 text-white bg-primary rounded">
  <Check className="w-3 h-3" />
@@ -1417,7 +1417,7 @@ export default function WorkspaceApp() {
  setActiveAppTab('tasks');
  if (window.innerWidth < 768) setIsSidebarOpen(false);
  }}
- className={`flex-grow flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-[#FFEFEE] text-primary shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`flex-grow flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-[#FFEFEE] text-primary shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5 truncate text-[#333333]">
  {/* Colored bullet circle dot mimicking TickTick */}
@@ -1428,7 +1428,7 @@ export default function WorkspaceApp() {
  {/* Project tasks count badge */}
  <div className="flex items-center">
  {getProjectPendingCount(project.id) > 0 && (
- <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full mr-1.5">
+ <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full mr-1.5">
  {getProjectPendingCount(project.id)}
  </span>
  )}
@@ -1445,12 +1445,12 @@ export default function WorkspaceApp() {
  <MoreHorizontal className="w-3 h-3" />
  </span>
  {activeProjectMenu === project.id && (
-  <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-gray-100 z-50 py-1 text-xs">
+  <div className="absolute right-0 top-full mt-1 w-36 bg-white border-none rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 z-50 text-sm animate-in fade-in duration-100">
    <div className="fixed inset-0 z-[-1]" onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); }}></div>
-   <button onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); setEditingProjectIdInModal(project.id); setNewProjectName(project.name); setListColor(project.color || '#1a2b58'); setListFolderId(project.folderId || 'none'); setListViewType(project.viewType || 'list'); setIsProjectModalOpen(true); }} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700">Edit</button>
-   <button onClick={async (e) => { e.stopPropagation(); setActiveProjectMenu(null); await todoService.updateProject(project.id, { isPinned: !project.isPinned }); }} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700">{project.isPinned ? 'Unpin' : 'Pin'}</button>
-   <button onClick={async (e) => { e.stopPropagation(); setActiveProjectMenu(null); await todoService.createProject(project.name + ' (Copy)', project.color, project.userId, project.icon, project.folderId, project.viewType, project.sections); }} className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-700">Duplicate</button>
-   <button onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); handleDeleteProject(project.id, e); }} className="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-600">Delete</button>
+   <button onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); setEditingProjectIdInModal(project.id); setNewProjectName(project.name); setListColor(project.color || '#1a2b58'); setListFolderId(project.folderId || 'none'); setListViewType(project.viewType || 'list'); setIsProjectModalOpen(true); }} className="w-full text-left px-2.5 py-2 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors">Edit</button>
+   <button onClick={async (e) => { e.stopPropagation(); setActiveProjectMenu(null); await todoService.updateProject(project.id, { isPinned: !project.isPinned }); }} className="w-full text-left px-2.5 py-2 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors">{project.isPinned ? 'Unpin' : 'Pin'}</button>
+   <button onClick={async (e) => { e.stopPropagation(); setActiveProjectMenu(null); await todoService.createProject(project.name + ' (Copy)', project.color, project.userId, project.icon, project.folderId, project.viewType, project.sections); }} className="w-full text-left px-2.5 py-2 hover:bg-slate-50 text-slate-700 rounded-lg font-medium transition-colors">Duplicate</button>
+   <button onClick={(e) => { e.stopPropagation(); setActiveProjectMenu(null); handleDeleteProject(project.id, e); }} className="w-full text-left px-2.5 py-2 hover:bg-red-50 text-red-600 rounded-lg font-medium transition-colors">Delete</button>
   </div>
  )}
  </div>
@@ -1532,9 +1532,9 @@ export default function WorkspaceApp() {
   <ChevronDown className={`w-3.5 h-3.5 text-gray-400 hover:text-gray-600 shrink-0 transition-transform ${expandedFolders.includes(folder.id) ? '' : '-rotate-90'}`} />
  </div>
  <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
- <span className={`text-xs font-medium truncate max-w-[120px] ${viewMode === 'folder' && selectedFolderId === folder.id ? 'text-primary' : 'text-gray-700'}`}>{folder.name}</span>
+ <span className={`text-sm font-medium truncate max-w-[120px] ${viewMode === 'folder' && selectedFolderId === folder.id ? 'text-primary' : 'text-gray-700'}`}>{folder.name}</span>
  {getFolderPendingCount(folder.id) > 0 && (
- <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">
+ <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">
  {getFolderPendingCount(folder.id)}
  </span>
  )}
@@ -1562,7 +1562,7 @@ export default function WorkspaceApp() {
  <div className="pl-3.5 border-l border-gray-200 ml-3.5 mt-0 space-y-0">
  {projects.filter(p => p.folderId === folder.id).map(renderProjectItem)}
  {projects.filter(p => p.folderId === folder.id).length === 0 && (
- <div className="text-xs text-gray-400 pl-1 py-1 italic">Empty folders list</div>
+ <div className="text-sm text-gray-400 pl-1 py-1 italic">Empty folders list</div>
  )}
  </div>
  )}
@@ -1575,7 +1575,7 @@ export default function WorkspaceApp() {
  
  </div>
   {projects.length === 0 && folders.length === 0 && !isProjectModalOpen && (
- <div className="text-xs text-center text-gray-400 italic py-2">No lists created</div>
+ <div className="text-sm text-center text-gray-400 italic py-2">No lists created</div>
  )}
  </div>
  );
@@ -1584,7 +1584,7 @@ export default function WorkspaceApp() {
  return (
  <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white min-h-[300px]">
  <div className="w-8 h-8 border-3 border-[#1a2b58] border-t-transparent rounded-full animate-spin"></div>
- <span className="text-xs text-gray-400 mt-4 font-semibold tracking-wider">Syncing with Cloud...</span>
+ <span className="text-sm text-gray-400 mt-4 font-semibold tracking-wider">Syncing with Cloud...</span>
  </div>
  );
  }
@@ -1811,18 +1811,18 @@ export default function WorkspaceApp() {
  <nav className="space-y-0.5">
  <button
  onClick={() => { setViewMode('today'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
  <CalendarIcon className="w-4 h-4 text-green-600" />
  <span>Today</span>
  </div>
- {todayCount > 0 && <span className="text-[10px] font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{todayCount}</span>}
+ {todayCount > 0 && <span className="text-xs font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{todayCount}</span>}
  </button>
 
  <button
  onClick={() => { setViewMode('upcoming'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#1a2b58] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#1a2b58] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
  <CalendarDays className="w-4 h-4 text-purple-600" />
@@ -1832,13 +1832,13 @@ export default function WorkspaceApp() {
 
  <button
  onClick={() => { setViewMode('inbox'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Inbox className="w-4 h-4 text-[#1a2b58]" />
  <span>Inbox</span>
  </div>
- {inboxCount > 0 && <span className="text-[10px] font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{inboxCount}</span>}
+ {inboxCount > 0 && <span className="text-xs font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{inboxCount}</span>}
  </button>
  </nav>
 
@@ -1846,7 +1846,7 @@ export default function WorkspaceApp() {
 
  {/* Lists section heading */}
  <div className="mb-1">
- <div className="flex items-center justify-between px-2 text-gray-400 text-xs uppercase tracking-widest mb-1 group">
+ <div className="flex items-center justify-between px-2 text-gray-400 text-sm uppercase tracking-widest mb-1 group">
  <span>Projects</span>
 							<button onClick={() => { 
     setEditingProjectIdInModal(null);
@@ -1876,7 +1876,7 @@ export default function WorkspaceApp() {
  placeholder="Folder name"
  value={newFolderName}
  onChange={(e) => setNewFolderName(e.target.value)}
- className="text-xs focus:ring-1 focus:ring-primary rounded border px-2 pr-7 py-1 outline-none w-full text-black"
+ className="text-sm focus:ring-1 focus:ring-primary rounded border px-2 pr-7 py-1 outline-none w-full text-black"
  />
  <button
  type="button"
@@ -1923,7 +1923,7 @@ export default function WorkspaceApp() {
  <div className="space-y-0.5">
  <button
  onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Check className="w-4 h-4 text-green-500" />
@@ -1932,7 +1932,7 @@ export default function WorkspaceApp() {
  </button>
  <button
  onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Trash2 className="w-4 h-4 text-red-400" />
@@ -1985,7 +1985,7 @@ export default function WorkspaceApp() {
       <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
       <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-24 md:pb-6 relative h-full">
  {/* Header container */}
- <div className="w-full max-w-[900px] px-6 py-5 md:py-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+ <div className="w-[98%] mx-auto px-6 py-5 md:py-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
  <div className="flex items-center">
  {activeAppTab === 'tasks' && (
  <button 
@@ -2160,7 +2160,7 @@ export default function WorkspaceApp() {
 
  {/* Smart auto-categorization keywords study tip modal overlay */}
  {showSmartTips && (
- <div className="w-full max-w-[900px] px-6 mt-1 flex justify-end">
+ <div className="w-[98%] mx-auto px-6 mt-1 flex justify-end">
  <div className="w-full max-w-[360px] bg-white border border-yellow-200 rounded-2xl shadow-2xl p-4 z-50 text-left animate-in fade-in slide-in-from-top-3 duration-200">
  <div className="flex items-center justify-between mb-2 pb-1 border-b border-yellow-50">
  <h4 className="text-xs font-medium text-gray-800 flex items-center">
@@ -2204,7 +2204,7 @@ export default function WorkspaceApp() {
  
   {/* Progress Tracker popup overlay */}
   {isProgressBannerExpanded && (
-    <div className="w-full max-w-[900px] px-6 mt-1 flex justify-end absolute right-0 z-50">
+    <div className="w-[98%] mx-auto px-6 mt-1 flex justify-end absolute right-0 z-50">
       <div className="w-full max-w-[360px] bg-white border border-[#1a2b58]/10 rounded-2xl shadow-2xl p-4.5 text-left animate-in fade-in slide-in-from-top-3 duration-200">
         {(() => {
           const totalViewCount = allActiveViewTodos.length;
@@ -2347,7 +2347,7 @@ export default function WorkspaceApp() {
   )}
 
 {/* WORKSPACE SECTIONS RENDER ROUTERS */}
- <div className="w-full max-w-[900px] px-6 py-6 flex-1">
+ <div className="w-[98%] mx-auto px-6 py-6 flex-1">
  {/* 1. SECTOR: UNIFIED FLAT TIKTIK MAIN LISTVIEW */}
  {activeAppTab === 'tasks' && (
  <div className="text-left w-full">
@@ -2846,7 +2846,7 @@ export default function WorkspaceApp() {
     <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
   </span>
 ) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
 ) : null}
  {inlineEditTaskId === todo.id ? (
   <input
@@ -3659,7 +3659,7 @@ export default function WorkspaceApp() {
     <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
   </span>
 ) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
 ) : null}
  {inlineEditTaskId === todo.id ? (
   <input
@@ -3792,7 +3792,7 @@ export default function WorkspaceApp() {
     <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
   </span>
 ) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
 ) : null}
                           {inlineEditTaskId === todo.id ? (
   <input
@@ -3892,7 +3892,7 @@ export default function WorkspaceApp() {
     <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
   </span>
 ) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
 ) : null}
                 {inlineEditTaskId === todo.id ? (
   <input
@@ -4268,7 +4268,7 @@ export default function WorkspaceApp() {
     <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
   </span>
 ) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
 ) : null}
  {inlineEditTaskId === todo.id ? (
   <input
@@ -4475,7 +4475,7 @@ export default function WorkspaceApp() {
     <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
   </span>
 ) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0" title="All dependencies met" />
+  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
 ) : null}
  {inlineEditTaskId === todo.id ? (
   <input

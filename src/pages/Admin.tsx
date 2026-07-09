@@ -309,7 +309,7 @@ export default function Admin() {
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
       <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
       <main className="pt-32 pb-24 bg-accent min-h-screen text-left">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
             <p className="text-primary font-medium tracking-widest capitalize text-base mb-6">

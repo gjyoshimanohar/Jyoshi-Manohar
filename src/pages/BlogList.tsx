@@ -40,7 +40,7 @@ export default function BlogList() {
    <meta property="og:title" content="Financial Insights & Ledger | CA Jyoshi Manohar" />
    <meta property="og:description" content="Read expert articles and insights on Indian taxation, corporate compliance, financial auditing, wealth stewardship, and business planning." />
  </Helmet>
- <div className="max-w-7xl mx-auto px-6">
+ <div className="w-[98%] mx-auto px-3 sm:px-6">
  <header className="mb-8">
  <motion.div
  initial={{ opacity: 0 }}

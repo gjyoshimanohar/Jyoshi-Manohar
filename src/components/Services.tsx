@@ -6,7 +6,7 @@ import { services } from '../data';
 export default function Services() {
  return (
  <section id="services" className="bg-white py-5">
- <div className="max-w-7xl mx-auto px-6">
+ <div className="w-[98%] mx-auto px-3 sm:px-6">
  <div className="mb-3 lg:mb-4">
  <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">
  Strategic Expertise.

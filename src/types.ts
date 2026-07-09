@@ -103,6 +103,7 @@ export interface Project {
  sections?: string[];
   createdAt: number;
   isPinned?: boolean;
+  order?: number;
 }
 
 export interface PaymentAccount {
@@ -129,6 +130,7 @@ export interface FinanceRecord {
   paymentAccountId?: string;
   transferToAccountId?: string;
   isReceivableFromClient?: boolean;
+  isReimbursed?: boolean;
 }
 
 export interface UserProfile {

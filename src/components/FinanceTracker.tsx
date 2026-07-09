@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import CustomSelect from "./CustomSelect";
 import { motion, AnimatePresence } from "motion/react";
 import { db, auth } from "../lib/firebase";
 import { 
@@ -464,7 +465,7 @@ export default function FinanceTracker() {
       
       for (const rec of recordsToProcess) {
         if (rec.type === 'expense' && rec.isReceivableFromClient) {
-          await financeService.updateRecord(rec.id, { isReceivableFromClient: false });
+          await financeService.updateRecord(rec.id, { isReceivableFromClient: false, isReimbursed: true });
           const newRec = await financeService.createRecord({
             type: 'income',
             amount: rec.amount,
@@ -992,7 +993,9 @@ export default function FinanceTracker() {
             }
           }
         } else if (rec.type === "expense") {
-          totalExpense += rec.amount;
+          if (!rec.isReceivableFromClient && !rec.isReimbursed) {
+            totalExpense += rec.amount;
+          }
         }
       }
     });
@@ -1034,7 +1037,9 @@ export default function FinanceTracker() {
             }
           }
           else if (rec.type === "expense") {
-            expense += rec.amount;
+            if (!rec.isReceivableFromClient && !rec.isReimbursed) {
+              expense += rec.amount;
+            }
             if (rec.isReceivableFromClient) {
               pendingReimbursements += rec.amount;
             }
@@ -1055,17 +1060,27 @@ export default function FinanceTracker() {
   }, [records, selectedYear, selectedScope]);
 
   // Category Breakdown for Pie Charts (Current Filters applied)
-  const categoryChartData = useMemo(() => {
-    const categoryTotals: { [name: string]: number } = {};
+  const { incomeChartData, expenseChartData } = useMemo(() => {
+    const incomeTotals: { [name: string]: number } = {};
+    const expenseTotals: { [name: string]: number } = {};
+
     filteredRecords.forEach(rec => {
       if (rec.type === "transfer") return;
-      categoryTotals[rec.category] = (categoryTotals[rec.category] || 0) + rec.amount;
+      if (rec.type === "income") {
+        if (rec.category !== "Reimbursement") {
+          incomeTotals[rec.category] = (incomeTotals[rec.category] || 0) + rec.amount;
+        }
+      } else if (rec.type === "expense") {
+        if (!rec.isReceivableFromClient && !rec.isReimbursed) {
+          expenseTotals[rec.category] = (expenseTotals[rec.category] || 0) + rec.amount;
+        }
+      }
     });
 
-    return Object.keys(categoryTotals).map(catName => ({
-      name: catName,
-      value: categoryTotals[catName]
-    }));
+    return {
+      incomeChartData: Object.keys(incomeTotals).map(name => ({ name, value: incomeTotals[name] })),
+      expenseChartData: Object.keys(expenseTotals).map(name => ({ name, value: expenseTotals[name] }))
+    };
   }, [filteredRecords]);
 
   // Export CSV of Filtered Records
@@ -1145,7 +1160,7 @@ export default function FinanceTracker() {
               <p className="text-slate-600 font-semibold italic text-sm">No transaction records match active filters.</p>
               <button
                 onClick={() => handleOpenAddModal(defaultFormTypeToAdd)}
-                className="mt-4 flex items-center space-x-1.5 bg-primary hover:bg-primary-hover text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
+                className="mt-4 flex items-center space-x-1.5 bg-primary hover:bg-primary/90 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Log first transaction</span>
@@ -1395,7 +1410,7 @@ export default function FinanceTracker() {
 
           <button
             onClick={() => handleOpenAddModal()}
-            className="flex items-center space-x-2 bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm"
+            className="flex items-center space-x-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>Add Transaction</span>
@@ -1484,7 +1499,7 @@ export default function FinanceTracker() {
                       setIsSidebarOpen(false);
                     }
                   }}
-                  className={`group relative flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl transition-all font-semibold text-xs whitespace-nowrap shrink-0 border ${
+                  className={`group relative flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl transition-all font-semibold text-sm whitespace-nowrap shrink-0 border ${
                     isActive
                       ? "bg-primary border-primary text-white shadow-sm"
                       : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-primary"
@@ -1493,12 +1508,12 @@ export default function FinanceTracker() {
                   <IconComp className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-[#AD8D3E]" : "text-slate-400"}`} />
                   <div className={`flex flex-col text-left transition-all duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:w-0 overflow-hidden"}`}>
                     <span className="leading-tight">{tab.label}</span>
-                    <span className={`text-[9px] hidden lg:block font-medium mt-0.5 ${isActive ? "text-slate-300" : "text-slate-400"}`}>
+                    <span className={`text-[11px] hidden lg:block font-medium mt-0.5 ${isActive ? "text-slate-300" : "text-slate-400"}`}>
                       {tab.desc}
                     </span>
                   </div>
                   {!isSidebarOpen && (
-                    <div className="hidden lg:block absolute left-full ml-3 px-2.5 py-1.5 bg-slate-800 text-white text-[10px] rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-md border border-slate-700 pointer-events-none">
+                    <div className="hidden lg:block absolute left-full ml-3 px-2.5 py-1.5 bg-slate-800 text-white text-[12px] rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-md border border-slate-700 pointer-events-none">
                       {tab.label}
                     </div>
                   )}
@@ -1567,30 +1582,26 @@ export default function FinanceTracker() {
           {/* Year select */}
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Fiscal Year</span>
-            <select
+            <CustomSelect
               value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
+              onChange={(val) => setSelectedYear(val)}
               className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary hover:border-slate-300 hover:shadow-sm cursor-pointer"
-            >
-              {yearsList.map(yr => (
-                <option key={yr} value={yr}>{yr}</option>
-              ))}
-            </select>
+              options={yearsList.map(yr => ({ value: yr, label: yr }))}
+            />
           </div>
 
           {/* Month select */}
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Audit Month</span>
-            <select
+            <CustomSelect
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary hover:border-slate-300 hover:shadow-sm cursor-pointer"
-            >
-              <option value="All">All Months</option>
-              {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+              onChange={setSelectedMonth}
+              className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={[
+                { value: "All", label: "All Months" },
+                ...["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(m => ({ value: m, label: m }))
+              ]}
+            />
           </div>
 
           {/* Type filter buttons */}
@@ -1616,41 +1627,22 @@ export default function FinanceTracker() {
           {/* Category filter */}
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Specific Stream</span>
-            <select
+            <CustomSelect
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(val) => setSelectedCategory(val)}
               className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary min-w-[120px] hover:border-slate-300 hover:shadow-sm cursor-pointer"
-            >
-              <option value="All">All Categories</option>
-              {(selectedScope === "all" || selectedScope === "business") && (
-                <>
-                  <optgroup label="💼 Corporate Revenue">
-                    {customCategories.businessIncome.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="💼 Operating Expense">
-                    {customCategories.businessExpense.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </optgroup>
-                </>
-              )}
-              {(selectedScope === "all" || selectedScope === "personal") && (
-                <>
-                  <optgroup label="🌸 Personal Inflow">
-                    {customCategories.personalIncome.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="🌸 Personal Expenses">
-                    {customCategories.personalExpense.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </optgroup>
-                </>
-              )}
-            </select>
+              options={[
+                { value: "All", label: "All Categories" },
+                ...(selectedScope === "all" || selectedScope === "business" ? [
+                  { label: "💼 Corporate Revenue", options: customCategories.businessIncome.map(c => ({ value: c, label: c })) },
+                  { label: "💼 Operating Expense", options: customCategories.businessExpense.map(c => ({ value: c, label: c })) }
+                ] : []),
+                ...(selectedScope === "all" || selectedScope === "personal" ? [
+                  { label: "🌸 Personal Inflow", options: customCategories.personalIncome.map(c => ({ value: c, label: c })) },
+                  { label: "🌸 Personal Expenses", options: customCategories.personalExpense.map(c => ({ value: c, label: c })) }
+                ] : [])
+              ]}
+            />
           </div>
         </div>
 
@@ -2107,7 +2099,7 @@ export default function FinanceTracker() {
 
       {/* Visual Analytics Row */}
       {activeTab === "dashboard" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
           
           {/* Recharts Area Chart: Annual Inflow & Overhead trends */}
           <div className="lg:col-span-2 bg-white border border-border p-6 rounded-2xl shadow-sm">
@@ -2153,26 +2145,25 @@ export default function FinanceTracker() {
             </div>
           </div>
 
-          {/* Category breakdown sidebar widget */}
           <div className="bg-white border border-border p-6 rounded-2xl shadow-sm flex flex-col justify-between">
             <div>
-              <h3 className="text-base font-bold text-primary tracking-tight mb-1">Specific Distribution</h3>
-              <p className="text-xs text-gray-400 mb-4">Percentage allocation based on current filtered scopes.</p>
+              <h3 className="text-base font-bold text-primary tracking-tight mb-1">Income Distribution</h3>
+              <p className="text-xs text-gray-400 mb-4">Sources of professional inflow.</p>
               
-              {categoryChartData.length === 0 ? (
+              {incomeChartData.length === 0 ? (
                 <div className="py-12 text-center text-gray-400 italic text-xs border border-dashed rounded-xl mt-4">
-                  No categorical data matches active filters.
+                  No income data matches active filters.
                 </div>
               ) : (
                 <div className="h-44 w-full relative">
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-[10px] uppercase font-bold text-gray-400">Filtered</span>
-                    <span className="text-sm font-bold text-primary">{categoryChartData.length} Keys</span>
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Income</span>
+                    <span className="text-sm font-bold text-primary">{incomeChartData.length} Keys</span>
                   </div>
                   <ResponsiveContainer width="100%" height="100%" className="relative z-10">
                     <PieChart>
                       <Pie
-                        data={categoryChartData}
+                        data={incomeChartData}
                         cx="50%"
                         cy="50%"
                         innerRadius={45}
@@ -2180,7 +2171,7 @@ export default function FinanceTracker() {
                         paddingAngle={3}
                         dataKey="value"
                       >
-                        {categoryChartData.map((entry, index) => (
+                        {incomeChartData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -2190,11 +2181,64 @@ export default function FinanceTracker() {
                 </div>
               )}
             </div>
-
-            {/* Custom Category List legend */}
             <div className="mt-4 space-y-2 max-h-[160px] overflow-y-auto pr-1">
-              {categoryChartData.slice(0, 5).map((entry, index) => {
-                const totalVal = categoryChartData.reduce((acc, curr) => acc + curr.value, 0);
+              {incomeChartData.slice(0, 5).map((entry, index) => {
+                const totalVal = incomeChartData.reduce((acc, curr) => acc + curr.value, 0);
+                const percentage = totalVal > 0 ? Math.round((entry.value / totalVal) * 100) : 0;
+                return (
+                  <div key={entry.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <span className="font-semibold text-primary truncate max-w-[120px]">{entry.name}</span>
+                    </div>
+                    <div className="text-gray-500 font-semibold">
+                      ₹{entry.value.toLocaleString("en-IN")} <span className="text-[10px] font-bold text-[#AD8D3E]">({percentage}%)</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-white border border-border p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight mb-1">Expense Distribution</h3>
+              <p className="text-xs text-gray-400 mb-4">Sources of operating outflow.</p>
+              
+              {expenseChartData.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 italic text-xs border border-dashed rounded-xl mt-4">
+                  No expense data matches active filters.
+                </div>
+              ) : (
+                <div className="h-44 w-full relative">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Expenses</span>
+                    <span className="text-sm font-bold text-primary">{expenseChartData.length} Keys</span>
+                  </div>
+                  <ResponsiveContainer width="100%" height="100%" className="relative z-10">
+                    <PieChart>
+                      <Pie
+                        data={expenseChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {expenseChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => `₹${value}`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+            <div className="mt-4 space-y-2 max-h-[160px] overflow-y-auto pr-1">
+              {expenseChartData.slice(0, 5).map((entry, index) => {
+                const totalVal = expenseChartData.reduce((acc, curr) => acc + curr.value, 0);
                 const percentage = totalVal > 0 ? Math.round((entry.value / totalVal) * 100) : 0;
                 return (
                   <div key={entry.name} className="flex items-center justify-between text-xs">
@@ -2241,7 +2285,7 @@ export default function FinanceTracker() {
                   cursor={{ fill: 'transparent' }}
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
-                      const total = payload.reduce((sum, entry) => sum + (entry.value || 0), 0);
+                      const total = payload.reduce((sum, entry) => sum + Number(entry.value || 0), 0);
                       return (
                         <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-lg">
                           <p className="text-white font-bold text-sm mb-2">{label} {selectedYear}</p>
@@ -2470,16 +2514,17 @@ export default function FinanceTracker() {
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Select List to Edit
                   </label>
-                  <select
+                  <CustomSelect
                     value={categoryManageType}
-                    onChange={(e) => setCategoryManageType(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary hover:border-slate-300 hover:shadow-sm cursor-pointer transition"
-                  >
-                    <option value="businessIncome">Office / Corporate - Income</option>
-                    <option value="businessExpense">Office / Corporate - Expense</option>
-                    <option value="personalIncome">Personal - Income</option>
-                    <option value="personalExpense">Personal - Expense</option>
-                  </select>
+                    onChange={(val) => setCategoryManageType(val as any)}
+                    className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm transition"
+                    options={[
+                      { value: "businessIncome", label: "Office / Corporate - Income" },
+                      { value: "businessExpense", label: "Office / Corporate - Expense" },
+                      { value: "personalIncome", label: "Personal - Income" },
+                      { value: "personalExpense", label: "Personal - Expense" }
+                    ]}
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -2573,7 +2618,7 @@ export default function FinanceTracker() {
                     <button
                       onClick={(e) => { e.preventDefault(); handleAddCategory(); }}
                       disabled={!newCategoryName.trim()}
-                      className="bg-primary hover:bg-primary-hover disabled:opacity-50 text-white px-4 rounded-xl text-sm font-semibold transition shadow-sm"
+                      className="bg-primary hover:bg-primary/90 disabled:opacity-50 text-white px-4 rounded-xl text-sm font-semibold transition shadow-sm"
                     >
                       Add
                     </button>
@@ -2653,18 +2698,16 @@ export default function FinanceTracker() {
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Credit to Account
                   </label>
-                  <select
+                  <CustomSelect
                     value={receiveModalAccountId}
-                    onChange={(e) => setReceiveModalAccountId(e.target.value)}
-                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm"
-                  >
-                    <option value="" disabled>Select receiving account...</option>
-                    {paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.name} (₹{acc.openingBalance.toLocaleString("en-IN")})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setReceiveModalAccountId(val)}
+                    placeholder="Select receiving account..."
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary transition hover:border-slate-300 hover:shadow-sm"
+                    options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(acc => ({
+                      value: acc.id,
+                      label: `${acc.name} (₹${acc.openingBalance.toLocaleString("en-IN")})`
+                    }))}
+                  />
                 </div>
               </div>
               <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0">
@@ -2676,7 +2719,7 @@ export default function FinanceTracker() {
                 </button>
                 <button
                   onClick={confirmMarkAsReceived}
-                  className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                  className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Confirm
                 </button>
@@ -2841,14 +2884,7 @@ export default function FinanceTracker() {
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       Transfer Status *
                     </label>
-                    <select
-              value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value as any)}
-              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                    >
-                      <option value="paid">Paid (Settled)</option>
-                      <option value="pending">Pending</option>
-                    </select>
+                    <CustomSelect value={formStatus} onChange={(val) => setFormStatus(val as any)} className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm cursor-pointer" options={[{value: "paid", label: "Paid (Settled)"}, {value: "pending", label: "Pending"}]} />
                   </div>
                 </div>
               ) : (
@@ -2857,37 +2893,37 @@ export default function FinanceTracker() {
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       Account Category *
                     </label>
-                    <select
+                    <CustomSelect
               value={formCategory}
-              onChange={(e) => setFormCategory(e.target.value)}
-              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                    >
-                      {formScope === "business"
-                        ? (formType === "income" 
-                            ? customCategories.businessIncome.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                            : customCategories.businessExpense.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                          )
-                        : (formType === "income"
-                            ? customCategories.personalIncome.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                            : customCategories.personalExpense.map(cat => <option key={cat} value={cat}>{cat}</option>)
-                          )
-                      }
-                    </select>
+              onChange={setFormCategory}
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={formScope === "business"
+                ? (formType === "income" ? customCategories.businessIncome : customCategories.businessExpense).map(c => ({value: c, label: c}))
+                : (formType === "income" ? customCategories.personalIncome : customCategories.personalExpense).map(c => ({value: c, label: c}))
+              }
+            />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       Invoice Status *
                     </label>
-                    <select
+                    <CustomSelect
               value={formStatus}
-              onChange={(e) => setFormStatus(e.target.value as any)}
-              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                    >
-                      <option value="paid">Paid</option>
-                      <option value="pending">Pending Receipt</option>
-                      <option value="overdue">Overdue Invoicing</option>
-                    </select>
+              onChange={(val) => setFormStatus(val as any)}
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={formType === "income"
+                ? [
+                    {value: "paid", label: "Paid"},
+                    {value: "pending", label: "Pending Receipt"},
+                    {value: "overdue", label: "Overdue Invoicing"}
+                  ]
+                : [
+                    {value: "paid", label: "Paid (Settled)"},
+                    {value: "pending", label: "Pending"}
+                  ]
+              }
+            />
                   </div>
                 </div>
               )}
@@ -2902,21 +2938,15 @@ export default function FinanceTracker() {
                       </label>
                       <span className="text-[10px] text-gray-400 font-semibold italic">Optional</span>
                     </div>
-                    <select
-                      value={formClientId}
-                      onChange={(e) => {
-                        setFormClientId(e.target.value);
-                        if (e.target.value !== "") {
-                          setFormCustomClientName(""); // clear free-text
-                        }
-                      }}
-                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      <option value="">-- No Client Account Linked --</option>
-                      {clients.map(c => (
-                        <option key={c.uid} value={c.uid}>{c.displayName || c.email}</option>
-                      ))}
-                    </select>
+                    <CustomSelect
+              value={formClientId}
+              onChange={setFormClientId}
+              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={[
+                { value: "", label: "No specific client" },
+                ...clients.map(c => ({ value: c.id, label: c.name }))
+              ]}
+            />
                   </div>
 
                   {!formClientId && (
@@ -2939,14 +2969,7 @@ export default function FinanceTracker() {
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       {formType === 'expense' ? 'Is it receivable from client?' : 'Is it a reimbursement from client?'}
                     </label>
-                    <select
-                      value={formIsReceivableFromClient ? "yes" : "no"}
-                      onChange={(e) => setFormIsReceivableFromClient(e.target.value === "yes")}
-                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </select>
+                    <CustomSelect value={formIsReceivableFromClient ? "yes" : "no"} onChange={(val) => setFormIsReceivableFromClient(val === "yes")} className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary" options={[{value: "no", label: "No"}, {value: "yes", label: "Yes"}]} />
                   </div>
                 </div>
               )}
@@ -2964,38 +2987,26 @@ export default function FinanceTracker() {
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                         Source Account (From) *
                       </label>
-                      <select
+                      <CustomSelect
               value={formPaymentAccountId}
-              onChange={(e) => setFormPaymentAccountId(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                        required
-                      >
-                        <option value="">-- Select Source --</option>
-                        {paymentAccounts.map(acc => (
-                          <option key={acc.id} value={acc.id}>
-                            {acc.name} (₹{(accountBalances[acc.id]?.current ?? acc.openingBalance).toLocaleString("en-IN")})
-                          </option>
-                        ))}
-                      </select>
+              onChange={setFormPaymentAccountId}
+              placeholder="Select account"
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(a => ({ value: a.id, label: a.name }))}
+            />
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                         Destination Account (To) *
                       </label>
-                      <select
+                      <CustomSelect
               value={formTransferToAccountId}
-              onChange={(e) => setFormTransferToAccountId(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                        required
-                      >
-                        <option value="">-- Select Destination --</option>
-                        {paymentAccounts.map(acc => (
-                          <option key={acc.id} value={acc.id}>
-                            {acc.name} (₹{(accountBalances[acc.id]?.current ?? acc.openingBalance).toLocaleString("en-IN")})
-                          </option>
-                        ))}
-                      </select>
+              onChange={setFormTransferToAccountId}
+              placeholder="Select destination account"
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements' && a.id !== formPaymentAccountId).map(a => ({ value: a.id, label: a.name }))}
+            />
                     </div>
                   </div>
 
@@ -3003,16 +3014,19 @@ export default function FinanceTracker() {
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                       Transfer Payment Mode *
                     </label>
-                    <select
+                    <CustomSelect
               value={formPaymentMode}
-              onChange={(e) => setFormPaymentMode(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                    >
-                      <option value="Bank Transfer">Bank Transfer</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Cash">Cash</option>
-                      <option value="Cheque">Cheque</option>
-                    </select>
+              onChange={setFormPaymentMode}
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={[
+                { value: "Bank Transfer", label: "Bank Transfer" },
+                { value: "UPI", label: "UPI" },
+                { value: "Credit Card", label: "Credit Card" },
+                { value: "Debit Card", label: "Debit Card" },
+                { value: "Cash", label: "Cash" },
+                { value: "Cheque", label: "Cheque" }
+              ]}
+            />
                   </div>
                 </div>
               ) : (
@@ -3021,35 +3035,32 @@ export default function FinanceTracker() {
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       Payment Mode *
                     </label>
-                    <select
+                    <CustomSelect
               value={formPaymentMode}
-              onChange={(e) => setFormPaymentMode(e.target.value)}
-              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Bank Transfer">Bank Transfer</option>
-                      <option value="Credit Card">Credit Card</option>
-                      <option value="Cheque">Cheque</option>
-                    </select>
+              onChange={setFormPaymentMode}
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={[
+                { value: "Bank Transfer", label: "Bank Transfer" },
+                { value: "UPI", label: "UPI" },
+                { value: "Credit Card", label: "Credit Card" },
+                { value: "Debit Card", label: "Debit Card" },
+                { value: "Cash", label: "Cash" },
+                { value: "Cheque", label: "Cheque" }
+              ]}
+            />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                       Source / Payment Account
                     </label>
-                    <select
+                    <CustomSelect
               value={formPaymentAccountId}
-              onChange={(e) => setFormPaymentAccountId(e.target.value)}
-              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                    >
-                      <option value="">-- None (Hand Cash / Direct) --</option>
-                      {paymentAccounts.map(acc => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.name} ({acc.type === "bank_account" ? "Bank" : "Credit Card"})
-                        </option>
-                      ))}
-                    </select>
+              onChange={setFormPaymentAccountId}
+              placeholder="Select account"
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(a => ({ value: a.id, label: a.name }))}
+            />
                   </div>
                 </div>
               )}
@@ -3080,7 +3091,7 @@ export default function FinanceTracker() {
                 <button
                   type="submit"
                   disabled={syncing}
-                  className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                  className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
                 >
                   {syncing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{editingRecord ? "Save Updates" : "Log Record"}</span>
@@ -3138,22 +3149,17 @@ export default function FinanceTracker() {
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Payment Account Type *
                 </label>
-                <select
+                <CustomSelect
               value={accountType}
-              onChange={(e) => setAccountType(e.target.value as any)}
-              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition hover:border-slate-300 hover:shadow-sm cursor-pointer"
-                >
-                  <optgroup label="Assets (Positive Balance / Savings)">
-                    <option value="bank_account">🏦 Bank Account</option>
-                    <option value="investment">📈 Investment Account</option>
-                    <option value="other_asset">💎 Other Asset</option>
-                  </optgroup>
-                  <optgroup label="Liabilities (Outstanding Debt / Outflow)">
-                    <option value="credit_card">💳 Credit Card</option>
-                    <option value="loan">🤝 Loan / Mortgage</option>
-                    <option value="other_liability">⚠️ Other Liability</option>
-                  </optgroup>
-                </select>
+              onChange={(val) => setAccountType(val as any)}
+              className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+              options={[
+                { value: "bank", label: "Bank Account" },
+                { value: "upi", label: "UPI Wallet" },
+                { value: "credit_card", label: "Credit Card" },
+                { value: "cash", label: "Cash on Hand" }
+              ]}
+            />
               </div>
 
               {/* Opening Balance */}
@@ -3191,7 +3197,7 @@ export default function FinanceTracker() {
                 <button
                   type="submit"
                   disabled={syncing}
-                  className="px-5 py-2 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
+                  className="px-5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-bold transition shadow-sm flex items-center justify-center gap-2"
                 >
                   {syncing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{editingAccount ? "Save Changes" : "Configure Account"}</span>

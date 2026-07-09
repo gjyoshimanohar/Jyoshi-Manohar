@@ -55,7 +55,7 @@ export default function Navbar() {
         "fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 transition-all",
         !isOnline ? "top-8" : "top-0"
       )}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
           <div className="flex justify-between h-20">
             <div className="flex items-center">
               <Link to="/" className="flex items-center space-x-3 group">
@@ -88,12 +88,12 @@ export default function Navbar() {
                       </a>
                       
                       <div className="absolute top-12 left-0 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-left scale-95 group-hover:scale-100 pt-2">
-                        <div className="bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 overflow-hidden py-2 relative before:content-[''] before:absolute before:-top-4 before:left-0 before:w-full before:h-4">
+                        <div className="bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 p-1.5 relative before:content-[''] before:absolute before:-top-4 before:left-0 before:w-full before:h-4 flex flex-col gap-0.5">
                           {services.map((service) => (
                             <Link 
                               key={service.id} 
                               to={`/services/${service.id}`} 
-                              className="block px-5 py-3 text-sm font-semibold text-black hover:bg-slate-50 hover:text-primary transition-colors"
+                              className="block px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors rounded-lg"
                             >
                               {service.title}
                             </Link>
