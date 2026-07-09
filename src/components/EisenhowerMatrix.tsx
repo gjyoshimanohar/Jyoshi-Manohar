@@ -123,7 +123,7 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  {items.length} tasks
  </span>
  </div>
- <p className="text-base text-gray-400 font-medium mb-3 italic">{q.desc}</p>
+ <p className="text-xs text-gray-500 font-medium mb-3 italic">{q.desc}</p>
 
  {/* Box Cards */}
  <div className="flex-1 overflow-y-auto space-y-1.5 max-h-[260px] pr-1">
@@ -138,10 +138,10 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  draggable
  onDragStart={(e) => handleDragStart(e, item.id)}
  onClick={() => onSelectTodoId(item.id)}
- className="bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col justify-between"
+ className="bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-200 cursor-grab active:cursor-grabbing flex flex-col justify-between"
  >
  <div className="flex items-start justify-between">
- <span className="text-xs text-gray-800 font-semibold truncate flex-1 leading-normal pr-2 flex items-center gap-1">
+ <span className="text-sm font-bold text-gray-800 tracking-tight truncate flex-1 leading-normal pr-2 flex items-center gap-1">
  {item.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
  {(item.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
  {item.title}

@@ -755,6 +755,8 @@ export default function ClientDashboard() {
           }[] = [];
           snapshot.forEach((docRef) => {
             const data = docRef.data();
+            // Do not add the admin user to the clients list
+            if (data.email === "gjyoshimanohar@gmail.com") return;
             clientList.push({
               uid: data.uid || docRef.id,
               email: data.email,
@@ -5748,7 +5750,7 @@ Stewardship, Accuracy, Legacy.
                                             filing.arn,
                                           )
                                         }
-                                        className="bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px]"
+                                        className="w-32 px-2 bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px]"
                                         options={[
                                           "Upcoming",
                                           "In Progress",

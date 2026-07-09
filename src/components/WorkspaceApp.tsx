@@ -8,7 +8,7 @@ import {
  Flame, HelpCircle, RefreshCw, Bell, Award, Sparkles, FolderOpen,
  Milestone, BookOpen, Smile, Play, Volume2, ShieldCheck, Target,
  GraduationCap, ArrowUpDown, Hourglass, Lightbulb, Minimize2, Maximize2,
- Settings, FileSpreadsheet, Download, Lock, ListTodo, LayoutGrid
+ Settings, FileSpreadsheet, Download, Lock, ListTodo, LayoutGrid, TrendingUp, Activity
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
 import { FileText, MessageSquare, CornerDownRight, Key, Network } from 'lucide-react';
@@ -1417,7 +1417,7 @@ export default function WorkspaceApp() {
  setActiveAppTab('tasks');
  if (window.innerWidth < 768) setIsSidebarOpen(false);
  }}
- className={`flex-grow flex items-center justify-between px-1 py-0.5 rounded-lg text-xs transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-[#FFEFEE] text-primary font-medium' : 'hover:bg-gray-100 text-[#202020]'}`}
+ className={`flex-grow flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-[#FFEFEE] text-primary shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5 truncate text-[#333333]">
  {/* Colored bullet circle dot mimicking TickTick */}
@@ -1428,7 +1428,7 @@ export default function WorkspaceApp() {
  {/* Project tasks count badge */}
  <div className="flex items-center">
  {getProjectPendingCount(project.id) > 0 && (
- <span className="text-xs text-gray-400 font-semibold bg-gray-100 px-1.5 py-0.2 rounded-full mr-1.5">
+ <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full mr-1.5">
  {getProjectPendingCount(project.id)}
  </span>
  )}
@@ -1534,7 +1534,7 @@ export default function WorkspaceApp() {
  <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
  <span className={`text-xs font-medium truncate max-w-[120px] ${viewMode === 'folder' && selectedFolderId === folder.id ? 'text-primary' : 'text-gray-700'}`}>{folder.name}</span>
  {getFolderPendingCount(folder.id) > 0 && (
- <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-1 py-0.2 rounded-full">
+ <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">
  {getFolderPendingCount(folder.id)}
  </span>
  )}
@@ -1811,18 +1811,18 @@ export default function WorkspaceApp() {
  <nav className="space-y-0.5">
  <button
  onClick={() => { setViewMode('today'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] ' : 'hover:bg-gray-100 text-gray-700 font-semibold'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
  <CalendarIcon className="w-4 h-4 text-green-600" />
  <span>Today</span>
  </div>
- {todayCount > 0 && <span className="text-xs text-gray-500 font-medium bg-white/65 px-1.5 py-0.2 rounded">{todayCount}</span>}
+ {todayCount > 0 && <span className="text-[10px] font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{todayCount}</span>}
  </button>
 
  <button
  onClick={() => { setViewMode('upcoming'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#1a2b58] ' : 'hover:bg-gray-100 text-gray-700 font-semibold'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#1a2b58] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
  <CalendarDays className="w-4 h-4 text-purple-600" />
@@ -1832,13 +1832,13 @@ export default function WorkspaceApp() {
 
  <button
  onClick={() => { setViewMode('inbox'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 ' : 'hover:bg-gray-100 text-gray-700 font-semibold'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Inbox className="w-4 h-4 text-[#1a2b58]" />
  <span>Inbox</span>
  </div>
- {inboxCount > 0 && <span className="text-xs text-gray-500 font-medium bg-white/65 px-1.5 py-0.2 rounded">{inboxCount}</span>}
+ {inboxCount > 0 && <span className="text-[10px] font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{inboxCount}</span>}
  </button>
  </nav>
 
@@ -1923,7 +1923,7 @@ export default function WorkspaceApp() {
  <div className="space-y-0.5">
  <button
  onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 font-medium' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Check className="w-4 h-4 text-green-500" />
@@ -1932,7 +1932,7 @@ export default function WorkspaceApp() {
  </button>
  <button
  onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 font-medium' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
  >
  <div className="flex items-center space-x-2.5">
  <Trash2 className="w-4 h-4 text-red-400" />
@@ -2819,7 +2819,7 @@ export default function WorkspaceApp() {
  onDragStart={(e: any) => {
  e.dataTransfer.setData("text/plain", todo.id);
  }}
- className={`bg-white rounded-2xl border border-gray-100 p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all cursor-grab active:cursor-grabbing text-left flex flex-col gap-1.5 group select-none relative duration-100 ${
+ className={`bg-white rounded-2xl border border-gray-100 p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 cursor-grab active:cursor-grabbing text-left flex flex-col gap-1.5 group select-none relative duration-100 ${
  todo.priority === 1 ? 'border-l-2 border-l-red-300 pl-3' : todo.priority === 2 ? 'border-l-2 border-l-orange-300 pl-3' : todo.priority === 3 ? 'border-l-2 border-l-blue-300 pl-3' : ''
  }`}
  onClick={() => setSelectedTodoId(todo.id)}
@@ -2838,7 +2838,7 @@ export default function WorkspaceApp() {
  </button>
 
  <div className="min-w-0 flex-1">
- <span className="text-xs font-medium text-gray-800 break-words leading-relaxed leading-snug flex items-center gap-1">
+ <span className="text-sm font-bold text-gray-800 break-words tracking-tight leading-relaxed leading-snug flex items-center gap-1">
  {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
  {getActiveDependenciesCount(todo) > 0 ? (
   <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
@@ -2873,7 +2873,7 @@ export default function WorkspaceApp() {
 )}
  </span>
  {todo.description && (
- <p className="text-base text-gray-400 font-medium leading-relaxed mt-0.5 line-clamp-2">
+ <p className="text-xs text-gray-500 font-medium leading-relaxed mt-0.5 line-clamp-2">
  {todo.description}
  </p>
  )}
@@ -3393,7 +3393,95 @@ export default function WorkspaceApp() {
  
           {/* UPCOMING DEADLINES & PRIORITY DASHBOARD */}
           {viewMode === 'today' && (
-            <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="mb-6 grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {/* Productivity Summary Widget */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none">
+                  <TrendingUp className="w-32 h-32 text-emerald-900" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 relative z-10">
+                    <Activity className="w-4 h-4 text-emerald-500" />
+                    Productivity
+                  </h3>
+                  {(() => {
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    
+                    const getCompletionDate = (t: Todo) => {
+                      if (!t.completed) return null;
+                      const act = t.activities?.slice().reverse().find(a => a.type === 'status' && a.newValue === 'Completed');
+                      return act ? act.createdAt : (t.dueDate || t.createdAt);
+                    };
+                    
+                    const completedToday = todos.filter(t => {
+                      const d = getCompletionDate(t);
+                      return d && isSameDay(new Date(d), today);
+                    }).length;
+                    
+                    const completedYesterday = todos.filter(t => {
+                      const d = getCompletionDate(t);
+                      return d && isSameDay(new Date(d), yesterday);
+                    }).length;
+                    
+                    // Streak computation
+                    let currentStreak = 0;
+                    const uniqueDays = new Set(
+                      todos.filter(t => t.completed)
+                      .map(t => getCompletionDate(t))
+                      .filter(Boolean)
+                      .map(d => startOfDay(new Date(d)).getTime())
+                    );
+                    
+                    let checkDate = startOfDay(today).getTime();
+                    if (uniqueDays.has(checkDate)) {
+                      currentStreak++;
+                      checkDate -= 86400000;
+                      while(uniqueDays.has(checkDate)) {
+                        currentStreak++;
+                        checkDate -= 86400000;
+                      }
+                    } else {
+                      checkDate -= 86400000;
+                      if (uniqueDays.has(checkDate)) {
+                        currentStreak++;
+                        checkDate -= 86400000;
+                        while(uniqueDays.has(checkDate)) {
+                          currentStreak++;
+                          checkDate -= 86400000;
+                        }
+                      }
+                    }
+
+                    return (
+                      <div className="space-y-4 relative z-10">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-2.5 text-center">
+                            <span className="block text-[10px] text-emerald-600 font-bold uppercase tracking-wider mb-1">Today</span>
+                            <span className="block text-2xl font-black text-emerald-900">{completedToday}</span>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
+                            <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Yesterday</span>
+                            <span className="block text-2xl font-black text-slate-700">{completedYesterday}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 bg-orange-50/50 border border-orange-100 p-2.5 rounded-xl">
+                          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
+                            <Flame className="w-4 h-4 text-orange-500" />
+                          </div>
+                          <div>
+                            <span className="block text-xs font-bold text-orange-900">
+                              {currentStreak} Day{currentStreak !== 1 ? 's' : ''} Streak
+                            </span>
+                            <span className="block text-[10px] font-medium text-orange-700/80">Consistent daily activity</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
               {/* Upcoming Deadlines Widget */}
               <div className="lg:col-span-2 bg-gradient-to-br from-[#1a2b58]/5 to-transparent border border-[#1a2b58]/10 rounded-2xl p-4 relative overflow-hidden">
                 <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] text-[#1a2b58] pointer-events-none">
@@ -3425,7 +3513,7 @@ export default function WorkspaceApp() {
                         const hoursLeft = Math.max(0, Math.floor((task.dueDate! - now) / (1000 * 60 * 60)));
                         
                         return (
-                          <div key={task.id} className="bg-white/80 backdrop-blur border border-white/50 p-3 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between min-h-[72px]" onClick={() => setSelectedTodoId(task.id)}>
+                          <div key={task.id} className="bg-white/80 backdrop-blur border border-white/50 p-3 rounded-xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between min-h-[72px]" onClick={() => setSelectedTodoId(task.id)}>
                             <div className="flex items-start justify-between gap-2 mb-1.5">
                               <span className="text-xs font-normal text-gray-900 truncate leading-tight" title={task.title}>{task.title}</span>
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${isOverdue ? 'bg-red-100 text-red-600' : hoursLeft < 24 ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
@@ -3540,7 +3628,7 @@ export default function WorkspaceApp() {
  >
  {isCountdownExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
  <span>Countdown</span>
- <span className="text-xs bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
+ <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-800 ml-1.5">
  {allActiveViewTodos.filter(t => !t.completed && t.tags && t.tags.includes('Countdown')).length}
  </span>
  </button>
@@ -3631,7 +3719,7 @@ export default function WorkspaceApp() {
  <span>
  {viewMode === 'today' ? `${format(new Date(), 'EEEE')}, Today` : viewMode === 'trash' ? 'Deleted Trash Bin' : viewMode === 'completed' ? 'Historical Active Logs' : getViewTitle()}
  </span>
- <span className="text-xs bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
+ <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-800 ml-1.5">
  {allActiveViewTodos.filter(t => !t.completed).length}
  </span>
  </button>
@@ -3731,7 +3819,7 @@ export default function WorkspaceApp() {
 )}
                         </span>
                         {todo.description && (
-                          <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
+                          <p className="text-xs text-gray-500 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
                         )}
                         {todo.subtasks && todo.subtasks.length > 0 && (
                           <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
@@ -3831,7 +3919,7 @@ export default function WorkspaceApp() {
 )}
               </span>
               {todo.description && (
-                <p className="text-base text-gray-400 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
+                <p className="text-xs text-gray-500 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
               )}
               {todo.subtasks && todo.subtasks.length > 0 && (
                 <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
@@ -3897,7 +3985,7 @@ export default function WorkspaceApp() {
  >
  {isCompletedSectionExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
  <span>Completed</span>
- <span className="text-xs bg-gray-100 px-1.5 py-0.2 rounded font-medium text-gray-400 ml-1.5">
+ <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-800 ml-1.5">
  {allActiveViewTodos.filter(t => t.completed).length}
  </span>
  </button>
@@ -4169,7 +4257,7 @@ export default function WorkspaceApp() {
  </div>
  <div className="space-y-2">
  {todos.filter(t => !t.completed && !t.deletedAt && t.priority === 1).map(todo => (
- <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3.5 bg-red-50/30 border border-red-100 rounded-xl hover:shadow transition-all cursor-pointer flex justify-between items-center">
+ <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3.5 bg-red-50/30 border border-red-100 rounded-xl hover:shadow transition-all hover:-translate-y-0.5 cursor-pointer flex justify-between items-center">
  <div className="flex items-center space-x-2.5">
  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
  <span className="text-xs font-medium text-gray-800 flex items-center gap-1.5">
@@ -4378,7 +4466,7 @@ export default function WorkspaceApp() {
  </div>
  <div className="space-y-2">
  {todos.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 10).map(todo => (
- <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3 bg-white border border-gray-100 hover:border-[#1a2b58] cursor-pointer rounded-xl flex justify-between items-center">
+ <div key={todo.id} onClick={() => setSelectedTodoId(todo.id)} className="p-3 bg-white border border-gray-100 hover:border-[#1a2b58] hover:-translate-y-0.5 transition-all cursor-pointer rounded-xl flex justify-between items-center">
  <span className="text-xs font-medium flex items-center gap-1.5">
  {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
  {getActiveDependenciesCount(todo) > 0 ? (

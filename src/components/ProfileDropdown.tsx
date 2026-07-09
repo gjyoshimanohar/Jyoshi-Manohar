@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Key, LogOut, ChevronDown } from 'lucide-react';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
 interface ProfileDropdownProps {
@@ -15,9 +16,28 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [profileName, setProfileName] = useState('');
   
   const user = auth.currentUser;
-  const initial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
+  
+  useEffect(() => {
+    if (!user) return;
+    const docRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.displayName) {
+          setProfileName(data.displayName);
+        } else if (data.firstName) {
+          setProfileName(data.firstName + (data.lastName ? ' ' + data.lastName : ''));
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const displayName = profileName || user?.displayName || user?.email?.split('@')[0] || 'User';
+  const initial = displayName.charAt(0).toUpperCase();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -40,7 +60,7 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
         </div>
         <div className="flex flex-col items-start hidden sm:flex">
           <span className="text-xs font-semibold text-slate-800 leading-tight max-w-[120px] truncate">
-            {user?.email || 'User'}
+            {displayName}
           </span>
           <span className="text-[10px] text-slate-500 font-medium tracking-wide uppercase">
             Account
@@ -59,8 +79,8 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
             className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden z-50 origin-top-right"
           >
             <div className="p-4 bg-slate-50 border-b border-slate-100">
-              <p className="text-sm font-semibold text-slate-800 truncate">{user?.email}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Manage your account</p>
+              <p className="text-sm font-semibold text-slate-800 truncate">{displayName}</p>
+              <p className="text-xs text-slate-500 mt-0.5 truncate">{user?.email}</p>
             </div>
             
             <div className="p-2 space-y-1">
