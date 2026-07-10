@@ -9,7 +9,8 @@ import {
   updateDoc, 
   deleteDoc, 
   orderBy,
-  limit
+  limit,
+  where
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { FinanceRecord, PaymentAccount } from '../types';
@@ -53,6 +54,18 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 }
 
 export const financeService = {
+  async getRecordByInvoiceId(invoiceId: string): Promise<FinanceRecord | null> {
+    try {
+      const q = query(collection(db, COLLECTION_NAME), where('invoiceId', '==', invoiceId), limit(1));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return null;
+      return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as FinanceRecord;
+    } catch (error) {
+      console.error(error);
+      return null;
+    }
+  },
+
   async getAllRecords(): Promise<FinanceRecord[]> {
     try {
       const q = query(collection(db, COLLECTION_NAME), orderBy('date', 'desc'));

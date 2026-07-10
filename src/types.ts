@@ -132,6 +132,7 @@ export interface FinanceRecord {
   transferToAccountId?: string;
   isReceivableFromClient?: boolean;
   isReimbursed?: boolean;
+  invoiceId?: string;
 }
 
 export interface UserProfile {
@@ -148,8 +149,18 @@ export interface UserProfile {
   dailyTaskGoal?: number;
 }
 
+export interface InvoicePayment {
+  id: string;
+  date: string;
+  amount: number;
+  method: string;
+  reference?: string;
+}
+
 export interface InvoiceItem {
   id: string;
+  taxable?: boolean;
+  type?: 'service' | 'product' | 'time' | 'expense';
   description: string;
   quantity: number;
   rate: number;
@@ -158,6 +169,7 @@ export interface InvoiceItem {
 
 export interface Invoice {
   id: string;
+  documentType?: 'invoice' | 'estimate';
   userId: string;
   invoiceNumber: string;
   clientName: string;
@@ -168,7 +180,7 @@ export interface Invoice {
   senderAddress?: string;
   issueDate: string;
   dueDate: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  status: 'draft' | 'sent' | 'paid' | 'partial' | 'overdue' | 'cancelled';
   items: InvoiceItem[];
   taxRate: number;
   discount: number;
@@ -180,4 +192,8 @@ export interface Invoice {
   total: number;
   notes?: string;
   createdAt: number;
+  isRecurring?: boolean;
+  recurringInterval?: 'weekly' | 'monthly' | 'yearly';
+  amountPaid?: number;
+  payments?: InvoicePayment[];
 }
