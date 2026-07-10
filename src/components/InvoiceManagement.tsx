@@ -151,6 +151,16 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
     setInvoiceNumber(`INV-${year}-${String(count).padStart(4, '0')}`);
   }, [isFormOpen, selectedInvoice, invoices]);
 
+  
+  useEffect(() => {
+    const handleOpen = () => {
+      resetForm();
+      setIsFormOpen(true);
+    };
+    window.addEventListener('OPEN_CREATE_INVOICE', handleOpen);
+    return () => window.removeEventListener('OPEN_CREATE_INVOICE', handleOpen);
+  }, []);
+
   // Calculations
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
   const taxableSubtotal = items.reduce((sum, item) => sum + (item.taxable !== false ? item.amount : 0), 0);

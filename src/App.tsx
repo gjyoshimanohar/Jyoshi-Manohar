@@ -29,15 +29,15 @@ function lazyWithRetry(componentImport: () => Promise<any>) {
   });
 }
 
-// Lazy load route pages with retry mechanism to prevent module-execution/chunk issues
-const Home = lazyWithRetry(() => import('./pages/Home'));
-const BlogList = lazyWithRetry(() => import('./pages/BlogList'));
-const BlogPost = lazyWithRetry(() => import('./pages/BlogPost'));
-const Admin = lazyWithRetry(() => import('./pages/Admin'));
-const Tasks = lazyWithRetry(() => import('./pages/Tasks'));
-const ClientDashboard = lazyWithRetry(() => import('./pages/ClientDashboard'));
-const UserProfile = lazyWithRetry(() => import('./pages/UserProfile'));
-const UnderConstruction = lazyWithRetry(() => import('./pages/UnderConstruction'));
+// Static import of route pages to prevent module-execution/chunk issues and dynamic import failures
+import Home from './pages/Home';
+import BlogList from './pages/BlogList';
+import BlogPost from './pages/BlogPost';
+import Admin from './pages/Admin';
+import Tasks from './pages/Tasks';
+import ClientDashboard from './pages/ClientDashboard';
+import UserProfile from './pages/UserProfile';
+import UnderConstruction from './pages/UnderConstruction';
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
