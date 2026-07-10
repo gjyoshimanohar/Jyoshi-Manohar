@@ -25,7 +25,7 @@ export default function UnderConstruction() {
  
  <Link 
  to="/"
- className="inline-flex items-center space-x-2 bg-primary text-white px-8 py-4 font-medium uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
+ className="inline-flex items-center space-x-2 bg-primary text-white px-8 py-4 font-medium uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-full"
  >
  <ArrowLeft className="h-4 w-4" />
  <span>Return Home</span>

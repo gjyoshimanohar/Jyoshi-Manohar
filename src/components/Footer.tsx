@@ -3,7 +3,7 @@ import { Mail, Phone, MapPin, Linkedin, Twitter, Scale } from 'lucide-react';
 
 export default function Footer() {
  return (
- <footer className="relative bg-blue-950 text-white pt-16 pb-8 overflow-hidden mt-20">
+ <footer className="relative bg-primary text-white pt-16 pb-8 overflow-hidden mt-20">
  {/* Background Decorative Rings/Circles in top right */}
  <div className="absolute top-0 right-0 w-full h-full overflow-hidden pointer-events-none hidden md:block">
  <svg className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 opacity-10" width="800" height="800" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -21,7 +21,7 @@ export default function Footer() {
  <div className="relative z-10 w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
  
  {/* Highlight CTA Box */}
- <div className="bg-blue-900 rounded-2xl p-10 md:p-12 mb-12 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 shadow-xl">
+ <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-10 md:p-12 mb-12 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 shadow-xl">
  <div className="max-w-3xl">
  <h2 className="text-3xl md:text-4xl font-display font-medium text-white tracking-tight leading-tight mb-4">
  Ready to take your business to the next level?
@@ -33,7 +33,7 @@ export default function Footer() {
  <div className="flex flex-col sm:flex-row items-center gap-4 shrink-0 w-full lg:w-auto">
  <Link 
  to="/#contact"
- className="w-full sm:w-auto text-center inline-flex items-center justify-center px-8 py-4 bg-white hover:bg-gray-100 text-[#AD8D3E] text-sm font-medium rounded-full transition-all shadow-md"
+ className="w-full sm:w-auto text-center inline-flex items-center justify-center px-8 py-4 bg-white hover:bg-gray-100 text-secondary text-sm font-medium rounded-full transition-all shadow-md"
  >
  Book your Appointment now
  </Link>
@@ -54,7 +54,7 @@ export default function Footer() {
  <div className="col-span-1 md:col-span-4 space-y-6">
  <div className="flex items-center space-x-3">
  <div className="w-10 h-10 bg-white flex items-center justify-center rounded-sm shadow-sm">
- <span className="text-[#17459b] text-lg tracking-tighter">JM</span>
+ <span className="text-primary text-lg tracking-tighter">JM</span>
  </div>
  <span className="font-medium text-xl tracking-tight text-white font-display uppercase">
  Jyoshi Manohar

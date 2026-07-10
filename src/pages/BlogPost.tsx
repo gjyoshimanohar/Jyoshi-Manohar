@@ -113,7 +113,7 @@ export default function BlogPost() {
  </Link>
  
  <div className="mb-6">
- <span className="inline-[35x] items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full shadow-sm">
+ <span className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full shadow-sm">
  {post.category}
  </span>
  </div>

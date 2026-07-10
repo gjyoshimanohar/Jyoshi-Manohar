@@ -30,7 +30,7 @@ export default function BlogCard({ post, index }: BlogCardProps) {
  <div className="relative z-10 flex flex-col h-full justify-between gap-6">
  <div className="max-w-2xl">
  <div className="flex items-center space-x-3 mb-6">
- <span className="text-xs text-[#FF6B4A] group-hover:text-secondary transition-colors duration-500 uppercase tracking-[0.2em]">{post.category}</span>
+ <span className="text-xs text-secondary group-hover:text-secondary transition-colors duration-500 uppercase tracking-[0.2em]">{post.category}</span>
  <span className="text-black/30 transition-colors duration-500">•</span>
  <span className="text-xs font-medium text-black transition-colors duration-500 uppercase tracking-widest">{post.date}</span>
  </div>

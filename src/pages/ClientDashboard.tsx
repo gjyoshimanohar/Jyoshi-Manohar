@@ -367,7 +367,7 @@ export default function ClientDashboard() {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   // Admin Check
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = user?.email === "gjyoshimanohar@gmail.com";
 
   // Dashboard Data State
   const [applications, setApplications] = useState<Application[]>([]);
@@ -572,14 +572,11 @@ export default function ClientDashboard() {
       setUser(currentUser);
       if (currentUser) {
         const isAdminUser = currentUser.email === "gjyoshimanohar@gmail.com";
-        setIsAdmin(isAdminUser);
         if (isAdminUser && !selectedClientId) {
           setActiveTab("portal-dashboard");
         }
         // If logged in, automatically trigger seeding if they have no records yet
         await ensureDataIsSeeded(currentUser);
-      } else {
-        setIsAdmin(false);
       }
       setLoading(false);
     });
@@ -3379,7 +3376,7 @@ Stewardship, Accuracy, Legacy.
               <button
                 type="submit"
                 disabled={authLoading}
-                className="w-full bg-primary text-white py-3.5 rounded-xl font-medium text-xs uppercase tracking-widest hover:bg-secondary transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center space-x-2 mt-4 cursor-pointer"
+                className="w-full bg-primary text-white py-3.5 rounded-full font-medium text-xs uppercase tracking-widest hover:bg-secondary transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-center space-x-2 mt-4 cursor-pointer"
               >
                 {authLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -3406,7 +3403,7 @@ Stewardship, Accuracy, Legacy.
             <button
               onClick={handleDemoSignIn}
               disabled={authLoading}
-              className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200/70 text-slate-700 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 group transition-all"
+              className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200/70 text-slate-700 py-3 rounded-full text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 group transition-all"
             >
               <Sparkles className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform duration-300" />
               <span>Simulate client dashboard (Instant demo)</span>

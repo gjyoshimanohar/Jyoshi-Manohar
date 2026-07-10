@@ -41,7 +41,6 @@ export default function Admin() {
   const [editingPost, setEditingPost] = useState<Partial<BlogPost> | null>(
     null,
   );
-  const [isAdmin, setIsAdmin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -50,14 +49,12 @@ export default function Admin() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [activeAdminTab, setActiveAdminTab] = useState<"blogs" | "finances">("finances");
 
+  const isAdmin = user?.email === "gjyoshimanohar@gmail.com";
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
-      // Basic admin check based on email
-      if (u?.email === "gjyoshimanohar@gmail.com") {
-        setIsAdmin(true);
-      }
     });
     return unsubscribe;
   }, []);
@@ -237,7 +234,7 @@ export default function Admin() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-white p-12 border border-border shadow-2xl text-left"
+          className="max-w-md w-full bg-white p-12 border border-border shadow-2xl text-left rounded-3xl"
         >
           <div className="text-center mb-8">
             <h1 className="text-4xl text-primary mb-2">Admin Portal</h1>
@@ -254,7 +251,7 @@ export default function Admin() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl font-medium text-primary focus:bg-white focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
                 placeholder="Enter your email"
                 required
               />
@@ -267,14 +264,14 @@ export default function Admin() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl font-medium text-primary focus:bg-white focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
                 placeholder="Enter your password"
                 required
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-primary text-white py-4 px-6 uppercase tracking-widest hover:bg-secondary transition-colors flex items-center justify-center space-x-3 mt-4 rounded-md"
+              className="w-full bg-primary text-white py-4 px-6 uppercase tracking-widest hover:bg-secondary transition-all flex items-center justify-center space-x-3 mt-4 rounded-full shadow-md hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
             >
               <span>Sign In</span>
             </button>
@@ -287,18 +284,26 @@ export default function Admin() {
   if (!isAdmin) {
     return (
       <div className="min-h-screen pt-32 pb-24 bg-accent flex items-center justify-center">
-        <div className="max-w-md w-full bg-white p-12 border border-border text-center">
+        <div className="max-w-md w-full bg-white p-12 border border-border text-center rounded-3xl shadow-xl">
           <X className="h-16 w-16 text-red-500 mx-auto mb-6" />
-          <h1 className="text-3xl text-primary mb-4">Access Denied</h1>
-          <p className="text-black mb-8 font-medium">
-            You do not have permission to access the admin area.
+          <h1 className="text-3xl text-primary mb-4 font-bold">Access Denied</h1>
+          <p className="text-slate-600 mb-8 font-medium">
+            You do not have permission to access the Admin Portal.
           </p>
-          <button
-            onClick={handleLogout}
-            className="text-primary uppercase tracking-widest underline decoration-2 underline-offset-4"
-          >
-            Sign Out
-          </button>
+          <div className="flex flex-col gap-3">
+            <Link
+              to="/dashboard"
+              className="w-full bg-primary text-white py-3 px-6 uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-full text-center font-bold"
+            >
+              Go to Client Portal
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="w-full bg-slate-100 text-slate-700 py-3 px-6 uppercase text-xs tracking-widest hover:bg-slate-200 transition-all rounded-full font-bold"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -322,7 +327,7 @@ export default function Admin() {
           <div className="flex items-center space-x-4">
             <Link
               to="/dashboard"
-              className="flex items-center space-x-2 bg-slate-100 text-black px-6 py-3 uppercase text-xs tracking-widest hover:bg-slate-200 transition-all rounded-md"
+              className="flex items-center space-x-2 bg-slate-100 text-black px-6 py-3 uppercase text-xs tracking-widest hover:bg-slate-200 transition-all rounded-full"
             >
               <LayoutDashboard className="h-4 w-4" />
               <span>Client Dashboard</span>
@@ -331,26 +336,26 @@ export default function Admin() {
               !confirmSeed ? (
                 <button
                   onClick={() => setConfirmSeed(true)}
-                  className="flex items-center space-x-2 bg-white border border-border px-6 py-3 uppercase text-xs tracking-widest hover:border-primary transition-all hidden sm:flex"
+                  className="flex items-center space-x-2 bg-white border border-border px-6 py-3 uppercase text-xs tracking-widest hover:border-primary transition-all hidden sm:flex rounded-full"
                 >
                   <Database className="h-4 w-4" />
                   <span>Sync Defaults</span>
                 </button>
               ) : (
-                <div className="flex items-center space-x-2 bg-white border border-border pr-2 py-1 pl-4 hidden sm:flex">
+                <div className="flex items-center space-x-2 bg-white border border-border pr-2 py-1 pl-4 hidden sm:flex rounded-full">
                   <span className="font-medium text-xs">Are you sure?</span>
                   <button
                     onClick={() => {
                       handleSeedData();
                       setConfirmSeed(false);
                     }}
-                    className="px-3 py-2 bg-secondary text-white font-medium text-xs"
+                    className="px-3 py-2 bg-secondary text-white font-medium text-xs rounded-full"
                   >
                     Yes
                   </button>
                   <button
                     onClick={() => setConfirmSeed(false)}
-                    className="px-3 py-2 bg-slate-200 text-black font-medium text-xs"
+                    className="px-3 py-2 bg-slate-200 text-black font-medium text-xs rounded-full"
                   >
                     No
                   </button>
@@ -360,7 +365,7 @@ export default function Admin() {
             {activeAdminTab === "blogs" && (
               <button
                 onClick={() => setEditingPost({})}
-                className="flex items-center space-x-2 bg-primary text-white px-6 py-3 uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-md"
+                className="flex items-center space-x-2 bg-primary text-white px-6 py-3 uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5"
               >
                 <Plus className="h-4 w-4" />
                 <span>New Post</span>
@@ -598,7 +603,7 @@ export default function Admin() {
                 <div className="pt-4">
                   <button
                     type="submit"
-                    className="bg-primary text-white px-12 py-5 uppercase tracking-[0.2em] hover:bg-secondary transition-all flex items-center space-x-3 rounded-md"
+                    className="bg-primary text-white px-12 py-5 uppercase tracking-[0.2em] hover:bg-secondary transition-all flex items-center space-x-3 rounded-full shadow-md hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
                   >
                     <Save className="h-5 w-5" />
                     <span>Publish to Website</span>

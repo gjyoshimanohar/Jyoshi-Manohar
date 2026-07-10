@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import CustomSelect from './CustomSelect';
 import { 
   Plus, Trash2, Eye, Edit2, Download, CheckCircle, Clock, 
   AlertCircle, XCircle, Printer, ArrowLeft, Mail, FileText, 
-  Check, DollarSign, Calendar, ChevronRight, Send, Search, Filter, ShieldAlert
+  Check, DollarSign, Calendar, ChevronRight, Send, Search, Filter, ShieldAlert, MessageSquare, Layers
 } from 'lucide-react';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { settingsService, InvoiceSettings } from '../services/settingsService';
 import { productService, Product } from '../services/productService';
 import { invoiceService } from '../services/invoiceService';
 import { financeService } from '../services/financeService';
-import { Invoice, InvoiceItem, InvoicePayment } from '../types';
+import { Invoice, InvoiceItem, InvoicePayment, PaymentAccount } from '../types';
 import { format, isAfter, parseISO } from 'date-fns';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
@@ -36,7 +37,8 @@ interface InvoiceManagementProps {
   clients?: ClientType[];
 }
 
-export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagementProps) {
+export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: InvoiceManagementProps) {
+  const isAdmin = propIsAdmin && auth.currentUser?.email === 'gjyoshimanohar@gmail.com';
   // States
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,24 +72,317 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
     { id: '1', description: 'Consulting Services', quantity: 1, rate: 150, amount: 150 }
   ]);
     const [formStatus, setFormStatus] = useState<'draft' | 'sent' | 'paid' | 'partial' | 'overdue' | 'cancelled'>('draft');
+    const [taxStructure, setTaxStructure] = useState<'standard' | 'gst'>('gst');
+    const [gstType, setGstType] = useState<'intrastate' | 'interstate'>('intrastate');
 
   // Recurring & Payment States
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringInterval, setRecurringInterval] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [payments, setPayments] = useState<InvoicePayment[]>([]);
+  const [templateId, setTemplateId] = useState<'standard' | 'modern' | 'elegant' | 'compact' | 'fresh'>('standard');
+  const [viewTemplateId, setViewTemplateId] = useState<'standard' | 'modern' | 'elegant' | 'compact' | 'fresh'>('standard');
   
   // Payment Modal States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [paymentReference, setPaymentReference] = useState('');
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
+  
+  // Template Showcase States
+  const [isTemplateShowcaseOpen, setIsTemplateShowcaseOpen] = useState(false);
+  const [previewTemplateId, setPreviewTemplateId] = useState<'standard' | 'modern' | 'elegant' | 'compact' | 'fresh'>('standard');
+
+  // Reminders Modals State
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [reminderChannel, setReminderChannel] = useState<'email' | 'whatsapp'>('email');
+  const [reminderSubject, setReminderSubject] = useState('');
+  const [reminderBody, setReminderBody] = useState('');
+  const [reminderMobile, setReminderMobile] = useState('');
+  const [reminderTemplate, setReminderTemplate] = useState<'gentle' | 'formal' | 'urgent' | 'custom'>('gentle');
+  const [isLedgerExpanded, setIsLedgerExpanded] = useState(false);
+
+  const applyReminderTemplate = (type: 'gentle' | 'formal' | 'urgent' | 'custom', invoice: Invoice) => {
+    setReminderTemplate(type);
+    if (type === 'custom') return;
+    
+    const symbol = getCurrencySymbol(invoice.currency);
+    const amountStr = `${symbol}${invoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    if (type === 'gentle') {
+      setReminderSubject(`Friendly Payment Reminder: ${invoice.invoiceNumber}`);
+      setReminderBody(`Dear ${invoice.clientName},\n\nHope you are doing well.\n\nThis is a gentle heads-up that invoice ${invoice.invoiceNumber} for ${amountStr} is outstanding and due on ${invoice.dueDate}.\n\nYou can view and pay this invoice securely from your client portal dashboard. Thank you so much for your partnership!\n\nBest regards,\nJyoshi Manohar\nChartered Accountant`);
+    } else if (type === 'formal') {
+      setReminderSubject(`Professional Invoice Payment Request: ${invoice.invoiceNumber}`);
+      setReminderBody(`Dear ${invoice.clientName},\n\nI hope this message finds you well.\n\nPlease find on your client portal invoice ${invoice.invoiceNumber} for professional services, totaling ${amountStr}.\n\nThis payment is due on ${invoice.dueDate}. Please arrange for bank wire or checking transfer using our portal guidelines. If payment has already been sent, please disregard this automated reminder.\n\nBest regards,\nJyoshi Manohar\nChartered Accountant`);
+    } else if (type === 'urgent') {
+      setReminderSubject(`URGENT: Past-Due Accounting Invoice Notice - ${invoice.invoiceNumber}`);
+      setReminderBody(`Dear ${invoice.clientName},\n\nThis is an urgent notice that invoice ${invoice.invoiceNumber} (${amountStr}) is now past due. The original due date was ${invoice.dueDate}.\n\nPlease remit the outstanding balance immediately to avoid late fee penalty accumulation or service disruption. Payments can be processed securely on your client dashboard.\n\nIf there are any concerns or questions regarding this balance, please reach out directly.\n\nBest regards,\nJyoshi Manohar\nChartered Accountant`);
+    }
+  };
+
+  const handleApplyLateFee = async (invoice: Invoice) => {
+    const feeInput = window.prompt("Enter late fee / overdue interest penalty amount in INR:", "500");
+    if (feeInput === null) return;
+    const feeAmount = parseFloat(feeInput);
+    if (isNaN(feeAmount) || feeAmount <= 0) {
+      alert("Please enter a valid positive number.");
+      return;
+    }
+
+    const lateFeeItem: InvoiceItem = {
+      id: Math.random().toString(36).substring(2, 9),
+      type: 'expense',
+      taxable: false,
+      description: `Late Fee & Overdue Interest Penalty (${format(new Date(), 'dd-MMM-yyyy')})`,
+      quantity: 1,
+      rate: feeAmount,
+      amount: feeAmount
+    };
+
+    const updatedItems = [...invoice.items, lateFeeItem];
+    
+    // Recalculate totals
+    const newSubtotal = updatedItems.reduce((sum, item) => sum + item.amount, 0);
+    const newTaxableSubtotal = updatedItems.reduce((sum, item) => sum + (item.taxable !== false ? item.amount : 0), 0);
+    
+    const struct = invoice.taxStructure || 'standard';
+    const gstTypeVal = invoice.gstType || 'intrastate';
+    const rateVal = invoice.taxRate || 0;
+    
+    let cgstRate = 0;
+    let sgstRate = 0;
+    let igstRate = 0;
+    let cgstAmount = 0;
+    let sgstAmount = 0;
+    let igstAmount = 0;
+    let taxAmount = 0;
+
+    if (struct === 'gst') {
+      if (gstTypeVal === 'intrastate') {
+        cgstRate = rateVal / 2;
+        sgstRate = rateVal / 2;
+        cgstAmount = (newTaxableSubtotal * cgstRate) / 100;
+        sgstAmount = (newTaxableSubtotal * sgstRate) / 100;
+        taxAmount = cgstAmount + sgstAmount;
+      } else {
+        igstRate = rateVal;
+        igstAmount = (newTaxableSubtotal * igstRate) / 100;
+        taxAmount = igstAmount;
+      }
+    } else {
+      taxAmount = (newTaxableSubtotal * rateVal) / 100;
+    }
+
+    const discType = invoice.discountType || 'fixed';
+    const computedDiscount = discType === 'percentage' ? (newSubtotal * invoice.discount) / 100 : invoice.discount;
+    const newTotal = newSubtotal + taxAmount - computedDiscount;
+
+    try {
+      const updatedFields: Partial<Invoice> = {
+        items: updatedItems,
+        subtotal: newSubtotal,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        total: newTotal
+      };
+
+      await invoiceService.updateInvoice(invoice.id, updatedFields);
+      
+      setSelectedInvoice({
+        ...invoice,
+        ...updatedFields
+      });
+
+      alert(`Overdue penalty of ₹${feeAmount.toFixed(2)} applied successfully!`);
+    } catch (err) {
+      console.error("Error applying late fee", err);
+      alert("Failed to apply late fee. Please try again.");
+    }
+  };
 
   // Products & Settings
   const [products, setProducts] = useState<Product[]>([]);
   const [isProductsModalOpen, setIsProductsModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Convert Estimate to Active Invoice
+  const handleConvertEstimate = async (invoice: Invoice) => {
+    if (!auth.currentUser) return;
+    if (!window.confirm("Are you sure you want to convert this estimate into an invoice? This registers the transaction and assigns an invoice number.")) return;
+    
+    try {
+      const count = invoices.filter(inv => inv.documentType === 'invoice').length + 1;
+      const year = new Date().getFullYear();
+      const newInvNumber = `INV-${year}-${String(count).padStart(4, '0')}`;
+      
+      const updatedFields: Partial<Invoice> = {
+        documentType: 'invoice',
+        invoiceNumber: newInvNumber,
+        status: 'sent',
+        issueDate: format(new Date(), 'yyyy-MM-dd'),
+        dueDate: format(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
+      };
+
+      await invoiceService.updateInvoice(invoice.id, updatedFields);
+      
+      // Register in Finance Database
+      await financeService.createRecord({
+        type: 'income',
+        category: 'Sales',
+        amount: invoice.total,
+        description: `Invoice ${newInvNumber} (Converted from Estimate ${invoice.invoiceNumber})`,
+        date: updatedFields.issueDate!,
+        status: 'pending',
+        clientName: invoice.clientName,
+        invoiceId: invoice.id
+      });
+
+      setSelectedInvoice({
+        ...invoice,
+        ...updatedFields
+      });
+      
+      alert(`Estimate successfully converted to Invoice ${newInvNumber}!`);
+    } catch (err) {
+      console.error("Error converting estimate to invoice", err);
+      alert("Failed to convert estimate. Please try again.");
+    }
+  };
+
+  // CSV Ledger Export function
+  const handleExportCSV = () => {
+    if (filteredInvoices.length === 0) {
+      alert("No invoices found to export.");
+      return;
+    }
+
+    const headers = [
+      "Invoice/Estimate Number",
+      "Doc Type",
+      "Client Name",
+      "Client Email",
+      "Issue Date",
+      "Due Date",
+      "Subtotal",
+      "Tax Structure",
+      "Tax Rate (%)",
+      "Discount",
+      "Grand Total",
+      "Amount Paid",
+      "Status",
+      "Is Recurring"
+    ];
+
+    const rows = filteredInvoices.map(inv => [
+      inv.invoiceNumber,
+      inv.documentType || 'invoice',
+      `"${inv.clientName.replace(/"/g, '""')}"`,
+      inv.clientEmail,
+      inv.issueDate,
+      inv.dueDate,
+      inv.subtotal.toFixed(2),
+      inv.taxStructure || 'standard',
+      inv.taxRate,
+      inv.discount.toFixed(2),
+      inv.total.toFixed(2),
+      (inv.amountPaid || 0).toFixed(2),
+      inv.status,
+      inv.isRecurring ? "Yes" : "No"
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(e => e.join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Invoice_Ledger_Export_${format(new Date(), 'yyyyMMdd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Pre-fill fields for customized reminders
+  const openReminderModal = (invoice: Invoice) => {
+    // Attempt to extract mobile from address or use empty
+    const mobileMatch = invoice.clientAddress?.match(/\+?[0-9]{10,15}/)?.[0] || '';
+    setReminderMobile(mobileMatch);
+    setReminderChannel('email');
+    applyReminderTemplate('gentle', invoice);
+    setIsReminderModalOpen(true);
+  };
+
+  const handleSendReminder = async () => {
+    if (!selectedInvoice) return;
+    
+    const newReminder = {
+      id: Math.random().toString(36).substring(2, 9),
+      date: format(new Date(), 'yyyy-MM-dd HH:mm'),
+      channel: reminderChannel,
+      recipient: reminderChannel === 'email' ? selectedInvoice.clientEmail : reminderMobile || selectedInvoice.clientName,
+      message: reminderBody
+    };
+
+    const updatedReminders = [...(selectedInvoice.reminders || []), newReminder];
+
+    try {
+      await invoiceService.updateInvoice(selectedInvoice.id, {
+        reminders: updatedReminders
+      });
+
+      setSelectedInvoice({
+        ...selectedInvoice,
+        reminders: updatedReminders
+      });
+
+      if (reminderChannel === 'whatsapp') {
+        const encodedText = encodeURIComponent(reminderBody);
+        const cleanPhone = reminderMobile.replace(/[^0-9]/g, '');
+        const waUrl = cleanPhone 
+          ? `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedText}`
+          : `https://web.whatsapp.com/send?text=${encodedText}`;
+        window.open(waUrl, '_blank');
+      } else {
+        alert(`Email dispatch triggered successfully to ${selectedInvoice.clientEmail}!`);
+      }
+
+      setIsReminderModalOpen(false);
+    } catch (err) {
+      console.error("Error saving reminder log", err);
+      alert("Failed to save communication log. Please try again.");
+    }
+  };
+
+
+  // Load payment accounts from the database
+  useEffect(() => {
+    const q = query(collection(db, "payment_accounts"), orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const accountsList: PaymentAccount[] = [];
+      snapshot.forEach((docRef) => {
+        accountsList.push({ id: docRef.id, ...docRef.data() } as PaymentAccount);
+      });
+      setPaymentAccounts(accountsList);
+    }, (error) => {
+      console.error("Error fetching payment accounts in invoice management:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Pre-select the first bank account when payment modal is opened
+  useEffect(() => {
+    if (isPaymentModalOpen && paymentAccounts.length > 0) {
+      setSelectedBankAccountId(paymentAccounts[0].id);
+    }
+  }, [isPaymentModalOpen, paymentAccounts]);
 
 
   // Load invoices
@@ -164,7 +459,17 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
   // Calculations
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
   const taxableSubtotal = items.reduce((sum, item) => sum + (item.taxable !== false ? item.amount : 0), 0);
-  const taxAmount = (taxableSubtotal * taxRate) / 100;
+  
+  // GST Split calculations
+  const cgstRate = taxStructure === 'gst' && gstType === 'intrastate' ? taxRate / 2 : 0;
+  const sgstRate = taxStructure === 'gst' && gstType === 'intrastate' ? taxRate / 2 : 0;
+  const igstRate = taxStructure === 'gst' && gstType === 'interstate' ? taxRate : 0;
+
+  const cgstAmount = (taxableSubtotal * cgstRate) / 100;
+  const sgstAmount = (taxableSubtotal * sgstRate) / 100;
+  const igstAmount = (taxableSubtotal * igstRate) / 100;
+
+  const taxAmount = taxStructure === 'gst' ? (cgstAmount + sgstAmount + igstAmount) : ((taxableSubtotal * taxRate) / 100);
   const computedDiscount = discountType === 'percentage' ? (subtotal * discount) / 100 : discount;
   const total = subtotal + taxAmount - computedDiscount;
 
@@ -211,6 +516,14 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
       return;
     }
 
+    const calculatedCgstRate = taxStructure === 'gst' && gstType === 'intrastate' ? taxRate / 2 : 0;
+    const calculatedSgstRate = taxStructure === 'gst' && gstType === 'intrastate' ? taxRate / 2 : 0;
+    const calculatedIgstRate = taxStructure === 'gst' && gstType === 'interstate' ? taxRate : 0;
+
+    const calculatedCgstAmount = (taxableSubtotal * calculatedCgstRate) / 100;
+    const calculatedSgstAmount = (taxableSubtotal * calculatedSgstRate) / 100;
+    const calculatedIgstAmount = (taxableSubtotal * calculatedIgstRate) / 100;
+
     const payload = {
       userId: auth.currentUser.uid,
       invoiceNumber,
@@ -226,6 +539,14 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
       status: formStatus as any,
       items,
       taxRate,
+      taxStructure,
+      gstType,
+      cgstRate: calculatedCgstRate,
+      sgstRate: calculatedSgstRate,
+      igstRate: calculatedIgstRate,
+      cgstAmount: calculatedCgstAmount,
+      sgstAmount: calculatedSgstAmount,
+      igstAmount: calculatedIgstAmount,
       discount,
       discountType,
       currency,
@@ -237,7 +558,9 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
       isRecurring,
       recurringInterval,
       amountPaid,
-      payments
+      payments,
+      templateId,
+      reminders: selectedInvoice?.reminders || []
     };
 
     try {
@@ -294,7 +617,9 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
     setClientAddress('');
     setIssueDate(format(new Date(), 'yyyy-MM-dd'));
     setDueDate(format(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
-    setTaxRate(5);
+    setTaxRate(18); // Default standard GST 18%
+    setTaxStructure('gst');
+    setGstType('intrastate');
     setDiscount(0);
     setDiscountType('fixed');
     setPaymentTerms('Net 15');
@@ -306,6 +631,7 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
     setRecurringInterval('monthly');
     setAmountPaid(0);
     setPayments([]);
+    setTemplateId('standard');
   };
 
   const handleEdit = (invoice: Invoice) => {
@@ -321,6 +647,8 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
     setIssueDate(invoice.issueDate);
     setDueDate(invoice.dueDate);
     setTaxRate(invoice.taxRate);
+    setTaxStructure(invoice.taxStructure || 'standard');
+    setGstType(invoice.gstType || 'intrastate');
     setDiscount(invoice.discount);
     setDiscountType(invoice.discountType || 'fixed');
     setCurrency(invoice.currency || 'INR');
@@ -333,6 +661,7 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
     setRecurringInterval(invoice.recurringInterval || 'monthly');
     setAmountPaid(invoice.amountPaid || 0);
     setPayments(invoice.payments || []);
+    setTemplateId(invoice.templateId || 'standard');
     setIsFormOpen(true);
   };
 
@@ -383,6 +712,52 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
     const isOverdue = (i.status === 'sent' || i.status === 'overdue' || i.status === 'partial') && isAfter(new Date(), parseISO(i.dueDate));
     return sum + (isOverdue ? Math.max(0, i.total - (i.amountPaid || 0)) : 0);
   }, 0);
+
+  // Client Ledger aggregated statistics
+  const clientLedgerSummary = useMemo(() => {
+    const summaryMap: { 
+      [name: string]: { 
+        email: string; 
+        totalInvoiced: number; 
+        totalPaid: number; 
+        outstanding: number; 
+        remindersCount: number;
+        overdue: number;
+      } 
+    } = {};
+
+    invoices.forEach(inv => {
+      if (inv.documentType === 'estimate') return; // skip estimates
+      const name = inv.clientName || 'Unnamed Client';
+      if (!summaryMap[name]) {
+        summaryMap[name] = {
+          email: inv.clientEmail || '',
+          totalInvoiced: 0,
+          totalPaid: 0,
+          outstanding: 0,
+          remindersCount: 0,
+          overdue: 0
+        };
+      }
+
+      summaryMap[name].totalInvoiced += inv.total;
+      summaryMap[name].totalPaid += (inv.amountPaid || 0);
+      
+      const outstanding = inv.status === 'paid' ? 0 : (inv.total - (inv.amountPaid || 0));
+      summaryMap[name].outstanding += outstanding;
+      summaryMap[name].remindersCount += (inv.reminders?.length || 0);
+
+      const isOverdue = (inv.status === 'sent' || inv.status === 'overdue' || inv.status === 'partial') && isAfter(new Date(), parseISO(inv.dueDate));
+      if (isOverdue) {
+        summaryMap[name].overdue += outstanding;
+      }
+    });
+
+    return Object.entries(summaryMap).map(([clientName, stats]) => ({
+      clientName,
+      ...stats
+    }));
+  }, [invoices]);
 
   // Revenue Chart Data (Last 6 months)
   const chartData = React.useMemo(() => {
@@ -525,7 +900,7 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Received Payments
+              {isAdmin ? "Received Payments" : "Payments Made"}
             </span>
             <h4 className="text-xl font-bold text-emerald-600 tracking-tight mt-0.5">
               ₹{paidInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -563,6 +938,7 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
       </div>
 
       {/* FINANCIAL DASHBOARD CHARTS */}
+      {isAdmin && (
       <div className="no-print grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.03)] lg:col-span-2">
           <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">6-Month Revenue Trend</h3>
@@ -612,6 +988,98 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
           </div>
         </div>
       </div>
+      )}
+
+      {/* CLIENT LEDGER & COLLECTION INSIGHTS PANEL */}
+      {isAdmin && (
+        <div className="no-print bg-white rounded-2xl border border-slate-100 mb-6 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+          <button 
+            type="button"
+            onClick={() => setIsLedgerExpanded(!isLedgerExpanded)}
+            className="w-full px-6 py-4 bg-slate-50/50 flex items-center justify-between text-left hover:bg-slate-100/40 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <Layers className="w-5 h-5 text-[#1a2b58]" />
+              <div>
+                <h3 className="font-bold text-slate-950 text-sm">Client Ledger Summary & Collection Insights</h3>
+                <p className="text-xs text-slate-500 font-medium">Aggregated balances, payments received, and active chaser statistics by account</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600">
+              <span>{isLedgerExpanded ? 'Hide Ledger Details' : 'Show Ledger Details'}</span>
+              <ChevronRight className={`w-4 h-4 transition-transform ${isLedgerExpanded ? 'rotate-90' : ''}`} />
+            </div>
+          </button>
+
+          {isLedgerExpanded && (
+          <div className="p-6 border-t border-slate-100">
+            {clientLedgerSummary.length === 0 ? (
+              <p className="text-sm text-slate-500 italic text-center py-6">No client invoice activity recorded to construct ledger statements.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                      <th className="px-5 py-3">Client Account</th>
+                      <th className="px-5 py-3 text-right">Total Invoiced</th>
+                      <th className="px-5 py-3 text-right">Total Collected</th>
+                      <th className="px-5 py-3 text-right">Outstanding Balance</th>
+                      <th className="px-5 py-3 text-right text-rose-600">Overdue Amount</th>
+                      <th className="px-5 py-3 text-center">Reminders Dispatched</th>
+                      <th className="px-5 py-3 text-center no-print">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {clientLedgerSummary.map(row => (
+                      <tr key={row.clientName} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <div className="font-bold text-slate-900 text-sm">{row.clientName}</div>
+                          <div className="text-slate-400 mt-0.5">{row.email || 'No email associated'}</div>
+                        </td>
+                        <td className="px-5 py-3.5 text-right font-mono font-semibold text-slate-800">
+                          ₹{row.totalInvoiced.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-5 py-3.5 text-right font-mono font-semibold text-emerald-600 bg-emerald-50/10">
+                          ₹{row.totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-5 py-3.5 text-right font-mono font-bold text-indigo-600 bg-indigo-50/10">
+                          ₹{row.outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className={`px-5 py-3.5 text-right font-mono font-semibold ${row.overdue > 0 ? 'text-rose-600 bg-rose-50/10 font-bold' : 'text-slate-400'}`}>
+                          ₹{row.overdue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          <span className={`inline-flex items-center justify-center font-bold font-mono px-2 py-0.5 rounded-full text-2xs ${row.remindersCount > 0 ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-slate-100 text-slate-400'}`}>
+                            {row.remindersCount} Sent
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 text-center no-print">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const match = invoices.find(inv => inv.clientName === row.clientName && inv.status !== 'paid');
+                              if (match) {
+                                openReminderModal(match);
+                              } else {
+                                alert("No active outstanding invoices found for this client account to dispatch reminders.");
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:border-indigo-600 text-slate-700 hover:text-indigo-600 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer shadow-2xs"
+                            title="Dispatch payment demand reminder to client partner"
+                          >
+                            <Mail className="w-3.5 h-3.5" /> Chaser
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+               </div>
+             )}
+           </div>
+         )}
+       </div>
+      )}
 
       {/* ACTION TOOLBAR & FILTERS */}
       <div className="no-print bg-white rounded-2xl border border-slate-100 p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
@@ -647,13 +1115,25 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
           </div>
         </div>
 
-        {/* Create Invoice trigger */}
-        <button 
-          onClick={() => { resetForm(); setIsFormOpen(true); }}
-          className="flex items-center justify-center gap-2 bg-[#1a2b58] hover:bg-[#121f40] text-white font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
-        >
-          <Plus className="w-4 h-4" /> Generate Invoice
-        </button>
+        {/* Action Triggers */}
+        {isAdmin && (
+          <div className="flex gap-2 shrink-0">
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+              title="Download invoice catalog spreadsheet for audits"
+            >
+              <Download className="w-4 h-4 text-slate-500" /> Export CSV
+            </button>
+
+            <button 
+              onClick={() => { resetForm(); setIsFormOpen(true); }}
+              className="flex items-center justify-center gap-2 bg-[#1a2b58] hover:bg-[#121f40] text-white font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" /> Generate Invoice
+            </button>
+          </div>
+        )}
       </div>
 
       {/* MAIN DATA TABLE LIST */}
@@ -713,7 +1193,11 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                         <div className="flex items-center justify-end gap-1.5">
                           {/* View */}
                           <button 
-                            onClick={() => { setSelectedInvoice(invoice); setIsViewOpen(true); }}
+                            onClick={() => { 
+                              setSelectedInvoice(invoice); 
+                              setViewTemplateId(invoice.templateId || 'standard'); 
+                              setIsViewOpen(true); 
+                            }}
                             className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                             title="View Invoice Sheet"
                           >
@@ -721,7 +1205,7 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                           </button>
 
                           {/* Edit (only drafts or sent) */}
-                          {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                          {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
                             <button 
                               onClick={() => handleEdit(invoice)}
                               className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
@@ -732,7 +1216,7 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                           )}
 
                           {/* Mark as Paid / Unpaid */}
-                          {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                          {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
                             <button 
                               onClick={() => handleUpdateStatus(invoice, 'paid')}
                               className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
@@ -743,13 +1227,15 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                           )}
 
                           {/* Delete */}
-                          <button 
-                            onClick={() => handleDelete(invoice.id)}
-                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete invoice record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {isAdmin && (
+                            <button 
+                              onClick={() => handleDelete(invoice.id)}
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete invoice record"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -766,17 +1252,44 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[999] overflow-y-auto">
           <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-8">
             {/* Header controls */}
-            <div className="no-print bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="no-print bg-slate-50 px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center justify-between sm:justify-start gap-4">
                 <button 
                   onClick={() => setIsViewOpen(false)}
                   className="flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-[#1a2b58] cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" /> Back to List
                 </button>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Zoho Style:</span>
+                  <CustomSelect
+                    value={viewTemplateId}
+                    onChange={(val) => setViewTemplateId(val as any)}
+                    className="border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 focus:outline-none transition-all text-slate-700 shadow-sm"
+                    options={[
+                      { value: "standard", label: "💼 Standard" },
+                      { value: "modern", label: "✨ Modern Slate" },
+                      { value: "elegant", label: "🖋️ Elegant Editorial" },
+                      { value: "compact", label: "⚡ Compact Lite" },
+                      { value: "fresh", label: "🌱 Fresh Bold" }
+                    ]}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewTemplateId(viewTemplateId);
+                      setIsTemplateShowcaseOpen(true);
+                    }}
+                    className="no-print flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-300 bg-indigo-50/50 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer shadow-xs"
+                    title="Compare and view layout samples of all design templates"
+                  >
+                    Compare Styles 🎨
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 {/* Print Trigger */}
                 <button 
                   onClick={triggerPrint}
@@ -788,22 +1301,44 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                 {/* Admin Actions */}
                 {isAdmin ? (
                   <>
+                    {selectedInvoice.documentType === 'estimate' && (
+                      <button 
+                        onClick={() => handleConvertEstimate(selectedInvoice)}
+                        className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-sm"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Convert to Invoice
+                      </button>
+                    )}
+                    
+                    {selectedInvoice.documentType !== 'estimate' && (
+                      <button 
+                        onClick={() => setIsPaymentModalOpen(true)}
+                        className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+                      >
+                        <DollarSign className="w-3.5 h-3.5" /> Record Payment
+                      </button>
+                    )}
+
+                     {selectedInvoice.status !== 'paid' && selectedInvoice.status !== 'cancelled' && selectedInvoice.documentType !== 'estimate' && (
+                      <button 
+                        onClick={() => handleApplyLateFee(selectedInvoice)}
+                        className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+                        title="Add late fee penalty to invoice"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5" /> Apply Late Fee
+                      </button>
+                    )}
+
                     <button 
-                      onClick={() => setIsPaymentModalOpen(true)}
-                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-sm"
-                    >
-                      <DollarSign className="w-3.5 h-3.5" /> Record Payment
-                    </button>
-                    <button 
-                      onClick={() => alert(`Email dispatch queued successfully for ${selectedInvoice.clientEmail}`)}
+                      onClick={() => openReminderModal(selectedInvoice)}
                       className="flex items-center gap-1.5 bg-[#1a2b58] hover:bg-[#121f40] text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-sm"
                     >
-                      <Send className="w-3.5 h-3.5" /> Email Client
+                      <Mail className="w-3.5 h-3.5" /> Send Reminder / Mail
                     </button>
                   </>
                 ) : (
                   <>
-                    {selectedInvoice.status !== 'paid' && (
+                    {selectedInvoice.status !== 'paid' && selectedInvoice.documentType !== 'estimate' && (
                       <button 
                         onClick={() => {
                           alert("Redirecting to secure Stripe checkout gateway...");
@@ -826,118 +1361,271 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
             </div>
 
             {/* PRINTABLE AREA */}
-            <div id="print-invoice-modal" className="p-8 md:p-12 bg-white text-slate-800 flex-1">
-              {/* Header Letterhead */}
-              <div className="flex flex-col md:flex-row md:items-start justify-between border-b border-slate-100 pb-8 gap-6">
-                <div>
-                  <div className="text-2xl font-bold text-[#1a2b58] tracking-tight flex items-center gap-2">
-                    <FileText className="w-7 h-7 text-indigo-500" />
-                    <span>{selectedInvoice.senderName || 'Apex Consulting Ltd.'}</span>
+            <div id="print-invoice-modal" className={`p-8 md:p-12 bg-white text-slate-800 flex-1 relative ${
+              viewTemplateId === 'elegant' ? 'font-serif' : 'font-sans'
+            } ${viewTemplateId === 'compact' ? 'text-[11px]' : 'text-xs'}`}>
+
+              {/* HEADER SECTION SWITCHER */}
+              {viewTemplateId === 'standard' && (
+                <div className="flex flex-col md:flex-row md:items-start justify-between border-b border-slate-100 pb-8 gap-6 mb-6">
+                  <div>
+                    <div className="text-2xl font-bold text-[#1a2b58] tracking-tight flex items-center gap-2">
+                      <FileText className="w-7 h-7 text-indigo-500" />
+                      <span>{selectedInvoice.senderName || 'Apex Consulting Ltd.'}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2 max-w-sm whitespace-pre-line leading-relaxed">
+                      {selectedInvoice.senderAddress || '100 Financial Way, Suite 400, New York, NY 10005'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {selectedInvoice.senderEmail || 'billing@apexconsulting.com'}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2 max-w-sm whitespace-pre-line leading-relaxed">
+
+                  <div className="text-left md:text-right">
+                    <h1 className="text-3xl font-extrabold text-slate-900 uppercase tracking-tight">
+                      {selectedInvoice.documentType === 'estimate' ? 'Estimate' : 'Invoice'}
+                    </h1>
+                    <div className="font-mono text-sm font-bold text-indigo-600 mt-1">{selectedInvoice.invoiceNumber}</div>
+                    
+                    <div className="mt-4 grid grid-cols-2 md:block gap-2 text-xs">
+                      <div className="mb-1">
+                        <span className="text-slate-400 block md:inline md:mr-2">Date Issued:</span>
+                        <span className="font-semibold text-slate-800">{selectedInvoice.issueDate}</span>
+                      </div>
+                      <div>
+                        <span className="text-rose-400 block md:inline md:mr-2">Payment Due:</span>
+                        <span className="font-semibold text-rose-600">{selectedInvoice.dueDate}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {viewTemplateId === 'modern' && (
+                <div className="bg-slate-900 text-white -mx-8 -mt-8 p-8 md:-mx-12 md:-mt-12 md:p-10 mb-8 flex flex-col md:flex-row justify-between items-start gap-4">
+                  <div>
+                    <div className="text-2xl font-black tracking-wider uppercase text-slate-100 flex items-center gap-2">
+                      <FileText className="w-6 h-6 text-emerald-400" />
+                      <span>{selectedInvoice.senderName || 'Apex Consulting Ltd.'}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-3 whitespace-pre-line leading-relaxed max-w-sm">
+                      {selectedInvoice.senderAddress || '100 Financial Way, Suite 400, New York, NY 10005'}
+                    </p>
+                    <p className="text-xs text-emerald-300 mt-1.5 font-medium">
+                      {selectedInvoice.senderEmail || 'billing@apexconsulting.com'}
+                    </p>
+                  </div>
+                  <div className="text-left md:text-right md:min-w-[200px]">
+                    <h2 className="text-3xl font-black tracking-widest uppercase text-slate-400">
+                      {selectedInvoice.documentType === 'estimate' ? 'Estimate' : 'Invoice'}
+                    </h2>
+                    <div className="font-mono text-sm font-semibold text-emerald-400 mt-1">{selectedInvoice.invoiceNumber}</div>
+                    <div className="mt-4 text-xs text-slate-300 space-y-1 font-medium">
+                      <div>Issued: <span className="text-white">{selectedInvoice.issueDate}</span></div>
+                      <div>Due Date: <span className="text-white">{selectedInvoice.dueDate}</span></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {viewTemplateId === 'elegant' && (
+                <div className="text-center border-b-4 border-double border-slate-800 pb-6 mb-8">
+                  <div className="text-3xl font-serif italic tracking-tight text-slate-950 font-bold">{selectedInvoice.senderName || 'Apex Consulting Ltd.'}</div>
+                  <div className="text-xs text-slate-500 mt-1 font-serif tracking-wider uppercase font-semibold">Professional Services Statement</div>
+                  <p className="text-xs text-slate-600 mt-3 max-w-md mx-auto whitespace-pre-line leading-relaxed italic font-serif">
                     {selectedInvoice.senderAddress || '100 Financial Way, Suite 400, New York, NY 10005'}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-slate-500 mt-1.5 font-serif border-t border-slate-100 pt-2 inline-block px-4">
                     {selectedInvoice.senderEmail || 'billing@apexconsulting.com'}
                   </p>
-                </div>
-
-                <div className="text-left md:text-right">
-                  <h1 className="text-3xl font-extrabold text-slate-900 uppercase tracking-tight">Invoice</h1>
-                  <div className="font-mono text-sm font-bold text-indigo-600 mt-1">{selectedInvoice.invoiceNumber}</div>
                   
-                  <div className="mt-4 grid grid-cols-2 md:block gap-2 text-xs">
-                    <div className="mb-1">
-                      <span className="text-slate-400 block md:inline md:mr-2">Date Issued:</span>
-                      <span className="font-semibold text-slate-800">{selectedInvoice.issueDate}</span>
+                  <div className="flex flex-col sm:flex-row justify-between items-center mt-6 pt-4 text-xs text-slate-700">
+                    <div className="text-left">
+                      <span className="font-semibold uppercase tracking-wider text-[10px] text-slate-400 block">Statement Reference</span>
+                      <span className="font-mono text-sm font-bold text-slate-900">{selectedInvoice.invoiceNumber}</span>
                     </div>
-                    <div>
-                      <span className="text-rose-400 block md:inline md:mr-2">Payment Due:</span>
-                      <span className="font-semibold text-rose-600">{selectedInvoice.dueDate}</span>
+                    <div className="text-center my-2 sm:my-0">
+                      <span className="text-2xl font-serif font-bold uppercase tracking-widest text-slate-900">
+                        {selectedInvoice.documentType === 'estimate' ? 'Estimate' : 'Invoice'}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-semibold uppercase tracking-wider text-[10px] text-slate-400 block">Issue Date / Due Date</span>
+                      <span className="font-semibold">{selectedInvoice.issueDate}</span> to <span className="font-bold text-rose-700">{selectedInvoice.dueDate}</span>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Client & Sender Details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-8 text-xs leading-relaxed">
+              {viewTemplateId === 'compact' && (
+                <div className="flex justify-between items-center border-b border-slate-300 pb-3 mb-4">
+                  <div>
+                    <div className="font-bold text-[#1a2b58] text-base leading-tight">{selectedInvoice.senderName || 'Apex Consulting Ltd.'}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{selectedInvoice.senderAddress?.replace(/\n/g, ', ') || '100 Financial Way, NY 10005'} | {selectedInvoice.senderEmail || 'billing@apexconsulting.com'}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-black text-slate-900 uppercase tracking-wider">{selectedInvoice.documentType === 'estimate' ? 'ESTIMATE' : 'INVOICE'}</div>
+                    <div className="font-mono text-xs font-bold text-indigo-600">{selectedInvoice.invoiceNumber}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5 font-medium">Issued: {selectedInvoice.issueDate} | Due: {selectedInvoice.dueDate}</div>
+                  </div>
+                </div>
+              )}
+
+              {viewTemplateId === 'fresh' && (
+                <div className="border-l-8 border-emerald-500 pl-5 mb-8 flex flex-col md:flex-row justify-between items-start gap-4">
+                  <div>
+                    <div className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                      <span className="text-emerald-500">■</span>
+                      <span>{selectedInvoice.senderName || 'Apex Consulting Ltd.'}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-2 max-w-sm whitespace-pre-line leading-relaxed font-medium">
+                      {selectedInvoice.senderAddress || '100 Financial Way, Suite 400, New York, NY 10005'}
+                    </p>
+                    <p className="text-xs text-emerald-600 font-bold mt-1.5 flex items-center gap-1">
+                      <span>✉</span> {selectedInvoice.senderEmail || 'billing@apexconsulting.com'}
+                    </p>
+                  </div>
+                  <div className="text-left md:text-right">
+                    <h1 className="text-4xl font-black text-emerald-600 uppercase tracking-tight leading-none mb-1">
+                      {selectedInvoice.documentType === 'estimate' ? 'Estimate' : 'Invoice'}
+                    </h1>
+                    <div className="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold font-mono px-2.5 py-1 rounded-lg text-xs mt-1">
+                      {selectedInvoice.invoiceNumber}
+                    </div>
+                    <div className="mt-4 text-xs text-slate-500 space-y-0.5 font-semibold">
+                      <div>Issued Date: <span className="text-slate-800">{selectedInvoice.issueDate}</span></div>
+                      <div>Payment Due: <span className="text-rose-600">{selectedInvoice.dueDate}</span></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
+              {/* CLIENT DETAILS SECTION SWITCHER */}
+              <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 text-xs leading-relaxed mb-6 ${
+                viewTemplateId === 'compact' ? 'py-2 mb-4 gap-4' : 'py-6 mb-6'
+              } ${
+                viewTemplateId === 'elegant' ? 'border-b border-slate-100 font-serif' : ''
+              } ${
+                viewTemplateId === 'standard' ? 'border-b border-slate-100' : ''
+              }`}>
                 <div>
-                  <span className="text-slate-400 uppercase tracking-wider font-semibold block mb-2">Billed To</span>
+                  <span className={`uppercase tracking-wider font-bold block mb-2 ${
+                    viewTemplateId === 'fresh' ? 'text-emerald-600 text-[10px]' : 'text-slate-400 text-[10px]'
+                  }`}>Billed To</span>
                   <div className="text-sm font-bold text-slate-900">{selectedInvoice.clientName}</div>
-                  <div className="text-slate-500 font-medium mt-1">{selectedInvoice.clientEmail}</div>
+                  <div className="text-slate-500 font-medium mt-0.5">{selectedInvoice.clientEmail}</div>
                   {selectedInvoice.clientAddress && (
-                    <div className="text-slate-400 mt-2 whitespace-pre-line leading-relaxed">{selectedInvoice.clientAddress}</div>
+                    <div className="text-slate-400 mt-1.5 whitespace-pre-line leading-relaxed italic">{selectedInvoice.clientAddress}</div>
                   )}
                 </div>
 
                 <div>
-                  <span className="text-slate-400 uppercase tracking-wider font-semibold block mb-2">Payment Guidelines</span>
-                  <p className="text-slate-500 leading-relaxed">
-                    All balances should be paid in full by the due date. Standard bank wires or checking transfers accepted. Thank you for your partnership.
-                  </p>
-                  <div className="mt-3 flex items-center gap-1.5">
-                    <span className="font-semibold text-slate-700">Payment Terms:</span>
-                    <span className="text-slate-600 font-medium">{selectedInvoice.paymentTerms || 'Due on Receipt'}</span>
+                  <span className={`uppercase tracking-wider font-bold block mb-2 ${
+                    viewTemplateId === 'fresh' ? 'text-emerald-600 text-[10px]' : 'text-slate-400 text-[10px]'
+                  }`}>Payment Terms & Status</span>
+                  {viewTemplateId !== 'compact' && (
+                    <p className="text-slate-400 leading-normal mb-2 max-w-xs">
+                      All balances should be settled in full by the stipulated due date. Thank you for your continued business partnership.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-1.5 mt-1.5 font-medium">
+                    <span className="font-bold text-slate-700">Terms:</span>
+                    <span className="text-slate-600">{selectedInvoice.paymentTerms || 'Due on Receipt'}</span>
                   </div>
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <span className="font-semibold text-slate-700">Status:</span>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className="font-bold text-slate-700">Status:</span>
                     {getStatusBadge(selectedInvoice.status, selectedInvoice.dueDate)}
                   </div>
                 </div>
               </div>
 
-              {/* Items Table */}
-              <div className="border border-slate-100 rounded-2xl overflow-hidden mb-6">
-                <table className="w-full text-left border-collapse text-xs">
+
+              {/* ITEMS TABLE SECTION SWITCHER */}
+              <div className={`overflow-hidden mb-6 ${
+                viewTemplateId === 'fresh' ? 'border-2 border-emerald-500/20 rounded-2xl' : ''
+              } ${
+                viewTemplateId === 'standard' ? 'border border-slate-100 rounded-2xl' : ''
+              } ${
+                viewTemplateId === 'elegant' ? 'border border-slate-200 rounded-xl' : ''
+              } ${
+                viewTemplateId === 'modern' ? 'border-b border-slate-300' : ''
+              } ${
+                viewTemplateId === 'compact' ? 'border border-slate-200 rounded-lg mb-3' : ''
+              }`}>
+                <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase">
-                      <th className="px-5 py-3">Description of Services / Items</th>
-                      <th className="px-5 py-3 text-center w-20">Quantity</th>
-                      <th className="px-5 py-3 text-right w-28">Rate ({getCurrencySymbol(selectedInvoice.currency)})</th>
-                      <th className="px-5 py-3 text-right w-32">Line Total ({getCurrencySymbol(selectedInvoice.currency)})</th>
+                    <tr className={`uppercase text-[10px] font-bold tracking-wider ${
+                      viewTemplateId === 'fresh' ? 'bg-emerald-600 text-white' : 
+                      viewTemplateId === 'modern' ? 'bg-slate-100 text-slate-800 border-b-2 border-slate-400' :
+                      viewTemplateId === 'elegant' ? 'bg-[#FAF9F6] text-slate-800 border-b border-slate-200' :
+                      viewTemplateId === 'compact' ? 'bg-slate-50 text-slate-500 border-b border-slate-200' :
+                      'bg-slate-50 border-b border-slate-100 text-slate-500'
+                    }`}>
+                      <th className={`font-semibold ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3'}`}>Description of Services / Items</th>
+                      <th className={`text-center w-20 font-semibold ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3'}`}>Quantity</th>
+                      <th className={`text-right w-28 font-semibold ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3'}`}>Rate ({getCurrencySymbol(selectedInvoice.currency)})</th>
+                      <th className={`text-right w-32 font-semibold ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3'}`}>Line Total ({getCurrencySymbol(selectedInvoice.currency)})</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                  <tbody className={`divide-y text-slate-700 ${
+                    viewTemplateId === 'fresh' ? 'divide-emerald-500/10' : 'divide-slate-100'
+                  }`}>
                     {selectedInvoice.items.map(item => (
-                      <tr key={item.id}>
-                        <td className="px-5 py-3.5 font-medium text-slate-900">
+                      <tr key={item.id} className={`${
+                        viewTemplateId === 'fresh' ? 'hover:bg-emerald-500/5' : 'hover:bg-slate-50/50'
+                      } transition-colors`}>
+                        <td className={`font-bold text-slate-900 ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3.5'}`}>
                           {item.type && (
-                            <span className="inline-block bg-slate-100 text-slate-500 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded mr-2 align-middle">
+                            <span className={`inline-block text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded mr-2 align-middle ${
+                              viewTemplateId === 'fresh' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
+                            }`}>
                               {item.type}
                             </span>
                           )}
                           <span className="align-middle">{item.description}</span>
                         </td>
-                        <td className="px-5 py-3.5 text-center font-mono">{item.quantity}</td>
-                        <td className="px-5 py-3.5 text-right font-mono">{getCurrencySymbol(selectedInvoice.currency)}{item.rate.toFixed(2)}</td>
-                        <td className="px-5 py-3.5 text-right font-mono font-bold text-slate-900">{getCurrencySymbol(selectedInvoice.currency)}{item.amount.toFixed(2)}</td>
+                        <td className={`text-center font-mono ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3.5'}`}>{item.quantity}</td>
+                        <td className={`text-right font-mono ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3.5'}`}>
+                          {getCurrencySymbol(selectedInvoice.currency)}{item.rate.toFixed(2)}
+                        </td>
+                        <td className={`text-right font-mono font-bold text-slate-900 ${viewTemplateId === 'compact' ? 'px-3 py-1.5' : 'px-5 py-3.5'}`}>
+                          {getCurrencySymbol(selectedInvoice.currency)}{item.amount.toFixed(2)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* Payment History */}
+
+              {/* PAYMENT HISTORY */}
               {selectedInvoice.payments && selectedInvoice.payments.length > 0 && (
-                <div className="py-4 border-t border-slate-100">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Payment History</h4>
-                  <div className="bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
+                <div className={`py-3 mb-4 ${viewTemplateId === 'compact' ? 'py-1.5 mb-2' : ''}`}>
+                  <h4 className={`text-[10px] font-extrabold uppercase tracking-wider mb-2 ${
+                    viewTemplateId === 'fresh' ? 'text-emerald-600' : 'text-slate-800'
+                  }`}>Payment Collection History</h4>
+                  <div className={`overflow-hidden border border-slate-100 ${
+                    viewTemplateId === 'fresh' ? 'rounded-2xl border-emerald-500/10' : 'rounded-xl'
+                  }`}>
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100/50">
-                        <tr>
-                          <th className="px-4 py-2 font-semibold text-slate-500">Date</th>
-                          <th className="px-4 py-2 font-semibold text-slate-500">Method</th>
-                          <th className="px-4 py-2 font-semibold text-slate-500">Reference</th>
-                          <th className="px-4 py-2 font-semibold text-slate-500 text-right">Amount</th>
+                      <thead className="bg-slate-50">
+                        <tr className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                          <th className="px-4 py-1.5">Date Received</th>
+                          <th className="px-4 py-1.5">Method</th>
+                          <th className="px-4 py-1.5">Reference Id</th>
+                          <th className="px-4 py-1.5 text-right font-semibold">Amount Paid</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-100 text-slate-600">
                         {selectedInvoice.payments.map(p => (
                           <tr key={p.id}>
-                            <td className="px-4 py-2 text-slate-600">{p.date}</td>
-                            <td className="px-4 py-2 text-slate-600">{p.method}</td>
-                            <td className="px-4 py-2 text-slate-400">{p.reference || '-'}</td>
-                            <td className="px-4 py-2 text-emerald-600 font-bold font-mono text-right">{getCurrencySymbol(selectedInvoice.currency)}{p.amount.toFixed(2)}</td>
+                            <td className="px-4 py-1.5">{p.date}</td>
+                            <td className="px-4 py-1.5">{p.method}</td>
+                            <td className="px-4 py-1.5 text-slate-400 font-mono text-[10px]">{p.reference || '-'}</td>
+                            <td className="px-4 py-1.5 text-emerald-600 font-bold font-mono text-right">
+                              {getCurrencySymbol(selectedInvoice.currency)}{p.amount.toFixed(2)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -946,51 +1634,125 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                 </div>
               )}
 
-              {/* Math summary breakdown */}
+
+              {/* BOTTOM NOTES & TOTALS SECTION */}
               <div className="flex flex-col sm:flex-row sm:justify-between gap-6 py-4">
-                <div className="flex-1 text-xs text-slate-400">
+                <div className="flex-1 text-slate-500 leading-relaxed space-y-4">
                   {selectedInvoice.notes && (
-                    <div className="mb-4">
-                      <span className="font-semibold text-slate-500 block mb-1">Customer Notes:</span>
-                      <p className="leading-relaxed whitespace-pre-line max-w-sm">{selectedInvoice.notes}</p>
+                    <div>
+                      <span className={`font-extrabold block text-[10px] uppercase tracking-wider mb-1 ${
+                        viewTemplateId === 'fresh' ? 'text-emerald-600' : 'text-slate-700'
+                      }`}>Customer Notes</span>
+                      <p className="max-w-sm whitespace-pre-line text-slate-500 italic">{selectedInvoice.notes}</p>
                     </div>
                   )}
                   {selectedInvoice.termsAndConditions && (
                     <div>
-                      <span className="font-semibold text-slate-500 block mb-1">Terms & Conditions:</span>
-                      <p className="leading-relaxed whitespace-pre-line max-w-sm">{selectedInvoice.termsAndConditions}</p>
+                      <span className={`font-extrabold block text-[10px] uppercase tracking-wider mb-1 ${
+                        viewTemplateId === 'fresh' ? 'text-emerald-600' : 'text-slate-700'
+                      }`}>Terms & Conditions</span>
+                      <p className="max-w-sm whitespace-pre-line text-[10px] text-slate-400 leading-normal">{selectedInvoice.termsAndConditions}</p>
+                    </div>
+                  )}
+
+                  {/* Audit timeline (No print) */}
+                  {selectedInvoice.reminders && selectedInvoice.reminders.length > 0 && (
+                    <div className="mt-6 pt-4 border-t border-slate-100 no-print">
+                      <span className="font-bold text-slate-600 block uppercase tracking-wider text-[9px] mb-2.5">Communication Audit Logs</span>
+                      <div className="space-y-3 pl-1">
+                        {selectedInvoice.reminders.map(rem => (
+                          <div key={rem.id} className="flex gap-2 items-start text-[10px]">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1 shrink-0" />
+                            <div>
+                              <div className="font-bold text-slate-700 uppercase tracking-tight">{rem.channel} Reminder Dispatched</div>
+                              <div className="text-slate-400 font-mono text-[9px]">{rem.date}</div>
+                              <div className="text-slate-500 mt-0.5 italic max-w-sm leading-normal">
+                                "{rem.message.length > 90 ? rem.message.substring(0, 90) + '...' : rem.message}"
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                <div className="w-full sm:w-80 shrink-0 text-xs text-slate-600 flex flex-col gap-2">
-                  <div className="flex justify-between">
+                {/* Subtotals & Taxes calculation breakdown list */}
+                <div className={`w-full sm:w-80 shrink-0 flex flex-col gap-2 ${
+                  viewTemplateId === 'fresh' ? 'bg-[#10b981]/5 border-2 border-emerald-500/15 p-4 rounded-2xl' : 
+                  viewTemplateId === 'modern' ? 'bg-slate-50 border border-slate-200 p-4 rounded-xl' :
+                  viewTemplateId === 'elegant' ? 'bg-[#FAF9F6] border border-slate-200 p-5 rounded-xl font-serif' :
+                  viewTemplateId === 'compact' ? 'gap-1 p-2 bg-slate-50 border border-slate-100 rounded-lg' :
+                  'bg-slate-50/50 p-4 rounded-2xl border border-slate-100'
+                }`}>
+                  <div className="flex justify-between text-slate-600">
                     <span>Subtotal</span>
-                    <span className="font-mono font-semibold text-slate-800">{getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.subtotal.toFixed(2)}</span>
+                    <span className="font-mono font-bold text-slate-800 font-medium">
+                      {getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.subtotal.toFixed(2)}
+                    </span>
                   </div>
 
                   {selectedInvoice.taxRate > 0 && (
-                    <div className="flex justify-between">
-                      <span>Service Tax ({selectedInvoice.taxRate}%)</span>
-                      <span className="font-mono font-semibold text-slate-800">{getCurrencySymbol(selectedInvoice.currency)}{((selectedInvoice.subtotal * selectedInvoice.taxRate) / 100).toFixed(2)}</span>
-                    </div>
+                    selectedInvoice.taxStructure === 'gst' ? (
+                      selectedInvoice.gstType === 'intrastate' ? (
+                        <>
+                          <div className="flex justify-between text-slate-600">
+                            <span>CGST ({(selectedInvoice.taxRate / 2)}%)</span>
+                            <span className="font-mono font-semibold text-slate-800">
+                              {getCurrencySymbol(selectedInvoice.currency)}
+                              {(selectedInvoice.cgstAmount || ((selectedInvoice.subtotal * (selectedInvoice.taxRate / 2)) / 100)).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-slate-600">
+                            <span>SGST ({(selectedInvoice.taxRate / 2)}%)</span>
+                            <span className="font-mono font-semibold text-slate-800">
+                              {getCurrencySymbol(selectedInvoice.currency)}
+                              {(selectedInvoice.sgstAmount || ((selectedInvoice.subtotal * (selectedInvoice.taxRate / 2)) / 100)).toFixed(2)}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between text-slate-600">
+                          <span>IGST ({selectedInvoice.taxRate}%)</span>
+                          <span className="font-mono font-semibold text-slate-800">
+                            {getCurrencySymbol(selectedInvoice.currency)}
+                            {(selectedInvoice.igstAmount || ((selectedInvoice.subtotal * selectedInvoice.taxRate) / 100)).toFixed(2)}
+                          </span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Service Tax ({selectedInvoice.taxRate}%)</span>
+                        <span className="font-mono font-semibold text-slate-800">
+                          {getCurrencySymbol(selectedInvoice.currency)}
+                          {((selectedInvoice.subtotal * selectedInvoice.taxRate) / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )
                   )}
 
                   {selectedInvoice.discount > 0 && (
-                    <div className="flex justify-between text-emerald-600">
+                    <div className="flex justify-between text-emerald-600 font-semibold">
                       <span>Client Discount</span>
-                      <span className="font-mono font-semibold">
+                      <span className="font-mono">
                         {selectedInvoice.discountType === 'percentage' 
-                          ? `-${selectedInvoice.discount}% (${getCurrencySymbol(selectedInvoice.currency)}${((selectedInvoice.subtotal * selectedInvoice.discount) / 100).toFixed(2)})`
+                          ? `-${selectedInvoice.discount}% (-${getCurrencySymbol(selectedInvoice.currency)}${((selectedInvoice.subtotal * selectedInvoice.discount) / 100).toFixed(2)})`
                           : `-${getCurrencySymbol(selectedInvoice.currency)}${selectedInvoice.discount.toFixed(2)}`
                         }
                       </span>
                     </div>
                   )}
 
-                  <div className="border-t border-slate-100 pt-3 flex justify-between text-base font-bold text-slate-900">
+                  <div className={`border-t pt-3 flex justify-between text-base font-black ${
+                    viewTemplateId === 'fresh' ? 'border-emerald-500/20 text-emerald-700' :
+                    viewTemplateId === 'modern' ? 'border-slate-300 text-slate-900' :
+                    viewTemplateId === 'elegant' ? 'border-slate-800 text-slate-950 font-serif font-bold' :
+                    'border-slate-200 text-slate-900'
+                  }`}>
                     <span>Total Due</span>
-                    <span className="font-mono text-[#1a2b58]">{getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.total.toFixed(2)}</span>
+                    <span className="font-mono">
+                      {getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.total.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1093,18 +1855,29 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Currency</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase">Zoho Design Template</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreviewTemplateId(templateId);
+                        setIsTemplateShowcaseOpen(true);
+                      }}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer hover:underline"
+                    >
+                      🎨 Preview Samples
+                    </button>
+                  </div>
                   <CustomSelect
-                    value={currency}
-                    onChange={(val) => setCurrency(val)}
+                    value={templateId}
+                    onChange={(val) => setTemplateId(val as any)}
                     className="w-full border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-50/50 hover:bg-white focus:outline-none focus:border-primary hover:shadow-sm transition-all text-primary"
                     options={[
-                      { value: "USD", label: "USD ($)" },
-                      { value: "EUR", label: "EUR (€)" },
-                      { value: "GBP", label: "GBP (£)" },
-                      { value: "INR", label: "INR (₹)" },
-                      { value: "AUD", label: "AUD ($)" },
-                      { value: "CAD", label: "CAD ($)" }
+                      { value: "standard", label: "💼 Zoho Standard" },
+                      { value: "modern", label: "✨ Zoho Modern" },
+                      { value: "elegant", label: "🖋️ Zoho Elegant" },
+                      { value: "compact", label: "⚡ Zoho Compact" },
+                      { value: "fresh", label: "🌱 Zoho Fresh Bold" }
                     ]}
                   />
                 </div>
@@ -1390,16 +2163,85 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                     <span className="font-mono font-semibold text-slate-800">{getCurrencySymbol(currency)}{subtotal.toFixed(2)}</span>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Service Tax (%)</span>
-                    <input 
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={taxRate}
-                      onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                      className="w-16 text-right border border-slate-200 px-1.5 py-1 rounded font-mono text-xs focus:outline-none"
-                    />
+                  {/* Tax Structure Picker */}
+                  <div className="flex flex-col gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-[11px] text-slate-600">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-700">Tax Structure</span>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => { setTaxStructure('standard'); setTaxRate(5); }}
+                          className={`px-2 py-1 rounded-md transition-colors cursor-pointer ${taxStructure === 'standard' ? 'bg-[#1a2b58] text-white font-bold' : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-600'}`}
+                        >
+                          Standard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setTaxStructure('gst'); setTaxRate(18); }}
+                          className={`px-2 py-1 rounded-md transition-colors cursor-pointer ${taxStructure === 'gst' ? 'bg-[#1a2b58] text-white font-bold' : 'bg-white border border-slate-200 hover:bg-slate-100 text-slate-600'}`}
+                        >
+                          GST (India)
+                        </button>
+                      </div>
+                    </div>
+
+                    {taxStructure === 'gst' ? (
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-slate-500 font-medium">GST Type</span>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setGstType('intrastate')}
+                            className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${gstType === 'intrastate' ? 'bg-indigo-100 text-indigo-700 font-bold' : 'bg-white border border-slate-105 hover:bg-slate-50 text-slate-500'}`}
+                          >
+                            Intrastate
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGstType('interstate')}
+                            className={`px-1.5 py-0.5 rounded transition-colors cursor-pointer ${gstType === 'interstate' ? 'bg-indigo-100 text-indigo-700 font-bold' : 'bg-white border border-slate-105 hover:bg-slate-50 text-slate-500'}`}
+                          >
+                            Interstate
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+                      <span className="text-slate-500 font-medium">
+                        {taxStructure === 'gst' ? 'Combined GST Rate (%)' : 'Service Tax (%)'}
+                      </span>
+                      <input 
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={taxRate}
+                        onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                        className="w-14 text-right border border-slate-200 px-1 py-0.5 rounded font-mono focus:outline-none"
+                      />
+                    </div>
+
+                    {taxStructure === 'gst' && (
+                      <div className="mt-1 text-[10px] text-indigo-600 font-medium flex flex-col gap-0.5 border-t border-indigo-50/50 pt-1">
+                        {gstType === 'intrastate' ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span>CGST Amount ({taxRate / 2}%)</span>
+                              <span>{getCurrencySymbol(currency)}{cgstAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>SGST Amount ({taxRate / 2}%)</span>
+                              <span>{getCurrencySymbol(currency)}{sgstAmount.toFixed(2)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex justify-between">
+                            <span>IGST Amount ({taxRate}%)</span>
+                            <span>{getCurrencySymbol(currency)}{igstAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -1613,12 +2455,29 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
               
               if (selectedInvoice.documentType === 'invoice') {
                 const existingRecord = await financeService.getRecordByInvoiceId(selectedInvoice.id);
+                const remainingOutstanding = Math.max(0, selectedInvoice.total - updatedAmountPaid);
+                
                 if (existingRecord) {
-                  let recordStatus: 'paid' | 'pending' | 'overdue' = 'pending';
-                  if (newStatus === 'paid') recordStatus = 'paid';
-                  
                   await financeService.updateRecord(existingRecord.id, {
-                    status: recordStatus
+                    amount: remainingOutstanding,
+                    status: newStatus === 'paid' ? 'paid' : 'pending'
+                  });
+                }
+                
+                if (selectedBankAccountId) {
+                  await financeService.createRecord({
+                    type: 'income',
+                    category: 'Sales', // Default category for invoice sales revenue
+                    amount: paymentValue,
+                    description: `Payment received for Invoice ${selectedInvoice.invoiceNumber} - ${selectedInvoice.clientName}`,
+                    date: format(new Date(), 'yyyy-MM-dd'),
+                    status: 'paid',
+                    paymentAccountId: selectedBankAccountId,
+                    paymentMode: paymentMethod,
+                    clientName: selectedInvoice.clientName,
+                    clientId: selectedInvoice.userId || '',
+                    invoiceId: selectedInvoice.id,
+                    scope: 'business'
                   });
                 }
               }
@@ -1657,6 +2516,25 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                 />
               </div>
               <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Deposit/Credit to Bank Account *</label>
+                {paymentAccounts.length === 0 ? (
+                  <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2.5 rounded-xl">
+                    No active bank accounts found. Please configure a bank account in the Finance Tracker settings first.
+                  </div>
+                ) : (
+                  <CustomSelect
+                    value={selectedBankAccountId}
+                    onChange={(val) => setSelectedBankAccountId(val)}
+                    className="w-full border border-slate-200 px-3 py-2.5 rounded-xl text-sm font-semibold bg-slate-50/50 hover:bg-white focus:outline-none focus:border-primary hover:shadow-sm transition-all text-primary"
+                    placeholder="Select Bank/Payment Account"
+                    options={paymentAccounts.map(acc => ({
+                      value: acc.id,
+                      label: `${acc.name} (${acc.type === 'bank_account' ? 'Bank' : acc.type === 'credit_card' ? 'Card' : 'Other'})`
+                    }))}
+                  />
+                )}
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Payment Method</label>
                 <CustomSelect
                    value={paymentMethod}
@@ -1686,6 +2564,591 @@ export default function InvoiceManagement({ isAdmin, clients }: InvoiceManagemen
                 <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-colors">Record Payment</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* COMMUNICATIONS & REMINDER DISPATCH MODAL */}
+      {isReminderModalOpen && selectedInvoice && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[10000] p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+            <div className="bg-[#1a2b58] text-white px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Mail className="w-5 h-5" /> Dispatch Custom Reminder
+                </h3>
+                <p className="text-[11px] text-indigo-200 mt-0.5">Send tailored payment instructions via automated channels</p>
+              </div>
+              <button 
+                onClick={() => setIsReminderModalOpen(false)} 
+                className="text-indigo-200 hover:text-white transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+              {/* Channel Toggle */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Preferred Dispatch Channel</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReminderChannel('email');
+                      setReminderSubject(`Outstanding Invoice Reminder: ${selectedInvoice.invoiceNumber}`);
+                    }}
+                    className={`flex items-center justify-center gap-2 py-3 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${reminderChannel === 'email' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+                  >
+                    <Mail className="w-4 h-4" /> Email Notification
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReminderChannel('whatsapp')}
+                    className={`flex items-center justify-center gap-2 py-3 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${reminderChannel === 'whatsapp' ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+                  >
+                    <MessageSquare className="w-4 h-4" /> WhatsApp Message
+                  </button>
+                </div>
+              </div>
+
+              {/* Message Template Preset Selector */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Message Template Preset</label>
+                <CustomSelect
+                  value={reminderTemplate}
+                  onChange={(val) => applyReminderTemplate(val as any, selectedInvoice)}
+                  options={[
+                    { value: "gentle", label: "🌱 Gentle Balance Notice" },
+                    { value: "formal", label: "💼 Professional/Formal Request" },
+                    { value: "urgent", label: "🚨 Urgent Past-Due Demand" },
+                    { value: "custom", label: "✏️ Custom Blank Draft" }
+                  ]}
+                  className="w-full border border-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-50/50 hover:bg-white focus:outline-none focus:border-primary hover:shadow-sm transition-all text-slate-700"
+                />
+              </div>
+
+              {/* Target recipient info */}
+              <div className="grid grid-cols-1 gap-3.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-400 block mb-1">To Client Partner:</span>
+                  <div className="font-bold text-slate-800">{selectedInvoice.clientName}</div>
+                </div>
+
+                {reminderChannel === 'email' ? (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">Email Recipient</label>
+                    <input
+                      type="text"
+                      className="w-full border border-slate-200 bg-white px-3 py-1.5 rounded-lg text-xs font-mono"
+                      value={selectedInvoice.clientEmail}
+                      readOnly
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 uppercase mb-1">WhatsApp Mobile Number</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. +91 98765 43210"
+                      className="w-full border border-slate-200 bg-white px-3 py-1.5 rounded-lg text-xs font-mono focus:outline-none focus:border-emerald-500"
+                      value={reminderMobile}
+                      onChange={(e) => setReminderMobile(e.target.value)}
+                    />
+                    <span className="text-[9px] text-slate-400 mt-0.5 block">Include country code for web-redirect links</span>
+                  </div>
+                )}
+              </div>
+
+              {reminderChannel === 'email' && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email Subject Line</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#1a2b58]"
+                    value={reminderSubject}
+                    onChange={(e) => setReminderSubject(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Reminder Custom Body</label>
+                <textarea
+                  rows={6}
+                  className="w-full border border-slate-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#1a2b58] font-sans leading-relaxed"
+                  value={reminderBody}
+                  onChange={(e) => setReminderBody(e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsReminderModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendReminder}
+                  className={`px-5 py-2 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all ${reminderChannel === 'whatsapp' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                >
+                  <Send className="w-3.5 h-3.5" /> Disperse Reminder
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ZOHO TEMPLATES SHOWCASE MODAL */}
+      {isTemplateShowcaseOpen && (
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center z-[10001] p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col my-4 max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-lg flex items-center gap-2">
+                  <span>🎨</span> Zoho Billing Templates Showcase
+                </h3>
+                <p className="text-[11px] text-slate-300 mt-0.5 font-medium">
+                  Compare visual styles, layout typography, and density options below.
+                </p>
+              </div>
+              <button 
+                onClick={() => setIsTemplateShowcaseOpen(false)} 
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 md:p-8 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-50/50">
+              
+              {/* Left Column: Template Cards (5 cols) */}
+              <div className="lg:col-span-5 space-y-3.5">
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Available Templates</span>
+                {[
+                  {
+                    id: 'standard',
+                    name: 'Zoho Standard',
+                    icon: '💼',
+                    badge: 'Traditional & Classic',
+                    desc: 'The corporate standard. Features a spacious top section, professional indigo accents, and clear left-aligned totals ledger.',
+                    font: 'Inter (Sans-Serif)',
+                    highlights: ['Ideal for large corporate consulting', 'Traditional clean totals table', 'Clear terms & conditions box']
+                  },
+                  {
+                    id: 'modern',
+                    name: 'Zoho Modern',
+                    icon: '✨',
+                    badge: 'High-Contrast Slate',
+                    desc: 'Bold slate header block with inverted typography and energetic emerald details. Makes a striking, high-tech statement.',
+                    font: 'Outfit (Sans-Serif)',
+                    highlights: ['Premium dark top banner block', 'Bold emerald details', 'Modern, contemporary tech look']
+                  },
+                  {
+                    id: 'elegant',
+                    name: 'Zoho Elegant',
+                    icon: '🖋️',
+                    badge: 'Editorial Editorial',
+                    desc: 'Beautiful serif typography, double border accents, and centered layout. Radiates prestige, bespoke advisory, and high-quality.',
+                    font: 'Playfair Display (Serif)',
+                    highlights: ['Bespoke editorial serif layout', 'Double lined accounting margins', 'Sophisticated margins & padding']
+                  },
+                  {
+                    id: 'compact',
+                    name: 'Zoho Compact',
+                    icon: '⚡',
+                    badge: 'High-Density Ledger',
+                    desc: 'Optimized spacing, condensed text margins, and minimal borders. Perfect for dense multi-line item service receipts.',
+                    font: 'Inter (Condensed)',
+                    highlights: ['Dense layout for many line items', 'Clean horizontal dividing rules', 'Lightweight minimal header']
+                  },
+                  {
+                    id: 'fresh',
+                    name: 'Zoho Fresh Bold',
+                    icon: '🌱',
+                    badge: 'Eco Emerald Accent',
+                    desc: 'Features a beautiful solid vertical thick green bar, modern borders, and soft eco-emerald backgrounds. Energetic and clean.',
+                    font: 'Space Grotesk',
+                    highlights: ['Vibrant eco-emerald theme accents', 'Striking vertical side margin bar', 'Clean spacing & grid structure']
+                  }
+                ].map((tpl) => {
+                  const isSelected = previewTemplateId === tpl.id;
+                  return (
+                    <div 
+                      key={tpl.id}
+                      onClick={() => setPreviewTemplateId(tpl.id as any)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer text-left ${
+                        isSelected 
+                          ? 'bg-indigo-50/40 border-indigo-500 shadow-sm ring-1 ring-indigo-500/30' 
+                          : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{tpl.icon}</span>
+                          <span className="font-bold text-sm text-slate-800">{tpl.name}</span>
+                        </div>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                          isSelected 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {tpl.badge}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-1.5 leading-relaxed">
+                        {tpl.desc}
+                      </p>
+                      
+                      {isSelected && (
+                        <div className="mt-3 pt-2.5 border-t border-indigo-100/60 grid grid-cols-2 gap-2 text-[10px] text-indigo-700">
+                          <div>
+                            <span className="font-semibold block text-[8px] text-indigo-400 uppercase">Typography</span>
+                            <span>{tpl.font}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold block text-[8px] text-indigo-400 uppercase">Highlights</span>
+                            <span className="truncate block">{tpl.highlights[0]}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Right Column: Interactive Mini Live Mockup (7 cols) */}
+              <div className="lg:col-span-7 flex flex-col h-full min-h-[420px]">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                    <span>🔴 Live Sample Mockup:</span>
+                    <span className="text-indigo-600 font-extrabold">{previewTemplateId.toUpperCase()}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 italic">Pre-rendered dummy data sample</span>
+                </div>
+
+                {/* THE MOCKUP CONTAINER */}
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-hidden flex-1 text-left select-none relative max-h-[480px] overflow-y-auto">
+                  
+                  {/* Standard Mockup */}
+                  {previewTemplateId === 'standard' && (
+                    <div className="font-sans text-[10px] text-slate-700 space-y-4">
+                      <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+                        <div>
+                          <div className="text-sm font-bold text-[#1a2b58]">Jyoshi & Associates CA</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5">100 Financial Way, Bangalore</div>
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-sm font-extrabold text-slate-900 uppercase">INVOICE</h4>
+                          <div className="font-mono text-[9px] font-bold text-indigo-600 mt-0.5">#INV-2026-001</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-[9px]">
+                        <div>
+                          <span className="text-slate-400 block font-semibold uppercase text-[8px]">BILLED TO</span>
+                          <span className="font-bold text-slate-800">Acme Corporation Inc.</span>
+                          <span className="block text-slate-500 mt-0.5">billing@acme.com</span>
+                        </div>
+                        <div className="text-right">
+                          <div><span className="text-slate-400 font-semibold uppercase text-[8px] mr-1">Date:</span> 2026-07-10</div>
+                          <div><span className="text-rose-400 font-semibold uppercase text-[8px] mr-1">Due:</span> 2026-08-10</div>
+                        </div>
+                      </div>
+                      <div className="border border-slate-100 rounded-lg overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-100 text-[8px] font-bold text-slate-400 uppercase">
+                              <th className="p-1.5">Service Description</th>
+                              <th className="p-1.5 text-center">Qty</th>
+                              <th className="p-1.5 text-right">Rate</th>
+                              <th className="p-1.5 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50 text-[9px]">
+                            <tr>
+                              <td className="p-1.5 font-bold text-slate-800">Tax Auditing & Return Filing</td>
+                              <td className="p-1.5 text-center font-mono">1</td>
+                              <td className="p-1.5 text-right font-mono">₹45,000</td>
+                              <td className="p-1.5 text-right font-mono font-bold">₹45,000</td>
+                            </tr>
+                            <tr>
+                              <td className="p-1.5 font-bold text-slate-800">Bespoke Financial Structuring</td>
+                              <td className="p-1.5 text-center font-mono">2</td>
+                              <td className="p-1.5 text-right font-mono">₹12,500</td>
+                              <td className="p-1.5 text-right font-mono font-bold">₹25,000</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex justify-between items-start pt-2">
+                        <div className="w-1/2">
+                          <span className="font-bold text-[8px] text-slate-400 uppercase block mb-1">Payment Instructions</span>
+                          <p className="text-[8px] text-slate-400 leading-relaxed">Please wire transfer funds to ICICI Account No. 501004818. Net 30 terms apply.</p>
+                        </div>
+                        <div className="w-1/3 text-right space-y-1 text-[9px] border-t border-slate-100 pt-2">
+                          <div className="flex justify-between text-slate-500"><span>Subtotal:</span><span>₹70,000.00</span></div>
+                          <div className="flex justify-between text-slate-500"><span>GST (18%):</span><span>₹12,600.00</span></div>
+                          <div className="flex justify-between font-extrabold text-slate-900 border-t border-slate-200 pt-1 text-xs"><span>Total:</span><span>₹82,600.00</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Modern Mockup */}
+                  {previewTemplateId === 'modern' && (
+                    <div className="font-sans text-[10px] text-slate-700 space-y-4">
+                      <div className="bg-slate-900 text-white -mx-6 -mt-6 p-4 flex justify-between items-start">
+                        <div>
+                          <div className="text-sm font-black tracking-wider uppercase">Jyoshi & Associates CA</div>
+                          <div className="text-[8px] text-slate-300 mt-1">Bangalore, Karnataka</div>
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-sm font-black tracking-widest text-emerald-400 uppercase">STATEMENT</h4>
+                          <div className="font-mono text-[9px] text-slate-300 mt-0.5">#INV-2026-001</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-[9px] pt-2">
+                        <div>
+                          <span className="text-slate-400 block font-semibold uppercase text-[8px]">CLIENT RECIPIENT</span>
+                          <span className="font-bold text-slate-800">Acme Corporation Inc.</span>
+                          <span className="block text-slate-500">billing@acme.com</span>
+                        </div>
+                        <div className="text-right font-medium text-slate-500 space-y-0.5">
+                          <div>Issued Date: <span className="text-slate-800">2026-07-10</span></div>
+                          <div>Due Settlement: <span className="text-slate-800">2026-08-10</span></div>
+                        </div>
+                      </div>
+                      <div className="border-b border-slate-200">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 text-[8px] font-bold text-slate-600 border-b-2 border-slate-300">
+                              <th className="p-1.5">Description of Services</th>
+                              <th className="p-1.5 text-center">Qty</th>
+                              <th className="p-1.5 text-right">Rate</th>
+                              <th className="p-1.5 text-right">Line Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-[9px]">
+                            <tr>
+                              <td className="p-1.5 font-bold text-slate-900">Tax Auditing & Return Filing</td>
+                              <td className="p-1.5 text-center font-mono">1</td>
+                              <td className="p-1.5 text-right font-mono">₹45,000</td>
+                              <td className="p-1.5 text-right font-mono font-bold">₹45,000</td>
+                            </tr>
+                            <tr>
+                              <td className="p-1.5 font-bold text-slate-900">Bespoke Financial Structuring</td>
+                              <td className="p-1.5 text-center font-mono">2</td>
+                              <td className="p-1.5 text-right font-mono">₹12,500</td>
+                              <td className="p-1.5 text-right font-mono font-bold">₹25,000</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <span className="font-bold text-[10px] text-slate-700">Amount Due (INR):</span>
+                        <span className="font-black text-sm text-slate-900">₹82,600.00</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Elegant Mockup */}
+                  {previewTemplateId === 'elegant' && (
+                    <div className="font-serif text-[10px] text-slate-800 space-y-4">
+                      <div className="text-center border-b-2 border-double border-slate-800 pb-3">
+                        <div className="text-base italic font-bold">Jyoshi & Associates CA</div>
+                        <div className="text-[8px] text-slate-500 uppercase tracking-widest mt-0.5">Advisory Services Statement</div>
+                        <div className="text-[8px] text-slate-500 mt-1 italic">100 Financial Way, Bangalore</div>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px] pt-1">
+                        <div>
+                          <span className="text-[8px] text-slate-400 block font-semibold uppercase">STATEMENT PREPARED FOR</span>
+                          <span className="font-bold text-slate-900">Acme Corporation Inc.</span>
+                        </div>
+                        <div className="text-right text-[8px] space-y-0.5">
+                          <div>Statement No: <span className="font-mono font-bold">#INV-2026-001</span></div>
+                          <div>Dated: <span>2026-07-10</span></div>
+                          <div>Due Date: <span className="text-rose-700 font-semibold">2026-08-10</span></div>
+                        </div>
+                      </div>
+                      <table className="w-full text-left border-collapse border-b border-slate-200">
+                        <thead>
+                          <tr className="bg-[#FAF9F6] text-[8px] font-semibold border-b border-slate-200 uppercase tracking-wider text-slate-600">
+                            <th className="p-1.5">Description</th>
+                            <th className="p-1.5 text-center">Qty</th>
+                            <th className="p-1.5 text-right font-bold">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-[9px] italic">
+                          <tr>
+                            <td className="p-1.5 text-slate-900 font-medium">Tax Auditing & Return Filing</td>
+                            <td className="p-1.5 text-center font-mono font-normal">1</td>
+                            <td className="p-1.5 text-right font-mono">₹45,000</td>
+                          </tr>
+                          <tr>
+                            <td className="p-1.5 text-slate-900 font-medium">Bespoke Financial Structuring</td>
+                            <td className="p-1.5 text-center font-mono font-normal">2</td>
+                            <td className="p-1.5 text-right font-mono">₹25,000</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div className="flex justify-end pt-2">
+                        <div className="w-1/2 text-right space-y-1.5 border-t border-slate-300 pt-2 font-serif">
+                          <div className="flex justify-between text-slate-600"><span>Subtotal:</span><span>₹70,000.00</span></div>
+                          <div className="flex justify-between text-slate-600"><span>GST (18%):</span><span>₹12,600.00</span></div>
+                          <div className="flex justify-between font-bold text-slate-950 text-xs border-t border-slate-800 pt-1"><span>Total Due:</span><span>₹82,600.00</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Compact Mockup */}
+                  {previewTemplateId === 'compact' && (
+                    <div className="font-sans text-[9px] text-slate-700 space-y-3">
+                      <div className="flex justify-between items-center border-b border-slate-300 pb-2">
+                        <div>
+                          <div className="font-bold text-[#1a2b58] text-xs">Jyoshi & Associates CA</div>
+                          <div className="text-[8px] text-slate-400 mt-0.5">Bangalore | ca@jyoshi.com</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-slate-900 text-xs">INVOICE</div>
+                          <div className="font-mono text-[8px] font-bold text-indigo-600">#INV-2026-001</div>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-[8px]">
+                        <div>
+                          <span className="text-slate-400 font-bold uppercase mr-1">To:</span>
+                          <span className="font-bold text-slate-800">Acme Corp</span>
+                        </div>
+                        <div className="text-right text-slate-500">
+                          Issued: 2026-07-10 | Due: 2026-08-10
+                        </div>
+                      </div>
+                      <table className="w-full text-left border-collapse border border-slate-200">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[8px] font-bold text-slate-500">
+                            <th className="px-2 py-1">Description</th>
+                            <th className="px-2 py-1 text-center">Qty</th>
+                            <th className="px-2 py-1 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-mono">
+                          <tr>
+                            <td className="px-2 py-1 text-slate-800 font-sans font-medium">Tax Auditing & Return Filing</td>
+                            <td className="px-2 py-1 text-center">1</td>
+                            <td className="px-2 py-1 text-right">₹45,000</td>
+                          </tr>
+                          <tr>
+                            <td className="px-2 py-1 text-slate-800 font-sans font-medium">Bespoke Financial Structuring</td>
+                            <td className="px-2 py-1 text-center">2</td>
+                            <td className="px-2 py-1 text-right">₹25,000</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div className="flex justify-end pt-1">
+                        <div className="w-1/2 text-right space-y-0.5 font-mono text-[8px]">
+                          <div className="flex justify-between text-slate-500"><span>Subtotal:</span><span>₹70,000</span></div>
+                          <div className="flex justify-between text-slate-500"><span>GST (18%):</span><span>₹12,600</span></div>
+                          <div className="flex justify-between font-extrabold text-slate-900 text-[10px] border-t border-slate-300 pt-0.5"><span>Total (INR):</span><span>₹82,600</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fresh Bold Mockup */}
+                  {previewTemplateId === 'fresh' && (
+                    <div className="font-sans text-[10px] text-slate-700 space-y-4">
+                      <div className="border-l-4 border-emerald-500 pl-4 flex justify-between items-start">
+                        <div>
+                          <div className="text-sm font-black text-slate-900 flex items-center gap-1">
+                            <span className="text-emerald-500">■</span>
+                            <span>Jyoshi CA & Associates</span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 mt-0.5">Bangalore, IN</div>
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-black text-emerald-600 tracking-wider">STATEMENT</h4>
+                          <div className="font-mono text-[9px] font-bold text-slate-700 mt-0.5">#INV-2026-001</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-[9px] pt-1">
+                        <div>
+                          <span className="text-emerald-600 block font-bold text-[8px] tracking-wider uppercase mb-0.5">BILLED TO RECIPIENT</span>
+                          <span className="font-bold text-slate-800">Acme Corporation Inc.</span>
+                          <span className="block text-slate-500">billing@acme.com</span>
+                        </div>
+                        <div className="text-right space-y-0.5 font-medium">
+                          <div>Issued Date: <span className="text-slate-800 font-bold">2026-07-10</span></div>
+                          <div>Settlement Due: <span className="text-emerald-600 font-bold">2026-08-10</span></div>
+                        </div>
+                      </div>
+                      <div className="border-2 border-emerald-500/10 rounded-xl overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-emerald-600 text-white text-[8px] font-bold uppercase tracking-wider">
+                              <th className="p-1.5">Description of Services</th>
+                              <th className="p-1.5 text-center">Qty</th>
+                              <th className="p-1.5 text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-emerald-500/10 text-[9px]">
+                            <tr>
+                              <td className="p-1.5 font-bold text-slate-800">Tax Auditing & Return Filing</td>
+                              <td className="p-1.5 text-center font-mono">1</td>
+                              <td className="p-1.5 text-right font-mono font-bold">₹45,000</td>
+                            </tr>
+                            <tr>
+                              <td className="p-1.5 font-bold text-slate-800">Bespoke Financial Structuring</td>
+                              <td className="p-1.5 text-center font-mono">2</td>
+                              <td className="p-1.5 text-right font-mono font-bold">₹25,000</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="bg-emerald-50/50 border-2 border-emerald-500/10 rounded-xl p-3 flex justify-between items-center">
+                        <span className="font-black text-emerald-800 uppercase text-[9px] tracking-wider">Total Balance Due (INR)</span>
+                        <span className="font-black text-sm text-emerald-600">₹82,600.00</span>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Apply Style CTA */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    Want to use <span className="font-bold text-indigo-600 capitalize">{previewTemplateId}</span> for this document?
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsTemplateShowcaseOpen(false)}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTemplateId(previewTemplateId);
+                        setViewTemplateId(previewTemplateId);
+                        setIsTemplateShowcaseOpen(false);
+                      }}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    >
+                      Apply Template Design 🎨
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
           </div>
         </div>
       )}

@@ -136,7 +136,7 @@ export default function Home() {
  <h2 className="text-4xl lg:text-5xl text-primary leading-tight tracking-tight mb-4">Insights.</h2>
  <Link 
  to="/blog" 
- className="text-xs uppercase tracking-[0.3em] text-[#FF6B4A] border-b-2 border-[#FF6B4A] pb-1 hover:text-primary hover:border-primary transition-all"
+ className="text-xs uppercase tracking-[0.3em] text-secondary border-b-2 border-secondary pb-1 hover:text-primary hover:border-primary transition-all"
  >
  View All Analysis
  </Link>

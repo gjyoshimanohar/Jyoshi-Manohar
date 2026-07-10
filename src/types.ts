@@ -196,4 +196,21 @@ export interface Invoice {
   recurringInterval?: 'weekly' | 'monthly' | 'yearly';
   amountPaid?: number;
   payments?: InvoicePayment[];
+  taxStructure?: 'standard' | 'gst';
+  gstType?: 'intrastate' | 'interstate';
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  cgstRate?: number;
+  sgstRate?: number;
+  igstRate?: number;
+  templateId?: 'standard' | 'modern' | 'elegant' | 'compact' | 'fresh';
+  reminders?: Array<{
+    id: string;
+    date: string;
+    channel: 'email' | 'whatsapp';
+    recipient: string;
+    message: string;
+    sentBy?: string;
+  }>;
 }
