@@ -4487,6 +4487,59 @@ export default function WorkspaceApp() {
 				</div>
 			</div>
 
+			{/* Daily Task Completion Goal Settings */}
+			<div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm mb-6">
+				<div className="p-5 border-b border-slate-800 bg-slate-950">
+					<h3 className="text-base font-semibold text-white flex items-center gap-2">
+						<Target className="w-5 h-5 text-indigo-400" />
+						Daily Task Completion Goal
+					</h3>
+					<p className="text-xs text-gray-400 mt-1">
+						Define your daily task threshold. Progress will be displayed in real-time in the main dashboard header to keep you motivated.
+					</p>
+				</div>
+
+				<div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-850/50 transition-colors">
+					<div className="flex-1">
+						<div className="font-semibold text-white flex items-center gap-1.5">
+							Current Daily Target Threshold
+						</div>
+						<p className="text-xs text-gray-400 mt-0.5 max-w-xl">
+							We recommend setting a realistic target (e.g., 3 to 7 tasks completed per day). Any change will sync automatically to your cloud profile.
+						</p>
+					</div>
+					<div className="flex items-center gap-3">
+						<button 
+							onClick={() => handleUpdateDailyGoal(Math.max(1, dailyTaskGoal - 1))}
+							className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 hover:bg-slate-800 text-gray-300 font-bold text-lg flex items-center justify-center transition-colors cursor-pointer select-none"
+							title="Decrease goal"
+						>
+							-
+						</button>
+						<input 
+							type="number"
+							min="1"
+							max="100"
+							value={dailyTaskGoal}
+							onChange={(e) => {
+								const val = parseInt(e.target.value, 10);
+								if (!isNaN(val) && val >= 1) {
+									handleUpdateDailyGoal(val);
+								}
+							}}
+							className="w-16 h-10 text-center bg-slate-950 border border-slate-800 text-white font-mono font-bold text-lg rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+						/>
+						<button 
+							onClick={() => handleUpdateDailyGoal(dailyTaskGoal + 1)}
+							className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 hover:bg-slate-800 text-gray-300 font-bold text-lg flex items-center justify-center transition-colors cursor-pointer select-none"
+							title="Increase goal"
+						>
+							+
+						</button>
+					</div>
+				</div>
+			</div>
+
 			<div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm mb-6">
 				<div className="p-5 border-b border-slate-800 bg-slate-950">
 					<h3 className="text-base font-semibold text-white flex items-center gap-2">
