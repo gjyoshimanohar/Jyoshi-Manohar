@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import CustomSelect from "./CustomSelect";
+import Markdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
 import { db, auth } from "../lib/firebase";
 import { 
@@ -172,12 +173,97 @@ export default function FinanceTracker() {
   };
 
   // Filters
-  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account" | "settings" | "receivables">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account" | "settings" | "receivables" | "ai_insights">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
   const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
   const [selectedType, setSelectedType] = useState<"all" | "income" | "expense" | "transfer">("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+
+  // AI Insights State
+  const [aiInsights, setAiInsights] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("finance_ai_insights");
+      return saved || "";
+    }
+    return "";
+  });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Budget Limits / Targets State
+  const [budgetTargets, setBudgetTargets] = useState<{ [category: string]: number }>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("finance_budget_targets");
+      if (saved) return JSON.parse(saved);
+    }
+    return {
+      "Rent & Property": 25000,
+      "Salaries & Draws": 50000,
+      "Software & IT Services": 5000,
+      "Utilities & Comm.": 8000,
+      "Office Supplies": 4000,
+      "Marketing & Growth": 10000,
+      "Taxes & Filings": 15000,
+      "Groceries & Food": 15000,
+      "Shopping & Leisure": 12000,
+      "Travel & Transport": 6000,
+      "Utilities": 5000
+    };
+  });
+
+  const [budgetCategorySelect, setBudgetCategorySelect] = useState<string>("");
+  const [budgetAmountInput, setBudgetAmountInput] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("finance_budget_targets", JSON.stringify(budgetTargets));
+    }
+  }, [budgetTargets]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("finance_ai_insights", aiInsights);
+    }
+  }, [aiInsights]);
+
+  const fetchAiInsights = async (customQ?: string) => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const q = customQ || aiQuestion || "";
+      const response = await fetch("/api/finance/ai-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          records,
+          accounts: paymentAccounts,
+          customQuestion: q
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (q) {
+          const responseText = data.insights;
+          setAiInsights((prev) => {
+            const heading = `### 💬 Question: ${q}`;
+            return `${prev ? prev + "\n\n" : ""}${heading}\n\n${responseText}`;
+          });
+          setAiQuestion("");
+        } else {
+          setAiInsights(data.insights);
+        }
+      } else {
+        setAiError(data.error || "Failed to retrieve AI financial insights.");
+      }
+    } catch (err: any) {
+      console.error("Failed to query AI advisor:", err);
+      setAiError("A network error occurred while connecting to the AI Financial Advisor. Make sure the backend is active.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const [customCategories, setCustomCategories] = useState<{ [key: string]: string[] }>(() => {
     if (typeof window !== "undefined") {
@@ -1010,6 +1096,35 @@ export default function FinanceTracker() {
     };
   }, [records, selectedYear, selectedMonth, selectedScope]);
 
+  // Category-wise spending for the selected year & month (to compare with budgets)
+  const categorySpending = useMemo(() => {
+    const spending: { [category: string]: number } = {};
+    records.forEach(rec => {
+      if (rec.type !== "expense") return;
+      if (rec.isReceivableFromClient || rec.isReimbursed) return;
+
+      const recYear = rec.date.split("-")[0];
+      const recMonth = rec.date.split("-")[1];
+
+      // Year matching
+      if (recYear !== selectedYear) return;
+
+      // Month matching
+      if (selectedMonth !== "All") {
+        const monthNum = {
+          "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04",
+          "May": "05", "Jun": "06", "Jul": "07", "Aug": "08",
+          "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+        }[selectedMonth];
+        if (recMonth !== monthNum) return;
+      }
+
+      const cat = rec.category || "Miscellaneous";
+      spending[cat] = (spending[cat] || 0) + rec.amount;
+    });
+    return spending;
+  }, [records, selectedYear, selectedMonth]);
+
   // Generate data for Recharts Bar/Area Chart (Grouped by Month & Scope)
   const chartData = useMemo(() => {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1498,6 +1613,7 @@ export default function FinanceTracker() {
               { id: "incomes", label: "Incomes", icon: TrendingUp, desc: "Professional Inflows" },
               { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
               { id: "account", label: "Account", icon: Wallet, desc: "Assets & Liabilities" },
+              { id: "ai_insights", label: "AI Insights", icon: Sparkles, desc: "Smart Advisor & Forecasting" },
               { id: "settings", label: "Settings", icon: Settings, desc: "Configuration & Categories" },
             ].map((tab) => {
               const IconComp = tab.icon;
@@ -2271,6 +2387,76 @@ export default function FinanceTracker() {
         </div>
       )}
 
+      {/* Monthly Budget Targets Alert Panel */}
+      {activeTab === "dashboard" && (
+        <div className="mt-6 bg-white border border-border p-6 rounded-2xl shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h3 className="text-base font-bold text-primary tracking-tight flex items-center gap-2">
+                <Tag className="w-5 h-5 text-[#AD8D3E]" />
+                🎯 Monthly Expense Budgets & Alerts
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Real-time tracking of operating outlays against monthly target thresholds for {selectedMonth === "All" ? "Current Month" : selectedMonth} {selectedYear}.
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className="text-xs font-bold text-primary hover:text-[#AD8D3E] flex items-center gap-1 transition px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100"
+            >
+              Configure Budgets
+            </button>
+          </div>
+
+          {/* Budget Limits Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Object.entries(budgetTargets).map(([cat, limit]) => {
+              const spent = categorySpending[cat] || 0;
+              const pct = limit > 0 ? Math.min((spent / limit) * 100, 150) : 0;
+              const formattedPct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
+
+              let barColor = "bg-emerald-500";
+              let textColor = "text-emerald-600";
+              let cardBg = "bg-emerald-50/10 border-emerald-100";
+              let iconAlert = "✅ Within Limit";
+
+              if (formattedPct >= 100) {
+                barColor = "bg-rose-500";
+                textColor = "text-rose-600";
+                cardBg = "bg-rose-50/20 border-rose-100";
+                iconAlert = "⚠️ Overbudget!";
+              } else if (formattedPct >= 80) {
+                barColor = "bg-amber-500";
+                textColor = "text-amber-600";
+                cardBg = "bg-amber-50/20 border-amber-100";
+                iconAlert = "⚠️ Nearing Limit";
+              }
+
+              return (
+                <div key={cat} className={`p-4 rounded-xl border transition-all ${cardBg}`}>
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <span className="text-xs font-bold text-primary truncate max-w-[150px]">{cat}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${textColor} bg-white border border-current`}>
+                      {iconAlert}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline gap-2 mb-2">
+                    <span className="text-lg font-extrabold text-primary">₹{spent.toLocaleString("en-IN")}</span>
+                    <span className="text-xs text-gray-500">of ₹{limit.toLocaleString("en-IN")} ({formattedPct}%)</span>
+                  </div>
+                  <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Pending Receivables Analytics Row */}
       {activeTab === "dashboard" && (
         <div className="mt-6 bg-white border border-border p-6 rounded-2xl shadow-sm">
@@ -2641,11 +2827,253 @@ export default function FinanceTracker() {
               </div>
             </div>
             
-            {/* Other Settings (Placeholder) */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col items-center justify-center text-center">
-              <Settings className="w-12 h-12 text-slate-300 mb-3" />
-              <h4 className="text-sm font-bold text-slate-500 mb-1">More Settings</h4>
-              <p className="text-xs text-slate-400">Additional configuration options will appear here.</p>
+            {/* Manage Expense Budgets & Target Limits */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+              <h4 className="text-sm font-bold text-primary mb-4 flex items-center gap-2">
+                <Settings className="w-4 h-4 text-[#AD8D3E]" />
+                🎯 Monthly Expense Budgets
+              </h4>
+
+              <div className="space-y-4">
+                {/* Category Selector */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Select Expense Category
+                  </label>
+                  <CustomSelect
+                    value={budgetCategorySelect}
+                    onChange={(val) => setBudgetCategorySelect(val)}
+                    placeholder="Choose category..."
+                    className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary transition hover:border-slate-300 hover:shadow-sm"
+                    options={[
+                      ...customCategories.businessExpense,
+                      ...customCategories.personalExpense
+                    ].map(cat => ({ value: cat, label: cat }))}
+                  />
+                </div>
+
+                {/* Amount input */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Monthly Target Threshold (INR)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none font-bold text-slate-400">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      placeholder="e.g. 15000"
+                      value={budgetAmountInput}
+                      onChange={(e) => setBudgetAmountInput(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit button */}
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (!budgetCategorySelect || !budgetAmountInput) {
+                      triggerToast("Please select a category and specify a valid budget amount.", false);
+                      return;
+                    }
+                    const amt = parseFloat(budgetAmountInput);
+                    if (isNaN(amt) || amt <= 0) {
+                      triggerToast("Please enter a valid positive numerical amount.", false);
+                      return;
+                    }
+                    setBudgetTargets(prev => ({
+                      ...prev,
+                      [budgetCategorySelect]: amt
+                    }));
+                    setBudgetCategorySelect("");
+                    setBudgetAmountInput("");
+                    triggerToast(`Successfully set ₹${amt.toLocaleString("en-IN")} monthly budget for "${budgetCategorySelect}"`, true);
+                  }}
+                  className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Save Budget Limit
+                </button>
+
+                {/* Active Budgets List */}
+                <div className="pt-4 border-t border-slate-200 mt-4">
+                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                    Configured Budget Limits
+                  </span>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {Object.entries(budgetTargets).map(([cat, limit]) => (
+                      <div key={cat} className="flex justify-between items-center bg-white border border-slate-150 px-3 py-2 rounded-lg text-xs">
+                        <div className="truncate pr-2">
+                          <span className="font-semibold text-primary block truncate">{cat}</span>
+                          <span className="text-[10px] text-gray-400 font-medium">Limit: ₹{limit.toLocaleString("en-IN")}</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setBudgetTargets(prev => {
+                              const updated = { ...prev };
+                              delete updated[cat];
+                              return updated;
+                            });
+                            triggerToast(`Removed budget limit for "${cat}"`, true);
+                          }}
+                          className="text-slate-400 hover:text-rose-500 transition p-1"
+                          title="Remove Budget Target"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {Object.keys(budgetTargets).length === 0 && (
+                      <p className="text-xs text-slate-400 italic text-center py-2">No budget targets active.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Insights Tab Content */}
+      {activeTab === "ai_insights" && (
+        <div className="bg-white border border-border p-6 rounded-2xl shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-5 border-b border-slate-100">
+            <div>
+              <h3 className="text-lg font-bold text-primary tracking-tight flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
+                🧠 AI Financial Advisor & Fractional CFO
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Advanced AI diagnostics, automated category analysis, and collection optimization strategies for your firm.
+              </p>
+            </div>
+            {aiInsights && (
+              <button
+                onClick={() => {
+                  setAiInsights("");
+                  triggerToast("Cleared AI advisory history.", true);
+                }}
+                className="text-xs font-semibold text-slate-500 hover:text-rose-500 transition px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg"
+              >
+                Clear Insights History
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Quick Questions & Custom Chat Panel */}
+            <div className="lg:col-span-4 bg-slate-50 border border-slate-200 rounded-xl p-5 h-fit">
+              <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                Quick Diagnostics
+              </h4>
+              
+              <div className="space-y-2 mb-5">
+                <button
+                  onClick={() => fetchAiInsights("")}
+                  disabled={aiLoading}
+                  className="w-full text-left bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl p-3 text-xs font-semibold text-primary transition-all flex items-center justify-between group shadow-xs"
+                >
+                  <span>✨ Full CFO Financial Review</span>
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500 group-hover:scale-110 transition-transform" />
+                </button>
+                <button
+                  onClick={() => fetchAiInsights("Analyze our highest expense categories and list exactly 3 concrete, realistic strategies to reduce or optimize our overhead.")}
+                  disabled={aiLoading}
+                  className="w-full text-left bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl p-3 text-xs font-semibold text-primary transition-all flex items-center justify-between group shadow-xs"
+                >
+                  <span>📉 Analyze & Optimize Expenses</span>
+                  <TrendingDown className="w-3.5 h-3.5 text-rose-500 group-hover:scale-110 transition-transform" />
+                </button>
+                <button
+                  onClick={() => fetchAiInsights("Based on our current pending receivables, what specific collections/invoicing strategy can we use to accelerate payment recovery?")}
+                  disabled={aiLoading}
+                  className="w-full text-left bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl p-3 text-xs font-semibold text-primary transition-all flex items-center justify-between group shadow-xs"
+                >
+                  <span>📈 Accelerate Invoice Recovery</span>
+                  <FileText className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
+                </button>
+                <button
+                  onClick={() => fetchAiInsights("Estimate our financial trajectory/forecast for the next 3 months based on current spending and earning patterns.")}
+                  disabled={aiLoading}
+                  className="w-full text-left bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl p-3 text-xs font-semibold text-primary transition-all flex items-center justify-between group shadow-xs"
+                >
+                  <span>🔮 Three-Month Cash Flow Projection</span>
+                  <Calendar className="w-3.5 h-3.5 text-emerald-500 group-hover:scale-110 transition-transform" />
+                </button>
+              </div>
+
+              <div className="border-t border-slate-200 pt-4">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                  Ask Your Custom CFO Question
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Ask any financial question, e.g. 'Can we afford hiring another staff member next month?' or 'How does my net cash flow compare with last year?'"
+                  value={aiQuestion}
+                  onChange={(e) => setAiQuestion(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary resize-none transition"
+                />
+                <button
+                  onClick={() => fetchAiInsights()}
+                  disabled={aiLoading || !aiQuestion.trim()}
+                  className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm mt-3 flex items-center justify-center gap-2"
+                >
+                  {aiLoading ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5 text-[#AD8D3E]" />
+                  )}
+                  <span>{aiLoading ? "AI is Calculating..." : "Ask AI Advisor"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Generated Advisory Report Panel */}
+            <div className="lg:col-span-8 border border-slate-200 rounded-xl p-6 min-h-[450px] flex flex-col justify-between bg-white shadow-xs">
+              {aiLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
+                  <div className="relative mb-4">
+                    <div className="w-16 h-16 rounded-full border-4 border-slate-100 border-t-primary animate-spin" />
+                    <Sparkles className="absolute inset-0 m-auto w-6 h-6 text-indigo-500 animate-pulse" />
+                  </div>
+                  <h4 className="font-bold text-slate-700 text-sm mb-1">Synthesizing Ledger Intelligence</h4>
+                  <p className="text-xs text-slate-400 max-w-sm">
+                    Our AI model is cross-referencing professional receipts, client outlays, and pending account reserves...
+                  </p>
+                </div>
+              ) : aiError ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-12 text-center text-rose-500">
+                  <AlertCircle className="w-12 h-12 mb-3" />
+                  <h4 className="font-bold text-sm mb-1">Diagnostics Interrupted</h4>
+                  <p className="text-xs text-rose-400 max-w-sm">{aiError}</p>
+                </div>
+              ) : aiInsights ? (
+                <div className="flex-grow overflow-y-auto max-h-[600px] pr-2 scrollbar-thin">
+                  <div className="markdown-body prose prose-slate max-w-none text-slate-700 text-sm leading-relaxed space-y-4">
+                    <Markdown>{aiInsights}</Markdown>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-grow flex flex-col items-center justify-center py-16 text-center">
+                  <div className="p-4 bg-indigo-50 rounded-full text-indigo-500 mb-4 animate-bounce">
+                    <Sparkles className="w-8 h-8" />
+                  </div>
+                  <h4 className="font-bold text-slate-700 text-sm mb-1">Financial Intelligence Center</h4>
+                  <p className="text-xs text-slate-400 max-w-sm mb-6">
+                    Connect transaction ledgers and category structures with custom diagnostics to explore performance, tax optimizations, and advisory strategies.
+                  </p>
+                  <button
+                    onClick={() => fetchAiInsights("")}
+                    className="bg-primary hover:bg-primary/90 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition shadow-md flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4 text-[#AD8D3E]" /> Run Initial Diagnostic Review
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
