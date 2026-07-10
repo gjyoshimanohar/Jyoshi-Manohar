@@ -58,6 +58,7 @@ export interface Todo {
 	title: string;
 	description?: string;
 	completed: boolean;
+	completedAt?: number | null;
 	createdAt: number;
  isPinned?: boolean;
   order?: number;
@@ -144,4 +145,5 @@ export interface UserProfile {
   email: string; // This should mirror auth email, but we store it for display
   createdAt: number;
   passwordLastChanged?: number;
+  dailyTaskGoal?: number;
 }

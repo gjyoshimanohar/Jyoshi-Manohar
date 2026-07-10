@@ -5,15 +5,39 @@ import { Helmet, HelmetProvider } from 'react-helmet-async';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
-// Lazy load route pages to segment bundle chunks and prevent any secondary module-execution issues on the landing page
-const Home = lazy(() => import('./pages/Home'));
-const BlogList = lazy(() => import('./pages/BlogList'));
-const BlogPost = lazy(() => import('./pages/BlogPost'));
-const Admin = lazy(() => import('./pages/Admin'));
-const Tasks = lazy(() => import('./pages/Tasks'));
-const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
-const UserProfile = lazy(() => import('./pages/UserProfile'));
-const UnderConstruction = lazy(() => import('./pages/UnderConstruction'));
+// A robust helper to handle chunk loading errors in production when assets change during a deployment/server restart
+function lazyWithRetry(componentImport: () => Promise<any>) {
+  return lazy(async () => {
+    try {
+      const component = await componentImport();
+      try {
+        sessionStorage.removeItem('page-has-been-force-refreshed');
+      } catch (e) {}
+      return component;
+    } catch (error) {
+      console.error("Dynamic import failed, attempting to reload the page:", error);
+      try {
+        const hasRefreshed = sessionStorage.getItem('page-has-been-force-refreshed');
+        if (!hasRefreshed) {
+          sessionStorage.setItem('page-has-been-force-refreshed', 'true');
+          window.location.reload();
+          return { default: () => null };
+        }
+      } catch (e) {}
+      throw error;
+    }
+  });
+}
+
+// Lazy load route pages with retry mechanism to prevent module-execution/chunk issues
+const Home = lazyWithRetry(() => import('./pages/Home'));
+const BlogList = lazyWithRetry(() => import('./pages/BlogList'));
+const BlogPost = lazyWithRetry(() => import('./pages/BlogPost'));
+const Admin = lazyWithRetry(() => import('./pages/Admin'));
+const Tasks = lazyWithRetry(() => import('./pages/Tasks'));
+const ClientDashboard = lazyWithRetry(() => import('./pages/ClientDashboard'));
+const UserProfile = lazyWithRetry(() => import('./pages/UserProfile'));
+const UnderConstruction = lazyWithRetry(() => import('./pages/UnderConstruction'));
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();

@@ -30,6 +30,7 @@ import GuidePopup from './GuidePopup';
 import { determineProjectByTitle } from '../utils/autoCategorize';
 import ChangePasswordModal from './ChangePasswordModal';
 import DependencyTree from "./DependencyTree";
+import { userService } from '../services/userService';
 
 const PROJECT_ICONS: Record<string, React.ElementType> = {
  Folder, Briefcase, Code, Map, Music, Camera, Book, Heart, Star, Zap, Smile, Circle
@@ -370,7 +371,10 @@ export default function WorkspaceApp() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
  const [isProgressBannerExpanded, setIsProgressBannerExpanded] = useState(false);
- const [dailyTaskGoal, setDailyTaskGoal] = useState<number>(5);
+ const [dailyTaskGoal, setDailyTaskGoal] = useState<number>(() => {
+    const saved = localStorage.getItem('daily_task_goal');
+    return saved ? parseInt(saved, 10) : 5;
+  });
  const [searchQuery, setSearchQuery] = useState('');
  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProjectIdInModal, setEditingProjectIdInModal] = useState<string | null>(null);
@@ -491,6 +495,8 @@ export default function WorkspaceApp() {
  const [isCompletedSectionExpanded, setIsCompletedSectionExpanded] = useState(true);
  const [isCountdownExpanded, setIsCountdownExpanded] = useState(true);
  const [isPendingExpanded, setIsPendingExpanded] = useState(true);
+  const [isOverdueExpanded, setIsOverdueExpanded] = useState(true);
+  const [isTodayExpanded, setIsTodayExpanded] = useState(true);
  const [sortOrder, setSortOrder] = useState<'priority' | 'date'>('priority');
  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
  const [showSmartTips, setShowSmartTips] = useState(false);
@@ -674,6 +680,52 @@ export default function WorkspaceApp() {
  ensureTickTickBootstrap(auth.currentUser.uid);
  }
  }, [loading, projects.length, folders.length, auth.currentUser]);
+
+  // Load daily task goal from user profile (durable cloud storage)
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    
+    const loadGoal = async () => {
+      try {
+        const profile = await userService.getUserProfile(auth.currentUser!.uid);
+        if (profile && typeof profile.dailyTaskGoal === 'number') {
+          setDailyTaskGoal(profile.dailyTaskGoal);
+          localStorage.setItem('daily_task_goal', String(profile.dailyTaskGoal));
+        }
+      } catch (err) {
+        console.error("Failed to load daily goal from profile", err);
+      }
+    };
+    
+    loadGoal();
+  }, [loading, auth.currentUser]);
+
+  const handleUpdateDailyGoal = async (newGoal: number) => {
+    if (newGoal < 1) return;
+    setDailyTaskGoal(newGoal);
+    localStorage.setItem('daily_task_goal', String(newGoal));
+    if (auth.currentUser) {
+      try {
+        await userService.updateUserProfile(auth.currentUser.uid, {
+          dailyTaskGoal: newGoal
+        });
+      } catch (err) {
+        console.error("Failed to save daily goal to profile", err);
+      }
+    }
+  };
+
+  const getCompletionDate = (t: Todo) => {
+    if (!t.completed) return null;
+    if (t.completedAt) return t.completedAt;
+    const act = t.activities?.slice().reverse().find(a => a.type === 'status' && a.newValue === 'Completed');
+    return act ? act.createdAt : (t.dueDate || t.createdAt);
+  };
+
+  const completedTodayCount = todos.filter(t => {
+    const d = getCompletionDate(t);
+    return d && isSameDay(new Date(d), new Date());
+  }).length;
 
  // Keep track of tasks we've already notified about in this session
  const notifiedTaskIds = useRef<Set<string>>(new Set());
@@ -965,7 +1017,11 @@ export default function WorkspaceApp() {
    user: 'You'
  };
  const updatedActivities = [...(todo.activities || []), newActivity];
- await todoService.updateTodo(todo.id, { completed: isCompleting, activities: updatedActivities });
+ await todoService.updateTodo(todo.id, { 
+   completed: isCompleting, 
+   completedAt: isCompleting ? now : null, 
+   activities: updatedActivities 
+ });
 
  if (isCompleting && todo.repeatInterval) {
  const baseDate = todo.dueDate ? new Date(todo.dueDate) : new Date();
@@ -1018,7 +1074,7 @@ export default function WorkspaceApp() {
  const yesterday = new Date();
  yesterday.setDate(yesterday.getDate() - 1);
  if (isSameDay(dateObj, yesterday)) return "Yesterday";
- return format(dateObj, 'MMM dd');
+ return format(dateObj, 'MMM d');
  };
 
  const handleCreateSection = async () => {
@@ -1314,14 +1370,15 @@ export default function WorkspaceApp() {
  };
 
  // Bullet priorities for Custom checkbox circular surrounds matching the TickTick mockup
- const getPriorityCheckboxStyle = (priority?: number) => {
- switch (priority) {
- case 1: return 'border-red-300 hover:bg-red-50/50 text-red-400 bg-red-50/20';
- case 2: return 'border-orange-300 hover:bg-orange-50/50 text-orange-400 bg-orange-50/20';
- case 3: return 'border-blue-300 hover:bg-blue-50/50 text-blue-400 bg-blue-50/20';
- default: return 'border-gray-200 hover:bg-gray-50 text-gray-400';
- }
- };
+ const getPriorityCheckboxStyle = (priority?: number, isOverdue = false) => {
+    if (isOverdue) return 'border-[#de4c4a] hover:bg-red-50/50 text-[#de4c4a] bg-transparent';
+    switch (priority) {
+      case 1: return 'border-red-400 hover:bg-red-50/50 text-red-500 bg-transparent';
+      case 2: return 'border-orange-400 hover:bg-orange-50/50 text-orange-500 bg-transparent';
+      case 3: return 'border-blue-400 hover:bg-blue-50/50 text-blue-500 bg-transparent';
+      default: return 'border-gray-300 hover:bg-gray-50 text-gray-400 bg-transparent';
+    }
+  };
 
  const formatTaskDate = (time?: number | null) => {
  if (!time) return '';
@@ -1376,7 +1433,115 @@ export default function WorkspaceApp() {
  return count;
  };
 
- // Render project individual listings in direct sidebars
+   // Render individual todo item row
+  const renderTodoItem = (todo: Todo) => {
+    const hasPriority = todo.priority && todo.priority < 4;
+    const isOverdue = todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime();
+    return (
+      <motion.div
+        key={todo.id}
+        initial={{ opacity: 0, scale: 0.99 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
+          hasPriority 
+            ? todo.priority === 1 
+              ? isOverdue ? '' : 'border-l-[3px] border-red-300 pl-3' 
+              : todo.priority === 2 
+                ? 'border-l-[3px] border-orange-300 pl-3' 
+                : 'border-l-[3px] border-blue-300 pl-3'
+            : ''
+        }`}
+      >
+        <div className="flex items-center min-w-0 flex-1">
+          <button
+            onClick={() => handleToggleTodo(todo)}
+            className={`mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-[5px] border-2 transition-all ${getPriorityCheckboxStyle(todo.priority, isOverdue)}`}
+            title="Mark complete"
+          >
+            <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity" />
+          </button>
+
+          <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
+            <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
+              {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
+              {getActiveDependenciesCount(todo) > 0 ? (
+                <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
+                  <Lock className="w-[10px] h-[10px]" />
+                  <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
+                </span>
+              ) : (todo.blockedBy?.length || 0) > 0 ? (
+                <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
+              ) : null}
+              {inlineEditTaskId === todo.id ? (
+                <input
+                  autoFocus
+                  type="text"
+                  value={inlineEditTitle}
+                  onChange={(e) => setInlineEditTitle(e.target.value)}
+                  onBlur={handleInlineEditSubmit}
+                  onKeyDown={handleInlineEditKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
+                />
+              ) : (
+                <span 
+                  className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setInlineEditTaskId(todo.id);
+                    setInlineEditTitle(todo.title);
+                  }}
+                >
+                  {todo.title}
+                </span>
+              )}
+            </span>
+            {todo.description && (
+              <p className="text-xs text-gray-500 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
+            )}
+            {todo.subtasks && todo.subtasks.length > 0 && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
+                <ListTodo className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <span>{todo.subtasks.filter(s => s.completed).length}/{todo.subtasks.length} Subtasks</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2.5 shrink-0 pl-2">
+          {renderItemProjectBadge(todo)}
+
+          {viewMode !== 'trash' && viewMode !== 'today' && (
+            <span className={`text-xs sm:text-xs font-semibold flex items-center select-none shrink-0 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'text-red-500' : 'text-blue-500'}`}>
+              {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1" /> : null}
+              {formatCardDate(todo.dueDate) || 'No date'}
+            </span>
+          )}
+
+          <div className="flex items-center space-x-1">
+            {viewMode === 'trash' && (
+              <button
+                onClick={(e) => handleRestoreTodo(todo.id, e)}
+                className="p-1 px-1.5 opacity-0 group-hover:opacity-100 text-xs font-medium text-green-700 bg-green-50 rounded border border-green-100 hover:bg-green-100 transition-opacity"
+                title="Restore task"
+              >
+                Restore
+              </button>
+            )}
+            <button
+              onClick={(e) => handleDeleteTodo(todo.id, e)}
+              className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
+              title={viewMode === 'trash' ? 'Delete permanently' : 'Trash task'}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Render project individual listings in direct sidebars
  const renderProjectItem = (project: Project) => (
  <div key={project.id} draggable onDragStart={(e) => handleDragStart(e, project.id)} className="group relative flex items-center justify-between pl-2 cursor-grab active:cursor-grabbing">
  {editingProjectId === project.id ? (
@@ -1418,7 +1583,7 @@ export default function WorkspaceApp() {
  setActiveAppTab('tasks');
  if (window.innerWidth < 768) setIsSidebarOpen(false);
  }}
- className={`flex-grow flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-semibold transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-[#FFEFEE] text-primary shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`flex-grow flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'project' && selectedProjectId === project.id && activeAppTab === 'tasks' ? 'bg-gray-200/60 text-gray-900 font-semibold' : 'hover:bg-gray-100/80 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5 truncate text-[#333333]">
  {/* Colored bullet circle dot mimicking TickTick */}
@@ -1429,7 +1594,7 @@ export default function WorkspaceApp() {
  {/* Project tasks count badge */}
  <div className="flex items-center">
  {getProjectPendingCount(project.id) > 0 && (
- <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full mr-1.5">
+ <span className="text-xs text-gray-400 font-semibold mr-1.5">
  {getProjectPendingCount(project.id)}
  </span>
  )}
@@ -1461,7 +1626,7 @@ export default function WorkspaceApp() {
  );
 
  const renderProjectList = () => (
- <div className="space-y-0 mt-0">
+ <div className="space-y-2 mt-1">
  {folders.map(folder => (
  <div 
         key={folder.id} 
@@ -1474,7 +1639,7 @@ export default function WorkspaceApp() {
             handleFolderDrop(e, folder.id);
           }
         }}
-        className="mb-0 bg-gray-50/50 rounded-xl p-0.5 relative border border-gray-100/40 cursor-grab active:cursor-grabbing">
+        className="mb-1.5 bg-gray-50/50 rounded-xl p-0.5 relative border border-gray-100/40 cursor-grab active:cursor-grabbing">
  {editingFolderId === folder.id ? (
  <form onSubmit={(e) => handleSaveEditFolder(folder.id, e)} className="flex items-center space-x-1 p-1 bg-white border border-gray-100 rounded-lg shadow-sm">
  <div className="relative flex-1">
@@ -1533,9 +1698,9 @@ export default function WorkspaceApp() {
   <ChevronDown className={`w-3.5 h-3.5 text-gray-400 hover:text-gray-600 shrink-0 transition-transform ${expandedFolders.includes(folder.id) ? '' : '-rotate-90'}`} />
  </div>
  <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
- <span className={`text-sm font-medium truncate max-w-[120px] ${viewMode === 'folder' && selectedFolderId === folder.id ? 'text-primary' : 'text-gray-700'}`}>{folder.name}</span>
+ <span className={`text-sm font-semibold truncate max-w-[120px] ${viewMode === 'folder' && selectedFolderId === folder.id ? 'text-gray-900 font-semibold' : 'text-gray-700'}`}>{folder.name}</span>
  {getFolderPendingCount(folder.id) > 0 && (
- <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">
+ <span className="text-xs text-gray-400 font-semibold ml-auto pr-1">
  {getFolderPendingCount(folder.id)}
  </span>
  )}
@@ -1560,7 +1725,7 @@ export default function WorkspaceApp() {
  )}
  {/* Subproject listings inside Folder */}
   {expandedFolders.includes(folder.id) && (
- <div className="pl-3.5 border-l border-gray-200 ml-3.5 mt-0 space-y-0">
+ <div className="pl-3.5 border-l border-gray-200 ml-3.5 mt-1 space-y-1.5">
  {projects.filter(p => p.folderId === folder.id).map(renderProjectItem)}
  {projects.filter(p => p.folderId === folder.id).length === 0 && (
  <div className="text-sm text-gray-400 pl-1 py-1 italic">Empty folders list</div>
@@ -1570,7 +1735,7 @@ export default function WorkspaceApp() {
  </div>
  ))}
  
- <div onDrop={(e) => handleDropToFolder(e, null)} onDragOver={handleDragOver} className="min-h-[20px]">
+ <div onDrop={(e) => handleDropToFolder(e, null)} onDragOver={handleDragOver} className="min-h-[20px] space-y-1.5 mt-1.5">
   {/* Direct Lists that are not nested inside Folders */}
  {projects.filter(p => !p.folderId).map(renderProjectItem)}
  
@@ -1812,34 +1977,68 @@ export default function WorkspaceApp() {
  <nav className="space-y-0.5">
  <button
  onClick={() => { setViewMode('today'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'today' ? 'bg-[#FFEFEE] text-[#e53935] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'today' ? 'bg-gray-200/60 text-gray-900 font-semibold' : 'hover:bg-gray-100/80 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <Sun className="w-4 h-4 text-slate-500" />
+ <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+ <line x1="16" y1="2" x2="16" y2="6" />
+ <line x1="8" y1="2" x2="8" y2="6" />
+ <line x1="3" y1="10" x2="21" y2="10" />
+ <text 
+ x="12" 
+ y="16.5" 
+ textAnchor="middle" 
+ dominantBaseline="central"
+ fontSize="9" 
+ fontWeight="bold" 
+ fill="currentColor" 
+ stroke="none"
+ >
+ {new Date().getDate()}
+ </text>
+ </svg>
  <span>Today</span>
  </div>
- {todayCount > 0 && <span className="text-xs font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{todayCount}</span>}
+ {todayCount > 0 && <span className="text-xs text-gray-400 font-semibold ml-auto pr-1">{todayCount}</span>}
  </button>
 
  <button
  onClick={() => { setViewMode('upcoming'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'upcoming' ? 'bg-primary/5 text-[#1a2b58] shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'upcoming' ? 'bg-gray-200/60 text-gray-900 font-semibold' : 'hover:bg-gray-100/80 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <CalendarIcon className="w-4 h-4 text-slate-500" />
+ <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+ <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+ <line x1="16" y1="2" x2="16" y2="6" />
+ <line x1="8" y1="2" x2="8" y2="6" />
+ <line x1="3" y1="10" x2="21" y2="10" />
+ <text 
+ x="12" 
+ y="16.5" 
+ textAnchor="middle" 
+ dominantBaseline="central"
+ fontSize="9" 
+ fontWeight="bold" 
+ fill="currentColor" 
+ stroke="none"
+ >
+ 7
+ </text>
+ </svg>
  <span>Next 7 days</span>
  </div>
  </button>
 
  <button
  onClick={() => { setViewMode('inbox'); selectedProjectId && setSelectedProjectId(null); setIsAddingTask(false); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'inbox' ? 'bg-blue-50 text-blue-800 shadow-sm' : 'hover:bg-gray-100 text-gray-700'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'inbox' ? 'bg-gray-200/60 text-gray-900 font-semibold' : 'hover:bg-gray-100/80 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <Inbox className="w-4 h-4 text-slate-500" />
+ <Inbox className="w-4 h-4 text-gray-600" />
  <span>Inbox</span>
  </div>
- {inboxCount > 0 && <span className="text-xs font-bold text-slate-800 bg-white/65 px-2 py-0.5 rounded-full">{inboxCount}</span>}
+ {inboxCount > 0 && <span className="text-xs text-gray-400 font-semibold ml-auto pr-1">{inboxCount}</span>}
  </button>
  </nav>
 
@@ -1924,19 +2123,19 @@ export default function WorkspaceApp() {
  <div className="space-y-0.5">
  <button
  onClick={() => { setViewMode('completed'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'completed' ? 'bg-gray-200/50 text-gray-900 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'completed' ? 'bg-gray-200/60 text-gray-900 font-semibold' : 'hover:bg-gray-100/80 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <Check className="w-4 h-4 text-green-500" />
+ <Check className="w-4 h-4 text-gray-400" />
  <span>Completed Logs</span>
  </div>
  </button>
  <button
  onClick={() => { setViewMode('trash'); selectedProjectId && setSelectedProjectId(null); setSidebarSelectedTag(null); }}
- className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'trash' ? 'bg-red-50 text-red-600 shadow-sm' : 'hover:bg-gray-100 text-gray-600'}`}
+ className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'trash' ? 'bg-gray-200/60 text-gray-900 font-semibold' : 'hover:bg-gray-100/80 text-gray-700'}`}
  >
  <div className="flex items-center space-x-2.5">
- <Trash2 className="w-4 h-4 text-red-400" />
+ <Trash2 className="w-4 h-4 text-gray-400" />
  <span>Trash bin</span>
  </div>
  </button>
@@ -1987,7 +2186,7 @@ export default function WorkspaceApp() {
       <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-24 md:pb-6 relative h-full">
  {/* Header container */}
  <div className="w-[98%] mx-auto px-6 py-5 md:py-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
- <div className="flex items-center">
+ <div className="flex flex-wrap items-center gap-3">
  {activeAppTab === 'tasks' && (
  <button 
  onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
@@ -1997,14 +2196,61 @@ export default function WorkspaceApp() {
  <Menu className="w-4.5 h-4.5" />
  </button>
  )}
- <h1 className="text-xl text-gray-900 flex items-center tracking-tight">
- {activeAppTab === 'tasks' ? getViewTitle() : activeAppTab.toUpperCase()}
- {activeAppTab === 'tasks' && viewMode === 'today' && (
- <span className="text-xs text-gray-400 font-normal ml-2.5 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-full select-none">
- {format(new Date(), 'EEE MMM d')}
- </span>
- )}
- </h1>
+ <h1 className="text-2xl font-bold text-gray-950 flex items-center tracking-tight">
+    {activeAppTab === 'tasks' ? getViewTitle() : activeAppTab.toUpperCase()}
+    {activeAppTab === 'tasks' && viewMode === 'today' && viewMode !== 'today' && (
+      <span className="text-xs text-gray-400 font-normal ml-2.5 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-full select-none">
+        {format(new Date(), 'EEE MMM d')}
+      </span>
+    )}
+  </h1>
+  
+  {/* Daily task goal progress header widget */}
+  {activeAppTab === 'tasks' && (
+    <div id="daily-task-goal-header-widget" className="flex items-center bg-gray-50 border border-gray-100 rounded-full px-3 py-1 text-xs text-gray-600 gap-2 shrink-0 select-none shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+      <Target className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+      <span className="font-semibold text-gray-800">Daily Target:</span>
+      <span className="font-mono font-bold text-indigo-600">{completedTodayCount}</span>
+      <span className="text-gray-300 font-normal">/</span>
+      
+      <div className="flex items-center gap-1">
+        <button 
+          onClick={() => handleUpdateDailyGoal(Math.max(1, dailyTaskGoal - 1))}
+          className="w-4 h-4 rounded hover:bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500 cursor-pointer transition-colors"
+          title="Decrease daily target"
+        >
+          -
+        </button>
+        <span className="font-mono font-bold text-gray-800 bg-white px-1.5 py-0.5 rounded border border-gray-150 min-w-[18px] text-center shadow-inner">
+          {dailyTaskGoal}
+        </span>
+        <button 
+          onClick={() => handleUpdateDailyGoal(dailyTaskGoal + 1)}
+          className="w-4 h-4 rounded hover:bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500 cursor-pointer transition-colors"
+          title="Increase daily target"
+        >
+          +
+        </button>
+      </div>
+
+      <div className="w-16 h-1.5 bg-gray-200/60 rounded-full overflow-hidden ml-1 hidden sm:block shrink-0">
+        <div 
+          className="h-full bg-indigo-600 transition-all duration-500 rounded-full" 
+          style={{ width: `${Math.min(100, (completedTodayCount / dailyTaskGoal) * 100)}%` }}
+        />
+      </div>
+      
+      <span className="font-mono font-semibold text-gray-500 hidden md:inline shrink-0">
+        ({Math.round(Math.min(100, (completedTodayCount / dailyTaskGoal) * 100))}%)
+      </span>
+
+      {completedTodayCount >= dailyTaskGoal && (
+        <span title="Goal reached! Keep it up!">
+          <Award className="w-3.5 h-3.5 text-yellow-500 shrink-0 animate-bounce" />
+        </span>
+      )}
+    </div>
+  )}
  </div>
 
  {/* Large dynamic quick actions toolbar right */}
@@ -2812,19 +3058,19 @@ export default function WorkspaceApp() {
  </div>
  <div className={`space-y-2.5 flex-1 p-2 -mx-1 min-h-[40px] rounded-xl transition-all duration-200 ${draggingOverSection === sectionName + '-' + prio.level ? 'bg-blue-50 border-2 border-dashed border-blue-300' : 'bg-gray-50/30 border border-gray-100'}`}>
  {prioTasks.map((todo) => {
- // Priority specific border and hover styles to replicate circular checkboxes perfectly
- let borderPrio = "border-gray-300 hover:border-primary";
- let checkColor = "text-primary";
- if (todo.priority === 1) {
- borderPrio = "border-red-300 hover:bg-red-50/50 text-red-400 bg-red-50/15";
- } else if (todo.priority === 2) {
- borderPrio = "border-orange-300 hover:bg-orange-50/50 text-orange-400 bg-orange-50/15";
- } else if (todo.priority === 3) {
- borderPrio = "border-blue-300 hover:bg-blue-50/50 text-blue-400 bg-blue-50/15";
- }
+  // Priority specific border and hover styles to replicate circular checkboxes perfectly
+  const isOverdue = todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime();
+  let borderPrio = "border-gray-300 hover:border-primary";
+  let checkColor = "text-primary";
+  if (todo.priority === 1 || isOverdue) {
+  borderPrio = "border-red-300 hover:bg-red-50/50 text-red-400 bg-red-50/15";
+  } else if (todo.priority === 2) {
+  borderPrio = "border-orange-300 hover:bg-orange-50/50 text-orange-400 bg-orange-50/15";
+  } else if (todo.priority === 3) {
+  borderPrio = "border-blue-300 hover:bg-blue-50/50 text-blue-400 bg-blue-50/15";
+  }
 
  const formattedDate = formatCardDate(todo.dueDate);
- const isOverdue = todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime();
 
  return (
  <motion.div
@@ -2835,7 +3081,7 @@ export default function WorkspaceApp() {
  e.dataTransfer.setData("text/plain", todo.id);
  }}
  className={`bg-white rounded-2xl border border-gray-100 p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 cursor-grab active:cursor-grabbing text-left flex flex-col gap-1.5 group select-none relative duration-100 ${
- todo.priority === 1 ? 'border-l-2 border-l-red-300 pl-3' : todo.priority === 2 ? 'border-l-2 border-l-orange-300 pl-3' : todo.priority === 3 ? 'border-l-2 border-l-blue-300 pl-3' : ''
+ todo.priority === 1 && !isOverdue ? 'border-l-2 border-l-red-300 pl-3' : todo.priority === 2 ? 'border-l-2 border-l-orange-300 pl-3' : todo.priority === 3 ? 'border-l-2 border-l-blue-300 pl-3' : ''
  }`}
  onClick={() => setSelectedTodoId(todo.id)}
  >
@@ -2847,7 +3093,7 @@ export default function WorkspaceApp() {
  e.stopPropagation();
  handleToggleTodo(todo);
  }}
- className={`mt-0.5 w-[16px] h-[16px] shrink-0 rounded-full border-2 flex items-center justify-center bg-white transition-colors duration-200 ${borderPrio}`}
+ className={`mt-0.5 w-[16px] h-[16px] shrink-0 rounded-[5px] border-2 flex items-center justify-center bg-white transition-colors duration-200 ${borderPrio}`}
  >
  <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity duration-150" />
  </button>
@@ -2931,7 +3177,7 @@ export default function WorkspaceApp() {
  {/* Date / Recurrence cycle line */}
  {formattedDate && (
  <div className={`flex items-center gap-1.5 text-xs tracking-wide pl-[23px] mt-0.5 ${isOverdue ? 'text-red-500 font-semibold' : 'text-primary'}`}>
- <span>{isOverdue ? `Overdue (${formattedDate})` : formattedDate}</span>
+ <span>{formattedDate}</span>
  </div>
  )}
  </motion.div>
@@ -3704,9 +3950,9 @@ export default function WorkspaceApp() {
 
  <div className="flex items-center space-x-2 shrink-0">
  {renderItemProjectBadge(todo)}
- <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
- {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : null}
- {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'Today'}
+ <span className={`text-xs sm:text-xs font-semibold flex items-center select-none shrink-0 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'text-red-500' : 'text-blue-500'}`}>
+ {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1" /> : null}
+ {formatCardDate(todo.dueDate) || 'Today'}
  </span>
  <button
  onClick={(e) => handleDeleteTodo(todo.id, e)}
@@ -3725,273 +3971,153 @@ export default function WorkspaceApp() {
  )}
 
  {/* GROUP B: "Current View Actions/Pending" section */}
- <div className="mb-6">
- <button
- onClick={() => setIsPendingExpanded(!isPendingExpanded)}
- className="flex items-center space-x-1.5 text-xs text-gray-400 uppercase tracking-widest mb-3.5 bg-transparent border-none outline-none select-none cursor-pointer"
- >
- {isPendingExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
- <span>
- {viewMode === 'today' ? `${format(new Date(), 'EEEE')}, Today` : viewMode === 'trash' ? 'Deleted Trash Bin' : viewMode === 'completed' ? 'Historical Active Logs' : getViewTitle()}
- </span>
- <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-800 ml-1.5">
- {allActiveViewTodos.filter(t => !t.completed).length}
- </span>
- </button>
-
- {isPendingExpanded && (
- <div className="space-y-0.5 border-t border-b border-gray-100/50">
- <AnimatePresence>
- {viewMode === 'folder' ? (
+  {viewMode === 'today' ? (
     (() => {
-      const folderProjects = projects.filter(p => p.folderId === selectedFolderId);
-      const activeTasks = allActiveViewTodos.filter(t => !t.completed);
-
-      return folderProjects.map(project => {
-        const projectTasks = activeTasks.filter(t => t.projectId === project.id);
-        if (projectTasks.length === 0) return null;
-
-        return (
-          <div key={project.id} className="mb-6 last:mb-2 text-left">
-            <div 
-              className="flex items-center justify-between px-3 py-2 bg-gray-50/70 hover:bg-gray-50/90 rounded-xl mb-2 border border-gray-100/80 transition-all cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
-              onClick={() => {
-                setViewMode('project');
-                setSelectedProjectId(project.id);
-                setActiveAppTab('tasks');
-              }}
-            >
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: project.color || '#9ca3af' }} />
-                {renderIcon(project.icon, project.color, "w-4 h-4 text-gray-500 shrink-0")}
-                <span className="text-xs font-bold text-gray-800 tracking-tight truncate">{project.name}</span>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: `${project.color}15`, color: project.color || '#4B5563' }}>
-                {projectTasks.length} pending
-              </span>
-            </div>
-
-            <div className="pl-3.5 space-y-0.5 border-l-[3px] ml-3 mb-4 text-left" style={{ borderColor: project.color }}>
-              {projectTasks.map(todo => {
-                const hasPriority = todo.priority && todo.priority < 4;
-                return (
-                  <motion.div
-                    key={todo.id}
-                    initial={{ opacity: 0, scale: 0.99 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
-                      hasPriority 
-                        ? todo.priority === 1 
-                          ? 'border-l-[3px] border-red-300 pl-3' 
-                          : todo.priority === 2 
-                            ? 'border-l-[3px] border-orange-300 pl-3' 
-                            : 'border-l-[3px] border-blue-300 pl-3'
-                        : ''
-                    }`}
-                  >
-                    <div className="flex items-center min-w-0 flex-1">
-                      <button
-                        onClick={() => handleToggleTodo(todo)}
-                        className={`mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full border-2 transition-all ${getPriorityCheckboxStyle(todo.priority)}`}
-                        title="Mark complete"
-                      >
-                        <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity" />
-                      </button>
-
-                      <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
-                        <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
-                          {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
-                          {getActiveDependenciesCount(todo) > 0 ? (
-  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
-    <Lock className="w-[10px] h-[10px]" />
-    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
-  </span>
-) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
-) : null}
-                          {inlineEditTaskId === todo.id ? (
-  <input
-    autoFocus
-    type="text"
-    value={inlineEditTitle}
-    onChange={(e) => setInlineEditTitle(e.target.value)}
-    onBlur={handleInlineEditSubmit}
-    onKeyDown={handleInlineEditKeyDown}
-    onClick={(e) => e.stopPropagation()}
-    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
-  />
-) : (
-  <span 
-    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
-    onClick={(e) => {
-      e.stopPropagation();
-      setInlineEditTaskId(todo.id);
-      setInlineEditTitle(todo.title);
-    }}
-  >
-    {todo.title}
-  </span>
-)}
-                        </span>
-                        {todo.description && (
-                          <p className="text-xs text-gray-500 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
-                        )}
-                        {todo.subtasks && todo.subtasks.length > 0 && (
-                          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
-                            <ListTodo className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            <span>{todo.subtasks.filter(s => s.completed).length}/{todo.subtasks.length} Subtasks</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2.5 shrink-0 pl-2">
-                      {renderItemProjectBadge(todo)}
-
-                      <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
-                        {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : <CalendarIcon className="w-3 h-3 mr-1 opacity-70" />}
-                        {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'No date'}
-                      </span>
-
-                      <div className="flex items-center space-x-1">
-                        <button
-                          onClick={(e) => handleDeleteTodo(todo.id, e)}
-                          className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
-                          title="Trash task"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        );
+      const activeTodos = allActiveViewTodos.filter(t => !t.completed);
+      const overdueList = activeTodos.filter(t => {
+        const dateVal = t.dueDate || t.deadline;
+        return dateVal && dateVal < startOfDay(new Date()).getTime();
       });
-    })()
-  ) : (
-    allActiveViewTodos.filter(t => !t.completed).map(todo => {
-      const hasPriority = todo.priority && todo.priority < 4;
-      return (
-        <motion.div
-          key={todo.id}
-          initial={{ opacity: 0, scale: 0.99 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
-            hasPriority 
-              ? todo.priority === 1 
-                ? 'border-l-[3px] border-red-300 pl-3' 
-                : todo.priority === 2 
-                  ? 'border-l-[3px] border-orange-300 pl-3' 
-                  : 'border-l-[3px] border-blue-300 pl-3'
-              : ''
-          }`}
-        >
-          <div className="flex items-center min-w-0 flex-1">
-            <button
-              onClick={() => handleToggleTodo(todo)}
-              className={`mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-full border-2 transition-all ${getPriorityCheckboxStyle(todo.priority)}`}
-              title="Mark complete"
-            >
-              <Check className="w-2.5 h-2.5 opacity-0 hover:opacity-100 text-current transition-opacity" />
-            </button>
+      const todayList = activeTodos.filter(t => {
+        const dateVal = t.dueDate || t.deadline;
+        return !dateVal || dateVal >= startOfDay(new Date()).getTime();
+      });
 
-            <div className="min-w-0 flex-1 cursor-pointer pr-4" onClick={() => setSelectedTodoId(todo.id)}>
-              <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
-                {todo.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
-                {getActiveDependenciesCount(todo) > 0 ? (
-  <span className="flex items-center gap-0.5 text-rose-600 bg-rose-50 px-1 py-[1px] rounded shrink-0" title={`Waiting on ${getActiveDependenciesCount(todo)} task(s)`}>
-    <Lock className="w-[10px] h-[10px]" />
-    <span className="text-[10px] font-bold leading-none">{getActiveDependenciesCount(todo)}</span>
-  </span>
-) : (todo.blockedBy?.length || 0) > 0 ? (
-  <Lock className="inline-block w-3 h-3 text-gray-300 flex-shrink-0"  />
-) : null}
-                {inlineEditTaskId === todo.id ? (
-  <input
-    autoFocus
-    type="text"
-    value={inlineEditTitle}
-    onChange={(e) => setInlineEditTitle(e.target.value)}
-    onBlur={handleInlineEditSubmit}
-    onKeyDown={handleInlineEditKeyDown}
-    onClick={(e) => e.stopPropagation()}
-    className={"bg-white border border-blue-300 rounded px-1 text-inherit font-normal outline-none focus:ring-2 focus:ring-blue-100 flex-1 min-w-0 " + (todo.completed ? 'text-gray-400 line-through' : '')}
-  />
-) : (
-  <span 
-    className="cursor-text hover:bg-gray-100/50 px-1 -ml-1 rounded transition-colors"
-    onClick={(e) => {
-      e.stopPropagation();
-      setInlineEditTaskId(todo.id);
-      setInlineEditTitle(todo.title);
-    }}
-  >
-    {todo.title}
-  </span>
-)}
-              </span>
-              {todo.description && (
-                <p className="text-xs text-gray-500 line-clamp-1 leading-normal font-medium mt-0.5">{todo.description}</p>
-              )}
-              {todo.subtasks && todo.subtasks.length > 0 && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400 font-medium select-none" onClick={(e) => e.stopPropagation()}>
-                  <ListTodo className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <span>{todo.subtasks.filter(s => s.completed).length}/{todo.subtasks.length} Subtasks</span>
+      return (
+        <div className="space-y-6 text-left w-full">
+          {/* Overdue Section */}
+          {overdueList.length > 0 && (
+            <div className="mb-4">
+              <button
+                onClick={() => setIsOverdueExpanded(!isOverdueExpanded)}
+                className="flex items-center space-x-1.5 text-sm font-semibold text-gray-800 bg-transparent border-none outline-none select-none cursor-pointer group mb-2.5"
+              >
+                {isOverdueExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                <span className="font-bold text-gray-900 text-[14px]">Overdue</span>
+                <span className="text-sm text-gray-400 font-normal ml-1.5">
+                  {overdueList.length}
+                </span>
+              </button>
+
+              {isOverdueExpanded && (
+                <div className="border-l-2 border-[#a1dbcb] pl-[11px] ml-1.5 space-y-0.5">
+                  <AnimatePresence>
+                    {overdueList.map(todo => renderTodoItem(todo))}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
-          </div>
+          )}
 
-          <div className="flex items-center space-x-2.5 shrink-0 pl-2">
-            {renderItemProjectBadge(todo)}
-
-            {viewMode !== 'trash' && (
-              <span className={`text-xs sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center select-none shrink-0 border border-blue-100/10 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'bg-red-50 text-red-600' : 'bg-[#ebf3ff]/70 text-[#1a2b58]'}`}>
-                {todo.repeatInterval ? <RefreshCw className="w-3 h-3 mr-1 opacity-70" /> : <CalendarIcon className="w-3 h-3 mr-1 opacity-70" />}
-                {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${formatCardDate(todo.dueDate)})` : formatCardDate(todo.dueDate) || 'No date'}
+          {/* Today Section */}
+          <div>
+            <button
+              onClick={() => setIsTodayExpanded(!isTodayExpanded)}
+              className="flex items-center space-x-1.5 text-sm font-semibold text-gray-800 bg-transparent border-none outline-none select-none cursor-pointer group mb-2.5"
+            >
+              {isTodayExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+              <span className="font-bold text-gray-900 text-[14px]">{format(new Date(), 'EEEE')}, Today</span>
+              <span className="text-sm text-gray-400 font-normal ml-1.5">
+                {todayList.length}
               </span>
+            </button>
+
+            {isTodayExpanded && (
+              <div className="border-l-2 border-transparent pl-[11px] ml-1.5 space-y-0.5">
+                <AnimatePresence>
+                  {todayList.map(todo => renderTodoItem(todo))}
+                </AnimatePresence>
+                {todayList.length === 0 && (
+                  <div className="text-xs text-gray-400 italic py-2 pl-3">
+                    No tasks due today.
+                  </div>
+                )}
+              </div>
             )}
-
-            <div className="flex items-center space-x-1">
-              {viewMode === 'trash' && (
-                <button
-                  onClick={(e) => handleRestoreTodo(todo.id, e)}
-                  className="p-1 px-1.5 opacity-0 group-hover:opacity-100 text-xs font-medium text-green-700 bg-green-50 rounded border border-green-100 hover:bg-green-100 transition-opacity"
-                  title="Restore task"
-                >
-                  Restore
-                </button>
-              )}
-              <button
-                onClick={(e) => handleDeleteTodo(todo.id, e)}
-                className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
-                title={viewMode === 'trash' ? 'Delete permanently' : 'Trash task'}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
           </div>
-        </motion.div>
+
+          {activeTodos.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-xl select-none">
+              <ShieldCheck className="w-8 h-8 text-green-300 mx-auto mb-2" />
+              <h4 className="font-medium text-xs text-gray-700">All targets met</h4>
+              <p className="font-medium text-base text-gray-400">Enjoy the rest of training day cycles.</p>
+            </div>
+          )}
+        </div>
       );
-    })
+    })()
+  ) : (
+    <div className="mb-6">
+      <button
+        onClick={() => setIsPendingExpanded(!isPendingExpanded)}
+        className="flex items-center space-x-1.5 text-xs text-gray-400 uppercase tracking-widest mb-3.5 bg-transparent border-none outline-none select-none cursor-pointer"
+      >
+        {isPendingExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+        <span>
+          {viewMode === 'trash' ? 'Deleted Trash Bin' : viewMode === 'completed' ? 'Historical Active Logs' : getViewTitle()}
+        </span>
+        <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-800 ml-1.5">
+          {allActiveViewTodos.filter(t => !t.completed).length}
+        </span>
+      </button>
+
+      {isPendingExpanded && (
+        <div className="space-y-0.5 border-t border-b border-gray-100/50">
+          <AnimatePresence>
+            {viewMode === 'folder' ? (
+              (() => {
+                const folderProjects = projects.filter(p => p.folderId === selectedFolderId);
+                const activeTasks = allActiveViewTodos.filter(t => !t.completed);
+
+                return folderProjects.map(project => {
+                  const projectTasks = activeTasks.filter(t => t.projectId === project.id);
+                  if (projectTasks.length === 0) return null;
+
+                  return (
+                    <div key={project.id} className="mb-6 last:mb-2 text-left">
+                      <div 
+                        className="flex items-center justify-between px-3 py-2 bg-gray-50/70 hover:bg-gray-50/90 rounded-xl mb-2 border border-gray-100/80 transition-all cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                        onClick={() => {
+                          setViewMode('project');
+                          setSelectedProjectId(project.id);
+                          setActiveAppTab('tasks');
+                        }}
+                      >
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: project.color || '#9ca3af' }} />
+                          {renderIcon(project.icon, project.color, "w-4 h-4 text-gray-500 shrink-0")}
+                          <span className="text-xs font-bold text-gray-800 tracking-tight truncate">{project.name}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: `${project.color}15`, color: project.color || '#4B5563' }}>
+                          {projectTasks.length} pending
+                        </span>
+                      </div>
+
+                      <div className="pl-3.5 space-y-0.5 border-l-[3px] ml-3 mb-4 text-left" style={{ borderColor: project.color }}>
+                        {projectTasks.map(todo => renderTodoItem(todo))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()
+            ) : (
+              allActiveViewTodos.filter(t => !t.completed).map(todo => renderTodoItem(todo))
+            )}
+          </AnimatePresence>
+
+          {allActiveViewTodos.filter(t => !t.completed).length === 0 && (
+            <div className="text-center py-12 bg-white rounded-xl select-none">
+              <ShieldCheck className="w-8 h-8 text-green-300 mx-auto mb-2" />
+              <h4 className="font-medium text-xs text-gray-700">All targets met</h4>
+              <p className="font-medium text-base text-gray-400">Enjoy the rest of training day cycles.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )}
- </AnimatePresence>
 
- {allActiveViewTodos.filter(t => !t.completed).length === 0 && (
- <div className="text-center py-12 bg-white rounded-xl select-none">
- <ShieldCheck className="w-8 h-8 text-green-300 mx-auto mb-2" />
- <h4 className="font-medium text-xs text-gray-700">All targets met</h4>
- <p className="font-medium text-base text-gray-400">Enjoy the rest of training day cycles.</p>
- </div>
- )}
- </div>
- )}
- </div>
-
- {/* GROUP C: "Completed" COLLAPSIBLE BLOCK representation */}
+  {/* GROUP C: "Completed" COLLAPSIBLE BLOCK representation */}
  {viewMode !== 'trash' && (
  <div className="mt-8">
  <button
@@ -4652,7 +4778,7 @@ export default function WorkspaceApp() {
  <div className="flex items-start">
  <button 
  onClick={() => handleToggleTodo(todo)}
- className={`mr-3 mt-1 w-5 h-5 flex shrink-0 items-center justify-center rounded-full border-2 transition-all ${getPriorityCheckboxStyle(todo.priority)}`}
+ className={`mr-3 mt-1 w-5 h-5 flex shrink-0 items-center justify-center rounded-[5px] border-2 transition-all ${getPriorityCheckboxStyle(todo.priority)}`}
  >
  {todo.completed && <Check className="w-3 h-3 text-primary" />}
  </button>
@@ -4720,7 +4846,7 @@ export default function WorkspaceApp() {
  >
  <span className={`truncate flex items-center gap-1.5 ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'text-red-500 font-semibold' : ''}`}>
  <CalendarIcon className={`w-3.5 h-3.5 ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'text-red-500' : todo.dueDate ? 'text-primary' : 'text-gray-400'}`} />
- {todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? `Overdue (${format(new Date(todo.dueDate), 'MMM d, yyyy')})` : todo.dueDate ? format(new Date(todo.dueDate), 'MMM d, yyyy') : 'No Date'}
+ {todo.dueDate ? format(new Date(todo.dueDate), 'MMM d, yyyy') : 'No Date'}
  </span>
  <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailDatePicker ? 'rotate-180' : ''}`} />
 </button>

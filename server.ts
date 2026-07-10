@@ -67,6 +67,11 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*all', (req, res) => {
+      // Return 404 for missing static assets instead of serving index.html
+      const ext = path.extname(req.path);
+      if (ext || req.path.startsWith('/assets/') || req.path.startsWith('/src/')) {
+        return res.status(404).send('Not Found');
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

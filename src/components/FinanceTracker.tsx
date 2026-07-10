@@ -2944,7 +2944,7 @@ export default function FinanceTracker() {
               className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-xs font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
               options={[
                 { value: "", label: "No specific client" },
-                ...clients.map(c => ({ value: c.id, label: c.name }))
+                ...clients.map(c => ({ value: c.uid, label: c.displayName || c.email }))
               ]}
             />
                   </div>

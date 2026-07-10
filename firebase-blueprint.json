@@ -26,7 +26,8 @@
         "uid": { "type": "string" },
         "email": { "type": "string" },
         "displayName": { "type": "string" },
-        "isAdmin": { "type": "boolean" }
+        "isAdmin": { "type": "boolean" },
+        "dailyTaskGoal": { "type": "number" }
       },
       "required": ["uid", "email"]
     },
