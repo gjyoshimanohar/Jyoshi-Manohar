@@ -164,6 +164,7 @@ export default function WorkspaceApp() {
  const [folders, setFolders] = useState<FolderType[]>([]);
  const [loading, setLoading] = useState(true);
  const [bootstrapping, setBootstrapping] = useState(false);
+ const isAdmin = auth.currentUser?.email === 'gjyoshimanohar@gmail.com';
 
   
   const toggleFolder = (folderId: string) => {
@@ -1846,7 +1847,7 @@ export default function WorkspaceApp() {
  Search Filters
  </span>
  </button>
- </div>
+  </div>
 
  {/* Sync, alerts & Guidance at the bottom of left docker */}
  <div className="flex flex-col items-center space-y-4 w-full">

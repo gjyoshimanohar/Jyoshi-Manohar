@@ -7,6 +7,7 @@ import CustomSelect from "../components/CustomSelect";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 import ProfileDropdown from "../components/ProfileDropdown";
 import UserProfileModal from "../components/UserProfileModal";
+import InvoiceManagement from "../components/InvoiceManagement";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -409,6 +410,7 @@ export default function ClientDashboard() {
     | "chat"
     | "clients"
     | "requests"
+    | "invoices"
   >("applications");
   const [serviceFilter, setServiceFilter] = useState<string>("All");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -3909,6 +3911,33 @@ Stewardship, Accuracy, Legacy.
                         </span>
                       )}
                     </button>
+
+                    <button
+                      type="button"
+                      id="admin-invoices-nav-btn"
+                      onClick={() => setActiveTab("invoices")}
+                      className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
+                        activeTab === "invoices"
+                          ? "bg-primary text-white border-primary shadow-md"
+                          : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
+                      } mb-2 cursor-pointer`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 shrink-0" />
+                        {isSidebarOpen && (
+                          <span className="text-xs font-bold uppercase tracking-wider">
+                            Invoices & billing
+                          </span>
+                        )}
+                      </div>
+                      {isSidebarOpen && (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === "invoices" ? "bg-white/15 text-white" : "bg-emerald-100 text-emerald-800"}`}
+                        >
+                          Manager
+                        </span>
+                      )}
+                    </button>
                   </div>
                 )}
 
@@ -3995,7 +4024,7 @@ Stewardship, Accuracy, Legacy.
                         activeTab === "chat"
                           ? "bg-primary text-white border-primary shadow-md"
                           : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
-                      }`}
+                      } mb-2`}
                     >
                       <div className="flex items-center gap-3">
                         <MessageSquare className="h-4 w-4 shrink-0" />
@@ -4010,6 +4039,31 @@ Stewardship, Accuracy, Legacy.
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === "chat" ? "bg-white/15 text-white" : "bg-slate-100 text-slate-800"}`}
                         >
                           {chatMessages.length}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab("invoices")}
+                      className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
+                        activeTab === "invoices"
+                          ? "bg-primary text-white border-primary shadow-md"
+                          : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
+                      } mb-2`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 shrink-0" />
+                        {isSidebarOpen && (
+                          <span className="text-xs font-bold uppercase tracking-wider">
+                            Invoices & Billing
+                          </span>
+                        )}
+                      </div>
+                      {isSidebarOpen && (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === "invoices" ? "bg-white/15 text-white" : "bg-slate-100 text-slate-800"}`}
+                        >
+                          View
                         </span>
                       )}
                     </button>
@@ -7193,6 +7247,29 @@ Stewardship, Accuracy, Legacy.
                       )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* INVOICES AND BILLING PORTAL VIEW */}
+              {activeTab === "invoices" && (
+                <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100/60 shadow-sm text-left">
+                  <div className="mb-6 flex items-center gap-3">
+                    <div className="bg-primary/5 p-3 rounded-xl border border-primary/10">
+                      <FileText className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold text-primary tracking-tight">
+                        Invoices &amp; Billing Panel
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {isAdmin 
+                          ? "Review consulting fee distributions, publish invoice drafts, and track client balance metrics."
+                          : "Track consulting and statutory compliance fees, view payment receipts, and settle dues online."
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <InvoiceManagement isAdmin={isAdmin} clients={clients} />
                 </div>
               )}
             </div>

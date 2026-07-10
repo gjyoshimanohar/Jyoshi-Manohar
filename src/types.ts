@@ -147,3 +147,37 @@ export interface UserProfile {
   passwordLastChanged?: number;
   dailyTaskGoal?: number;
 }
+
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+}
+
+export interface Invoice {
+  id: string;
+  userId: string;
+  invoiceNumber: string;
+  clientName: string;
+  clientEmail: string;
+  clientAddress?: string;
+  senderName?: string;
+  senderEmail?: string;
+  senderAddress?: string;
+  issueDate: string;
+  dueDate: string;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  items: InvoiceItem[];
+  taxRate: number;
+  discount: number;
+  discountType?: 'percentage' | 'fixed';
+  currency?: string;
+  paymentTerms?: string;
+  termsAndConditions?: string;
+  subtotal: number;
+  total: number;
+  notes?: string;
+  createdAt: number;
+}
