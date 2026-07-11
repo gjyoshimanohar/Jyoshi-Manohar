@@ -200,6 +200,23 @@
         "createdAt": { "type": "number" }
       },
       "required": ["id", "userId", "invoiceNumber", "clientName", "clientEmail", "issueDate", "dueDate", "status", "subtotal", "total", "createdAt"]
+    },
+    "Timesheet": {
+      "title": "Timesheet",
+      "description": "Logged retainer timesheet details mapped to a client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "billed"] },
+        "invoiceId": { "type": "string" }
+      },
+      "required": ["id", "userId", "clientId", "clientName", "durationMinutes", "createdAt", "status"]
     }
   },
   "firestore": {
@@ -246,6 +263,10 @@
     "invoices/{invoiceId}": {
       "schema": "Invoice",
       "description": "Client invoices for CA consulting services"
+    },
+    "timesheets/{timesheetId}": {
+      "schema": "Timesheet",
+      "description": "Logged timesheet details for clients"
     }
   }
 }

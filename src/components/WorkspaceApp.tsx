@@ -731,6 +731,125 @@ export default function WorkspaceApp() {
 
  // Keep track of tasks we've already notified about in this session
  const notifiedTaskIds = useRef<Set<string>>(new Set());
+ const hasSyncedCompliance = useRef(false);
+
+ // Auto-sync critical compliance deadlines as High-Priority actionable tasks
+ useEffect(() => {
+   if (loading || !auth.currentUser || hasSyncedCompliance.current) return;
+
+   const syncComplianceDeadlines = async () => {
+     try {
+       let compProj = projects.find(p => p.name === "Compliance Deadlines");
+       let complianceProjectId = compProj?.id;
+
+       if (!compProj) {
+         const createdProj = await todoService.createProject(
+           "Compliance Deadlines",
+           "#ef4444",
+           auth.currentUser.uid,
+           "📅",
+           null,
+           "list"
+         );
+         if (createdProj) {
+           complianceProjectId = createdProj.id;
+         }
+       }
+
+       if (!complianceProjectId) return;
+
+       const getNextDateOfMonthTimestamp = (day: number) => {
+         const d = new Date();
+         if (d.getDate() > day) {
+           d.setMonth(d.getMonth() + 1);
+         }
+         d.setDate(day);
+         d.setHours(0, 0, 0, 0);
+         return d.getTime();
+       };
+
+       const getSpecificYearlyDateTimestamp = (monthZeroIndexed: number, day: number) => {
+         const d = new Date();
+         d.setMonth(monthZeroIndexed);
+         d.setDate(day);
+         d.setHours(0, 0, 0, 0);
+         if (d.getTime() < Date.now()) {
+           d.setFullYear(d.getFullYear() + 1);
+         }
+         return d.getTime();
+       };
+
+       const complianceTasks = [
+         {
+           title: "Filing: GST GSTR-1 (Outward Supplies)",
+           description: "Filing of details of outward supplies of goods or services for monthly taxpayers.",
+           dueDate: getNextDateOfMonthTimestamp(11),
+           tags: ["Compliance", "GST"]
+         },
+         {
+           title: "Filing: GST GSTR-3B (Summary Return)",
+           description: "Monthly self-assessment return and payment of tax for GSTR-3B taxpayers.",
+           dueDate: getNextDateOfMonthTimestamp(20),
+           tags: ["Compliance", "GST"]
+         },
+         {
+           title: "Deposit: TDS/TCS Tax (Challan 281)",
+           description: "Challan payment for TDS/TCS deducted in the preceding month.",
+           dueDate: getNextDateOfMonthTimestamp(7),
+           tags: ["Compliance", "IncomeTax"]
+         },
+         {
+           title: "Filing: Quarterly TDS Return (Form 24Q / 26Q)",
+           description: "Filing of quarterly return of tax deducted at source for salaries and other payments.",
+           dueDate: getSpecificYearlyDateTimestamp(6, 31), // July 31
+           tags: ["Compliance", "IncomeTax"]
+         },
+         {
+           title: "Filing: Income Tax Return (ITR) (Individuals)",
+           description: "Statutory deadline for individual taxpayers, HUFs, and non-audit firms to file annual returns.",
+           dueDate: getSpecificYearlyDateTimestamp(6, 31), // July 31
+           tags: ["Compliance", "IncomeTax"]
+         },
+         {
+           title: "Filing: ROC Annual Filing AOC-4",
+           description: "Filing of Financial Statements with the Registrar of Companies (within 30 days of AGM).",
+           dueDate: getSpecificYearlyDateTimestamp(9, 30), // October 30
+           tags: ["Compliance", "Corporate"]
+         }
+       ];
+
+       for (const task of complianceTasks) {
+         const alreadyExists = todos.some(
+           t => !t.deletedAt && 
+                t.title.trim().toLowerCase() === task.title.trim().toLowerCase() && 
+                t.projectId === complianceProjectId
+         );
+
+         if (!alreadyExists) {
+           await todoService.createTodo({
+             title: task.title,
+             description: task.description,
+             userId: auth.currentUser.uid,
+             completed: false,
+             projectId: complianceProjectId,
+             priority: 1, // P1 (Urgent/High)
+             dueDate: task.dueDate,
+             tags: task.tags,
+             sectionName: null
+           });
+         }
+       }
+
+       hasSyncedCompliance.current = true;
+     } catch (err) {
+       console.error("Failed to auto-sync compliance deadlines:", err);
+     }
+   };
+
+   if (projects.length > 0) {
+     syncComplianceDeadlines();
+   }
+ }, [loading, projects, todos]);
 
  // Ask for notification permission on mount
  useEffect(() => {

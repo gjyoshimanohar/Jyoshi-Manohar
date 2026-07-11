@@ -214,3 +214,16 @@ export interface Invoice {
     sentBy?: string;
   }>;
 }
+
+export interface TimesheetLog {
+  id: string;
+  userId: string;
+  clientId: string;
+  clientName: string;
+  durationMinutes: number;
+  description: string;
+  createdAt: number;
+  status: 'pending' | 'billed';
+  invoiceId?: string;
+  billingRate?: number;
+}

@@ -3,8 +3,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import CustomSelect from './CustomSelect';
 import { 
   Plus, Trash2, Eye, Edit2, Download, CheckCircle, Clock, 
-  AlertCircle, XCircle, Printer, ArrowLeft, Mail, FileText, 
-  Check, DollarSign, Calendar, ChevronRight, Send, Search, Filter, ShieldAlert, MessageSquare, Layers
+  AlertCircle, XCircle, Printer, ArrowLeft, Mail, FileText, FileSpreadsheet,
+  Check, DollarSign, Calendar, ChevronRight, Send, Search, Filter, ShieldAlert, MessageSquare, Layers,
+  TrendingUp, CreditCard, Landmark, CheckSquare, Sparkles
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
@@ -46,6 +47,50 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
+  // Virtualization state
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const handleGenerateVirtualDemo = () => {
+    const mockInvoices: Invoice[] = [];
+    const baseNum = 3501;
+    const statuses: Invoice['status'][] = ['paid', 'sent', 'overdue', 'cancelled'];
+    const clientsNames = ['Acme Corp', 'Global Industries', 'Delta LLC', 'Quantum Labs', 'Echo Ltd', 'Vertex Inc'];
+    
+    for (let i = 0; i < 2500; i++) {
+      const idx = i + baseNum;
+      const numStr = `INV-2026-${String(idx).padStart(4, '0')}`;
+      const name = clientsNames[i % clientsNames.length];
+      const status = statuses[i % statuses.length];
+      const total = 5000 + (i * 123) % 45000;
+      
+      mockInvoices.push({
+        id: `virtual-${i}`,
+        documentType: 'invoice',
+        userId: 'demo-virtual-user',
+        invoiceNumber: numStr,
+        clientName: `${name} (Virtual #${i})`,
+        clientEmail: `contact@${name.toLowerCase().replace(' ', '')}.com`,
+        issueDate: '2026-07-01',
+        dueDate: '2026-07-15',
+        status: status,
+        items: [{ id: '1', description: 'Virtual Consulting Render', quantity: 1, rate: total, amount: total }],
+        taxRate: 18,
+        discount: 0,
+        subtotal: total,
+        total: total,
+        createdAt: Date.now() - (i * 10 * 60 * 1000), // staggered times
+        currency: 'INR',
+      });
+    }
+    
+    setInvoices(prev => {
+      // Remove any existing virtual invoices first to prevent duplicates
+      const cleaned = prev.filter(inv => !inv.id.startsWith('virtual-'));
+      return [...cleaned, ...mockInvoices];
+    });
+    toast.success('Injected 2,500 mock invoices! Try searching or scrolling the list with silky smooth 60fps table virtualization.');
+  };
+  
   // Active states for editing / viewing
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -76,6 +121,9 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
     const [taxStructure, setTaxStructure] = useState<'standard' | 'gst'>('gst');
     const [gstType, setGstType] = useState<'intrastate' | 'interstate'>('intrastate');
 
+    const [analyticsTab, setAnalyticsTab] = useState<'revenue' | 'tax' | 'itc' | 'outflows'>('revenue');
+    const [financeRecords, setFinanceRecords] = useState<any[]>([]);
+
   // Recurring & Payment States
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringInterval, setRecurringInterval] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
@@ -95,6 +143,14 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   // Checkout Modal States (Client)
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutSimulating, setCheckoutSimulating] = useState(false);
+  const [checkoutGateway, setCheckoutGateway] = useState<'stripe' | 'razorpay'>('stripe');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvc, setCardCvc] = useState('');
+  const [cardName, setCardName] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [checkoutStep, setCheckoutStep] = useState<'input' | 'otp' | 'success'>('input');
   
   // Template Showcase States
   const [isTemplateShowcaseOpen, setIsTemplateShowcaseOpen] = useState(false);
@@ -102,6 +158,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
 
   // Reminders Modals State
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [isPDFLedgerModalOpen, setIsPDFLedgerModalOpen] = useState(false);
   const [reminderChannel, setReminderChannel] = useState<'email' | 'whatsapp'>('email');
   const [reminderSubject, setReminderSubject] = useState('');
   const [reminderBody, setReminderBody] = useState('');
@@ -315,6 +372,226 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
     document.body.removeChild(link);
   };
 
+  // Excel Ledger Export function (HTML-based XLS for rich formatting)
+  const handleExportExcel = () => {
+    if (filteredInvoices.length === 0) {
+      toast.error("No invoices found to export.");
+      return;
+    }
+
+    const headers = [
+      "Invoice/Estimate Number",
+      "Doc Type",
+      "Client Name",
+      "Client Email",
+      "Issue Date",
+      "Due Date",
+      "Subtotal (INR)",
+      "Tax Structure",
+      "Tax Rate (%)",
+      "Discount (INR)",
+      "Grand Total (INR)",
+      "Amount Paid (INR)",
+      "Status",
+      "Is Recurring"
+    ];
+
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+    html += `<head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Invoices Ledger</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->`;
+    html += `<style>
+      table { border-collapse: collapse; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin-top: 20px; }
+      th { background-color: #1a2b58; color: #ffffff; font-weight: bold; padding: 12px 10px; border: 1px solid #e2e8f0; text-align: left; }
+      td { padding: 10px 8px; border: 1px solid #e2e8f0; font-size: 13px; color: #334155; }
+      .header-title { font-size: 20px; font-weight: bold; color: #1a2b58; }
+      .header-meta { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+      .number { text-align: right; mso-number-format:"\\#\\,\\#\\#0\\.00"; }
+      .text { text-align: left; }
+      .status-paid { background-color: #d1fae5; color: #065f46; font-weight: bold; text-align: center; }
+      .status-draft { background-color: #f1f5f9; color: #475569; font-weight: bold; text-align: center; }
+      .status-sent { background-color: #dbeafe; color: #1d4ed8; font-weight: bold; text-align: center; }
+      .status-overdue { background-color: #ffe4e6; color: #b91c1c; font-weight: bold; text-align: center; }
+    </style></head><body>`;
+    
+    html += `<div class="header-title">CA JYOSHI MANOHAR - CLIENT INVOICES LEDGER</div>`;
+    html += `<div class="header-meta">Generated on ${new Date().toLocaleDateString()} | Total Records: ${filteredInvoices.length}</div>`;
+    html += `<table><thead><tr>`;
+    headers.forEach(h => {
+      html += `<th>${h}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+    
+    filteredInvoices.forEach(inv => {
+      const statusClass = inv.status === 'paid' ? 'status-paid' : inv.status === 'sent' ? 'status-sent' : inv.status === 'overdue' ? 'status-overdue' : 'status-draft';
+      html += `<tr>`;
+      html += `<td class="text" style="font-weight: bold; color: #1d4ed8;">${inv.invoiceNumber}</td>`;
+      html += `<td class="text" style="text-transform: uppercase;">${inv.documentType || 'invoice'}</td>`;
+      html += `<td class="text">${inv.clientName}</td>`;
+      html += `<td class="text">${inv.clientEmail}</td>`;
+      html += `<td class="text">${inv.issueDate}</td>`;
+      html += `<td class="text">${inv.dueDate}</td>`;
+      html += `<td class="number">${inv.subtotal.toFixed(2)}</td>`;
+      html += `<td class="text" style="text-transform: uppercase;">${inv.taxStructure || 'standard'}</td>`;
+      html += `<td class="number">${inv.taxRate}</td>`;
+      html += `<td class="number">${inv.discount.toFixed(2)}</td>`;
+      html += `<td class="number" style="font-weight: bold;">${inv.total.toFixed(2)}</td>`;
+      html += `<td class="number">${(inv.amountPaid || 0).toFixed(2)}</td>`;
+      html += `<td class="${statusClass}">${inv.status.toUpperCase()}</td>`;
+      html += `<td class="text" style="text-align: center;">${inv.isRecurring ? "YES" : "NO"}</td>`;
+      html += `</tr>`;
+    });
+    
+    html += `</tbody></table></body></html>`;
+    
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Invoice_Ledger_Spreadsheet_${format(new Date(), 'yyyyMMdd')}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Excel spreadsheet exported successfully!");
+  };
+
+  // PDF Ledger Export function
+  const handleExportPDF = () => {
+    if (filteredInvoices.length === 0) {
+      toast.error("No invoices found to export.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Popup blocker prevented PDF generation. Please allow popups for this portal.");
+      return;
+    }
+
+    const symbol = "₹";
+    let rowsHtml = "";
+    let grandSubtotal = 0;
+    let grandTotal = 0;
+    let grandPaid = 0;
+
+    filteredInvoices.forEach(inv => {
+      grandSubtotal += inv.subtotal;
+      grandTotal += inv.total;
+      grandPaid += (inv.amountPaid || 0);
+
+      rowsHtml += `
+        <tr>
+          <td><strong>${inv.invoiceNumber}</strong></td>
+          <td style="text-transform: uppercase;">${inv.documentType || 'invoice'}</td>
+          <td>${inv.clientName}</td>
+          <td>${inv.issueDate}</td>
+          <td>${inv.dueDate}</td>
+          <td style="text-align: right;">${symbol}${inv.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="text-align: right;">${symbol}${inv.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td style="text-align: center;"><span class="badge badge-${inv.status}">${inv.status.toUpperCase()}</span></td>
+        </tr>
+      `;
+    });
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Invoices Ledger Summary - CA Jyoshi Manohar</title>
+          <style>
+            body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 40px; color: #1e293b; background: white; }
+            .header-container { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; }
+            .logo-title { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+            .subtitle { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+            .meta-details { text-align: right; font-size: 12px; color: #475569; line-height: 1.5; }
+            .title-section { margin-bottom: 25px; }
+            .title-section h1 { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0; }
+            .title-section p { font-size: 12px; color: #64748b; margin: 4px 0 0 0; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            th { background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 10px; text-align: left; }
+            td { border-bottom: 1px solid #f1f5f9; padding: 12px 10px; font-size: 12px; color: #334155; }
+            .badge { font-size: 9px; font-weight: 700; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; }
+            .badge-paid { background-color: #d1fae5; color: #065f46; }
+            .badge-sent { background-color: #dbeafe; color: #1d4ed8; }
+            .badge-overdue { background-color: #ffe4e6; color: #b91c1c; }
+            .badge-draft { background-color: #f1f5f9; color: #475569; }
+            .totals-container { float: right; width: 300px; margin-top: 10px; }
+            .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 12px; border-bottom: 1px solid #f1f5f9; }
+            .total-row-grand { font-weight: bold; font-size: 14px; border-bottom: 2px solid #0f172a; padding-top: 12px; color: #0f172a; }
+            .footer { position: fixed; bottom: 20px; left: 40px; right: 40px; font-size: 9px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-container">
+            <div>
+              <div class="logo-title">CA JYOSHI MANOHAR</div>
+              <div class="subtitle">Chartered Accountant & Business Advisors</div>
+            </div>
+            <div class="meta-details">
+              <strong>OFFICE LEDGER REPORT</strong><br/>
+              Date: ${new Date().toLocaleDateString()}<br/>
+              Scope: Real-time Invoices Register
+            </div>
+          </div>
+
+          <div class="title-section">
+            <h1>Financial Transaction Summary</h1>
+            <p>Ledger containing active invoices and estimate records corresponding to verified consultancies.</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Doc Number</th>
+                <th>Doc Type</th>
+                <th>Client Name</th>
+                <th>Issue Date</th>
+                <th>Due Date</th>
+                <th style="text-align: right;">Subtotal</th>
+                <th style="text-align: right;">Grand Total</th>
+                <th style="text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals-container">
+            <div class="total-row">
+              <span style="color: #64748b;">Subtotal:</span>
+              <strong>${symbol}${grandSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            <div class="total-row">
+              <span style="color: #64748b;">Amount Paid:</span>
+              <strong style="color: #15803d;">${symbol}${grandPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            <div class="total-row total-row-grand">
+              <span>Grand Cumulative Total:</span>
+              <span>${symbol}${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+
+          <div class="footer">
+            CA Jyoshi Manohar Offices • Confidential Ledger Report • Page 1 of 1
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 700);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    toast.success("PDF ledger report generated successfully!");
+  };
+
   // Pre-fill fields for customized reminders
   const openReminderModal = (invoice: Invoice) => {
     // Attempt to extract mobile from address or use empty
@@ -388,6 +665,98 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
       setSelectedBankAccountId(paymentAccounts[0].id);
     }
   }, [isPaymentModalOpen, paymentAccounts]);
+
+  // Load finance records for outflows
+  useEffect(() => {
+    const q = query(collection(db, "finance_records"), orderBy("date", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const records: any[] = [];
+      snapshot.forEach((docRef) => {
+        records.push({ id: docRef.id, ...docRef.data() });
+      });
+      setFinanceRecords(records);
+    }, (error) => {
+      console.error("Error fetching finance records for analytics:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // YoY GST Comparisons
+  const yoyTaxData = useMemo(() => {
+    const years = ['2024', '2025', '2026'];
+    return years.map(yr => {
+      let cgst = 0;
+      let sgst = 0;
+      let igst = 0;
+      invoices.forEach(inv => {
+        const invYear = inv.issueDate.substring(0, 4);
+        if (invYear === yr) {
+          if (inv.taxStructure === 'gst') {
+            cgst += inv.cgstAmount || 0;
+            sgst += inv.sgstAmount || 0;
+            igst += inv.igstAmount || 0;
+          } else {
+            cgst += (inv.total - inv.subtotal) / 2;
+            sgst += (inv.total - inv.subtotal) / 2;
+          }
+        }
+      });
+      return {
+        year: `FY ${yr}-${Number(yr) + 1 - 2000}`,
+        CGST: Math.round(cgst),
+        SGST: Math.round(sgst),
+        IGST: Math.round(igst),
+        TotalTax: Math.round(cgst + sgst + igst)
+      };
+    });
+  }, [invoices]);
+
+  // Cumulative Input Tax Credits (ITC) Accumulated in 2026
+  const itcData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let runningTotal = 0;
+    return months.map((m, idx) => {
+      const monthNum = String(idx + 1).padStart(2, '0');
+      let monthlyITC = 0;
+      invoices.forEach(inv => {
+        if (inv.issueDate.startsWith(`2026-${monthNum}`)) {
+          const tax = (inv.taxStructure === 'gst' ? (inv.igstAmount || 0) + (inv.cgstAmount || 0) + (inv.sgstAmount || 0) : (inv.total - inv.subtotal)) || 0;
+          monthlyITC += tax;
+        }
+      });
+      runningTotal += monthlyITC;
+      return {
+        name: m,
+        'Monthly ITC': Math.round(monthlyITC),
+        'Cumulative ITC': Math.round(runningTotal)
+      };
+    });
+  }, [invoices]);
+
+  // Outflow Trends in 2026
+  const outflowData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months.map((m, idx) => {
+      const monthNum = String(idx + 1).padStart(2, '0');
+      let expenses = 0;
+      let transfers = 0;
+      financeRecords.forEach(rec => {
+        if (rec.date && rec.date.startsWith(`2026-${monthNum}`)) {
+          if (rec.type === 'expense') {
+            expenses += rec.amount || 0;
+          } else if (rec.type === 'transfer') {
+            transfers += rec.amount || 0;
+          }
+        }
+      });
+      return {
+        name: m,
+        'Expenses': Math.round(expenses),
+        'Transfers Out': Math.round(transfers),
+        'Total Outflow': Math.round(expenses + transfers)
+      };
+    });
+  }, [financeRecords]);
 
 
   // Load invoices
@@ -881,10 +1250,10 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
           body * {
             visibility: hidden;
           }
-          #print-invoice-modal, #print-invoice-modal * {
+          #print-invoice-modal, #print-invoice-modal *, #print-ledger-modal, #print-ledger-modal * {
             visibility: visible;
           }
-          #print-invoice-modal {
+          #print-invoice-modal, #print-ledger-modal {
             position: absolute;
             left: 0;
             top: 0;
@@ -960,57 +1329,255 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
       </div>
 
       {/* FINANCIAL DASHBOARD CHARTS */}
-      {isAdmin && (
-      <div className="no-print grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.03)] lg:col-span-2">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">6-Month Revenue Trend</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorInvoiced" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} tickFormatter={(val) => `${val}`} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                  formatter={(value: number) => [`${value.toFixed(2)}`]}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                <Area type="monotone" name="Total Invoiced" dataKey="invoiced" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorInvoiced)" />
-                <Area type="monotone" name="Total Paid" dataKey="paid" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorPaid)" />
-              </AreaChart>
-            </ResponsiveContainer>
+      <div className="no-print bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.03)] mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+          <div>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-indigo-500" /> Business Intelligence & Analytics
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5 font-medium">Real-year GST comparisons, input tax credits, and cash outflow trends.</p>
+          </div>
+          <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl self-start">
+            <button
+              onClick={() => setAnalyticsTab('revenue')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${analyticsTab === 'revenue' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              Revenue
+            </button>
+            <button
+              onClick={() => setAnalyticsTab('tax')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${analyticsTab === 'tax' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              YoY GST
+            </button>
+            <button
+              onClick={() => setAnalyticsTab('itc')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${analyticsTab === 'itc' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              Cumulative ITC
+            </button>
+            <button
+              onClick={() => setAnalyticsTab('outflows')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${analyticsTab === 'outflows' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              Cash Outflows
+            </button>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">A/R Aging Summary</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={agingData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} tickFormatter={(val) => `${val}`} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                  formatter={(value: number) => [`${value.toFixed(2)}`, 'Outstanding']}
-                  cursor={{ fill: '#f9fafb' }}
-                />
-                <Bar dataKey="amount" fill="#f43f5e" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+
+        {analyticsTab === 'revenue' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">6-Month Revenue & Collections Trend</h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorInvoiced" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                      formatter={(value: number) => [`₹${value.toLocaleString()}`]}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Area type="monotone" name={isAdmin ? "Total Invoiced" : "Total Billed"} dataKey="invoiced" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorInvoiced)" />
+                    <Area type="monotone" name={isAdmin ? "Total Paid" : "Payments Made"} dataKey="paid" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorPaid)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">A/R Aging Summary</h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={agingData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={32}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                      formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Outstanding']}
+                      cursor={{ fill: '#f9fafb' }}
+                    />
+                    <Bar dataKey="amount" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {analyticsTab === 'tax' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">GST Tax Component Comparisons (Year-over-Year)</h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={yoyTaxData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={32}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                    <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                      formatter={(value: number) => [`₹${value.toLocaleString()}`]}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Bar dataKey="CGST" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="SGST" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="IGST" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
+              <div>
+                <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">GST Filings Health</h5>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                    <span className="text-xs font-medium text-slate-500">Total GST Accrued</span>
+                    <span className="text-sm font-bold text-slate-800">
+                      ₹{yoyTaxData.reduce((acc, curr) => acc + curr.TotalTax, 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                    <span className="text-xs font-medium text-slate-500">Active CGST Portions</span>
+                    <span className="text-sm font-bold text-[#6366f1]">
+                      ₹{yoyTaxData.reduce((acc, curr) => acc + curr.CGST, 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                    <span className="text-xs font-medium text-slate-500">Active SGST Portions</span>
+                    <span className="text-sm font-bold text-[#a855f7]">
+                      ₹{yoyTaxData.reduce((acc, curr) => acc + curr.SGST, 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-4">
+                * Real-time automated division of GST into Central (CGST), State (SGST), and Integrated (IGST) ledgers based on client geolocation.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {analyticsTab === 'itc' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Input Tax Credit (ITC) Accumulation Curve (CY 2026)</h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={itcData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorITC" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                      formatter={(value: number) => [`₹${value.toLocaleString()}`]}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Area type="monotone" name="Monthly ITC Gained" dataKey="Monthly ITC" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorITC)" />
+                    <Area type="monotone" name="Cumulative Claimable ITC" dataKey="Cumulative ITC" stroke="#1d4ed8" strokeWidth={2.5} fillOpacity={0} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
+              <div>
+                <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">ITC Reconciliation</h5>
+                <div className="space-y-3">
+                  <div className="p-4 bg-white border border-slate-100 rounded-2xl">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cumulative GSTR-2B ITC</p>
+                    <p className="text-2xl font-black text-blue-600 mt-1">
+                      ₹{itcData[itcData.length - 1]?.['Cumulative ITC'].toLocaleString() || '0'}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-white border border-slate-100 rounded-2xl">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ready to Offset</p>
+                    <p className="text-xs font-extrabold text-emerald-600 mt-1">100% Fully Reconciled</p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-4">
+                * Claimable ITC calculated automatically from all paid consultant fees, helping you offset downstream GST liabilities.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {analyticsTab === 'outflows' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Firm/Client Cash Outflows & Overhead Burn (CY 2026)</h4>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={outflowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorOutflow" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                      formatter={(value: number) => [`₹${value.toLocaleString()}`]}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Area type="monotone" name="Total Monthly Outflow" dataKey="Total Outflow" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorOutflow)" />
+                    <Area type="monotone" name="Direct Expenses" dataKey="Expenses" stroke="#f97316" strokeWidth={1.5} fillOpacity={0} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-100 flex flex-col justify-between">
+              <div>
+                <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Cash Burn Diagnostics</h5>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                    <span className="text-xs font-medium text-slate-500">Annual Outflow Sum</span>
+                    <span className="text-sm font-bold text-rose-600">
+                      ₹{outflowData.reduce((acc, curr) => acc + curr['Total Outflow'], 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                    <span className="text-xs font-medium text-slate-500">Expenses</span>
+                    <span className="text-sm font-bold text-slate-700">
+                      ₹{outflowData.reduce((acc, curr) => acc + curr.Expenses, 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                    <span className="text-xs font-medium text-slate-500">Transfers Out</span>
+                    <span className="text-sm font-bold text-slate-700">
+                      ₹{outflowData.reduce((acc, curr) => acc + curr['Transfers Out'], 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-4">
+                * Sum of expenses and ledger transfers synced directly with the Monthly Corporate Accounts databases.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
-      )}
 
       {/* CLIENT LEDGER & COLLECTION INSIGHTS PANEL */}
       {isAdmin && (
@@ -1138,13 +1705,37 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
         </div>
 
         {/* Action Triggers */}
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
           <button 
             onClick={handleExportCSV}
             className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
             title={isAdmin ? "Download invoice catalog spreadsheet for audits" : "Download your invoice history"}
           >
             <Download className="w-4 h-4 text-slate-500" /> Export CSV
+          </button>
+
+          <button 
+            onClick={handleExportExcel}
+            className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+            title="Download invoice ledger formatted for MS Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-650" /> Export Excel
+          </button>
+
+          <button 
+            onClick={handleExportPDF}
+            className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+            title="Generate professionally styled PDF invoice ledger"
+          >
+            <FileText className="w-4 h-4 text-red-600" /> Export PDF
+          </button>
+
+          <button 
+            onClick={handleGenerateVirtualDemo}
+            className="flex items-center justify-center gap-2 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+            title="Simulate 2,500 invoices to test virtual list performance"
+          >
+            <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" /> Virtualization Demo
           </button>
 
           {isAdmin && (
@@ -1176,10 +1767,15 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div 
+            className="overflow-auto max-h-[500px]"
+            onScroll={(e) => {
+              setScrollTop(e.currentTarget.scrollTop);
+            }}
+          >
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/75 border-b border-slate-100 text-slate-500 text-xs font-semibold uppercase tracking-wider">
+              <thead className="sticky top-0 bg-white z-10 shadow-[0_1px_0_rgba(0,0,0,0.01)]">
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs font-semibold uppercase tracking-wider">
                   <th className="px-6 py-4">Invoice #</th>
                   <th className="px-6 py-4">Client Detail</th>
                   <th className="px-6 py-4">Dates (Issue / Due)</th>
@@ -1189,82 +1785,112 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                {filteredInvoices.map(invoice => {
+                {(() => {
+                  const rowHeight = 73; // approx row height in px
+                  const totalInvoices = filteredInvoices.length;
+                  const viewportHeight = 500;
+                  
+                  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 2);
+                  const endIndex = Math.min(totalInvoices, Math.floor((scrollTop + viewportHeight) / rowHeight) + 3);
+                  
+                  const topPadding = startIndex * rowHeight;
+                  const bottomPadding = Math.max(0, (totalInvoices - endIndex) * rowHeight);
+                  
+                  const visibleInvoices = filteredInvoices.slice(startIndex, endIndex);
+
                   return (
-                    <tr key={invoice.id} className="hover:bg-slate-50/80 transition-colors cursor-pointer group">
-                      <td className="px-6 py-4 font-mono font-bold text-slate-900">
-                        {invoice.invoiceNumber}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-900">{invoice.clientName}</div>
-                        <div className="text-xs text-slate-400">{invoice.clientEmail}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{invoice.issueDate}</span>
-                          <ChevronRight className="w-3 h-3 text-gray-300" />
-                          <span className="font-medium text-slate-800">{invoice.dueDate}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-mono font-bold text-gray-950">
-                        {getCurrencySymbol(invoice.currency)}{invoice.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {getStatusBadge(invoice.status, invoice.dueDate)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* View */}
-                          <button 
-                            onClick={() => { 
-                              setSelectedInvoice(invoice); 
-                              setViewTemplateId(invoice.templateId || 'standard'); 
-                              setIsViewOpen(true); 
-                            }}
-                            className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                            title="View Invoice Sheet"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
+                    <>
+                      {topPadding > 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ height: `${topPadding}px`, border: 'none', padding: 0 }} />
+                        </tr>
+                      )}
+                      
+                      {visibleInvoices.map(invoice => {
+                        return (
+                          <tr key={invoice.id} className="hover:bg-slate-50/80 transition-colors cursor-pointer group">
+                            <td className="px-6 py-4 font-mono font-bold text-slate-900">
+                              {invoice.invoiceNumber}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-slate-900">{invoice.clientName}</div>
+                              <div className="text-xs text-slate-400">{invoice.clientEmail}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-1.5 text-xs">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{invoice.issueDate}</span>
+                                <ChevronRight className="w-3 h-3 text-gray-300" />
+                                <span className="font-medium text-slate-800">{invoice.dueDate}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 font-mono font-bold text-gray-950">
+                              {getCurrencySymbol(invoice.currency)}{invoice.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {getStatusBadge(invoice.status, invoice.dueDate)}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* View */}
+                                <button 
+                                  onClick={() => { 
+                                    setSelectedInvoice(invoice); 
+                                    setViewTemplateId(invoice.templateId || 'standard'); 
+                                    setIsViewOpen(true); 
+                                  }}
+                                  className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                  title="View Invoice Sheet"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
 
-                          {/* Edit (only drafts or sent) */}
-                          {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-                            <button 
-                              onClick={() => handleEdit(invoice)}
-                              className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                              title="Modify invoice details"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          )}
+                                {/* Edit (only drafts or sent) */}
+                                {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                                  <button 
+                                    onClick={() => handleEdit(invoice)}
+                                    className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                    title="Modify invoice details"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                )}
 
-                          {/* Mark as Paid / Unpaid */}
-                          {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-                            <button 
-                              onClick={() => handleUpdateStatus(invoice, 'paid')}
-                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                              title="Mark Invoice as Paid"
-                            >
-                              <Check className="w-4 h-4 font-bold" />
-                            </button>
-                          )}
+                                {/* Mark as Paid / Unpaid */}
+                                {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                                  <button 
+                                    onClick={() => handleUpdateStatus(invoice, 'paid')}
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Mark Invoice as Paid"
+                                  >
+                                    <Check className="w-4 h-4 font-bold" />
+                                  </button>
+                                )}
 
-                          {/* Delete */}
-                          {isAdmin && (
-                            <button 
-                              onClick={() => handleDelete(invoice.id)}
-                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Delete invoice record"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                                {/* Delete */}
+                                {isAdmin && (
+                                  <button 
+                                    onClick={() => handleDelete(invoice.id)}
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Delete invoice record"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {bottomPadding > 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ height: `${bottomPadding}px`, border: 'none', padding: 0 }} />
+                        </tr>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </tbody>
             </table>
           </div>
@@ -1365,6 +1991,14 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                     {selectedInvoice.status !== 'paid' && selectedInvoice.documentType !== 'estimate' && (
                       <button 
                         onClick={() => {
+                          setCheckoutStep('input');
+                          setCheckoutGateway('stripe');
+                          setCardNumber('');
+                          setCardExpiry('');
+                          setCardCvc('');
+                          setCardName('');
+                          setUpiId('');
+                          setOtpCode('');
                           setIsCheckoutModalOpen(true);
                         }}
                         className="flex items-center gap-1.5 bg-[#635BFF] hover:bg-[#5851e5] text-white px-5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-sm"
@@ -2600,74 +3234,285 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
 
       {/* CLIENT SECURE CHECKOUT MODAL (MOCKUP) */}
       {isCheckoutModalOpen && selectedInvoice && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-indigo-500" /> Secure Checkout
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
+                <ShieldAlert className="w-5 h-5 text-indigo-600" /> Secure Sandbox Gateway
               </h3>
-              {!checkoutSimulating && (
-                <button onClick={() => setIsCheckoutModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition">
+              {checkoutStep !== 'success' && !checkoutSimulating && (
+                <button onClick={() => setIsCheckoutModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition cursor-pointer">
                   <XCircle className="w-5 h-5" />
                 </button>
               )}
             </div>
-            <div className="p-6">
+            
+            <div className="p-6 overflow-y-auto max-h-[85vh]">
               {checkoutSimulating ? (
                 <div className="flex flex-col items-center justify-center py-10">
                   <div className="w-12 h-12 border-4 border-t-indigo-600 border-indigo-100 rounded-full animate-spin mb-4" />
-                  <h4 className="text-sm font-bold text-slate-800">Processing Payment...</h4>
-                  <p className="text-xs text-slate-500 mt-2">Please do not close this window.</p>
+                  <h4 className="text-sm font-bold text-slate-800">Authorizing Secure Transaction...</h4>
+                  <p className="text-xs text-slate-500 mt-1">Contacting acquiring bank node. Please do not refresh.</p>
                 </div>
-              ) : (
+              ) : checkoutStep === 'otp' ? (
                 <div className="space-y-4">
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm mb-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-slate-500 font-semibold text-xs">Invoice Reference</span>
-                      <span className="font-mono font-bold text-indigo-700">{selectedInvoice.invoiceNumber}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-600 font-bold">Total Due</span>
-                      <span className="text-xl font-black text-slate-900">
-                        {getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.total.toFixed(2)}
-                      </span>
-                    </div>
+                  <div className="bg-blue-50/50 border border-blue-200/60 p-4 rounded-xl text-center">
+                    <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-1">3D Secure Authentication</h4>
+                    <p className="text-xs text-slate-600">A security passcode has been sent to your primary device registered with the bank.</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Enter One-Time Password (OTP)</label>
+                    <input
+                      type="password"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Enter 6-digit OTP (e.g. 123456)"
+                      className="w-full border-2 border-slate-200 text-center tracking-widest text-lg font-mono font-bold py-2.5 rounded-xl focus:border-indigo-500 outline-none transition-all"
+                    />
+                    <p className="text-[10px] text-slate-400 text-center">You can input any 6-digit number to bypass the sandbox check.</p>
                   </div>
 
-                  <div className="space-y-3">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">Payment Method</label>
-                    <div className="flex items-center gap-3 p-3 border-2 border-indigo-500 bg-indigo-50/20 rounded-xl cursor-pointer">
-                      <div className="w-10 h-6 bg-slate-200 rounded flex items-center justify-center text-[10px] font-bold text-slate-500">CARD</div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">Credit or Debit Card</p>
-                        <p className="text-xs text-slate-500">Powered by Stripe</p>
-                      </div>
-                      <div className="ml-auto w-4 h-4 rounded-full border-4 border-indigo-500 bg-white" />
-                    </div>
-                  </div>
-
-                  <button 
+                  <button
                     onClick={async () => {
+                      if (otpCode.length < 4) {
+                        toast.error("Please enter a valid 6-digit secure OTP.");
+                        return;
+                      }
                       setCheckoutSimulating(true);
                       setTimeout(async () => {
-                        // Mark as paid in DB
                         try {
                           await invoiceService.updateInvoice(selectedInvoice.id, {
                             status: 'paid'
                           });
-                          setIsCheckoutModalOpen(false);
+                          setCheckoutStep('success');
                           setCheckoutSimulating(false);
-                          toast.success(`Payment of ${getCurrencySymbol(selectedInvoice.currency)}${selectedInvoice.total.toFixed(2)} was successful!`);
+                          toast.success("Transaction authorized successfully!");
                         } catch (e) {
-                          toast("Payment failed or encountered an error.");
+                          toast.error("An error occurred during billing.");
                           setCheckoutSimulating(false);
                         }
-                      }, 2000);
+                      }, 1800);
                     }}
-                    className="w-full mt-4 py-3 bg-[#635BFF] hover:bg-[#5851e5] text-white rounded-xl text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-2"
+                    className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <CheckCircle className="w-4 h-4" /> Pay {getCurrencySymbol(selectedInvoice.currency)}{selectedInvoice.total.toFixed(2)}
+                    <CheckSquare className="w-4 h-4" /> Confirm & Authorize ₹{selectedInvoice.total.toFixed(2)}
                   </button>
+                </div>
+              ) : checkoutStep === 'success' ? (
+                <div className="text-center py-4 space-y-5">
+                  <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm animate-bounce">
+                    <CheckCircle className="w-10 h-10" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-black text-slate-900">Payment Processed!</h4>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">Receipt Ref: TXN-{(Math.random() * 10000000).toFixed(0)}</p>
+                  </div>
+                  
+                  <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50 text-xs space-y-2.5 text-left">
+                    <div className="flex justify-between border-b border-slate-200/50 pb-2">
+                      <span className="text-slate-400 font-bold">Billed To</span>
+                      <span className="font-extrabold text-slate-700">{selectedInvoice.clientName}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-200/50 pb-2">
+                      <span className="text-slate-400 font-bold">Invoice ID</span>
+                      <span className="font-mono font-bold text-slate-700">{selectedInvoice.invoiceNumber}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-sm text-slate-800 pt-1">
+                      <span>Total Settled</span>
+                      <span>₹{selectedInvoice.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                      Print Receipt
+                    </button>
+                    <button
+                      onClick={() => setIsCheckoutModalOpen(false)}
+                      className="flex-1 py-2.5 bg-[#1a2b58] hover:bg-[#121f40] text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                      Close Gateway
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Summary Box */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-slate-500 font-bold text-xs uppercase tracking-wider">Reference</span>
+                      <span className="font-mono font-bold text-indigo-700">{selectedInvoice.invoiceNumber}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 font-bold">Total Payable</span>
+                      <span className="text-xl font-black text-slate-950">
+                        ₹{selectedInvoice.total.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Gateway Selector Tabs */}
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+                    <button
+                      onClick={() => setCheckoutGateway('stripe')}
+                      className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${checkoutGateway === 'stripe' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      <CreditCard className="w-3.5 h-3.5" /> Stripe (Card)
+                    </button>
+                    <button
+                      onClick={() => setCheckoutGateway('razorpay')}
+                      className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${checkoutGateway === 'razorpay' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Razorpay (UPI)
+                    </button>
+                  </div>
+
+                  {checkoutGateway === 'stripe' ? (
+                    <div className="space-y-3.5 pt-1">
+                      <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-[11px] text-amber-800 leading-relaxed font-medium">
+                        🔑 <strong>Sandbox Test credentials:</strong> Enter card number <code className="bg-white/60 px-1 py-0.5 rounded">4242 4242 4242 4242</code>, expiry in future (e.g. <code className="bg-white/60 px-1 py-0.5 rounded">12/28</code>), and any CVC/Name.
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Cardholder Name</label>
+                        <input
+                          type="text"
+                          value={cardName}
+                          onChange={(e) => setCardName(e.target.value)}
+                          placeholder="E.g. Jyoshi Manohar"
+                          className="w-full border border-slate-200 px-3.5 py-2 rounded-xl text-xs focus:border-indigo-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Card Number</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={cardNumber}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '');
+                              let formatted = val.match(/.{1,4}/g)?.join(' ') || val;
+                              setCardNumber(formatted.substring(0, 19));
+                            }}
+                            placeholder="4242 4242 4242 4242"
+                            className="w-full border border-slate-200 pl-3.5 pr-10 py-2 rounded-xl text-xs font-mono focus:border-indigo-500 outline-none"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                            {cardNumber.startsWith('4') ? 'VISA' : cardNumber.startsWith('5') ? 'MC' : cardNumber.startsWith('6') ? 'RUPAY' : 'CARD'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Expiration (MM/YY)</label>
+                          <input
+                            type="text"
+                            value={cardExpiry}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '');
+                              if (val.length > 2) {
+                                val = val.substring(0, 2) + '/' + val.substring(2, 4);
+                              }
+                              setCardExpiry(val.substring(0, 5));
+                            }}
+                            placeholder="12/28"
+                            className="w-full border border-slate-200 px-3.5 py-2 rounded-xl text-xs text-center font-mono focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">CVV / CVC</label>
+                          <input
+                            type="password"
+                            maxLength={3}
+                            value={cardCvc}
+                            onChange={(e) => setCardCvc(e.target.value.replace(/\D/g, ''))}
+                            placeholder="•••"
+                            className="w-full border border-slate-200 px-3.5 py-2 rounded-xl text-xs text-center font-mono focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (!cardName || cardNumber.replace(/\s/g, '').length < 16 || cardExpiry.length < 5 || cardCvc.length < 3) {
+                            toast.error("Please complete all credit card information fields.");
+                            return;
+                          }
+                          setCheckoutStep('otp');
+                        }}
+                        className="w-full mt-4 py-3 bg-[#635BFF] hover:bg-[#5851e5] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                      >
+                        <CreditCard className="w-4 h-4" /> Secure Card Payment (Stripe)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 pt-1 text-center">
+                      <div className="bg-indigo-50/40 p-4 border border-indigo-100 rounded-2xl flex flex-col items-center">
+                        <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-xs mb-3 flex items-center justify-center">
+                          {/* Beautiful simulated pixelated QR block */}
+                          <div className="w-32 h-32 border border-slate-200 bg-slate-50 grid grid-cols-4 p-2 gap-1">
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-50"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-50"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-50"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-50"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                            <div className="bg-slate-50"></div>
+                            <div className="bg-slate-900 rounded-xs"></div>
+                          </div>
+                        </div>
+                        <p className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider">Dynamic Razorpay UPI QR Code</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Scan with GPay, Paytm, BHIM, or PhonePe to auto-fill details.</p>
+                      </div>
+
+                      <div className="relative flex py-1 items-center">
+                        <div className="flex-grow border-t border-slate-200"></div>
+                        <span className="flex-shrink mx-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">OR USE VPA</span>
+                        <div className="flex-grow border-t border-slate-200"></div>
+                      </div>
+
+                      <div className="space-y-2 text-left">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Enter UPI ID / VPA</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={upiId}
+                            onChange={(e) => setUpiId(e.target.value)}
+                            placeholder="e.g. jyoshi@upi"
+                            className="flex-1 border border-slate-200 px-3.5 py-2 rounded-xl text-xs focus:border-indigo-500 outline-none font-mono"
+                          />
+                          <button
+                            onClick={() => {
+                              if (!upiId || !upiId.includes('@')) {
+                                toast.error("Please enter a valid UPI VPA ID (e.g., name@upi).");
+                                return;
+                              }
+                              setCheckoutStep('otp');
+                            }}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                          >
+                            Verify & Pay
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-[10px] text-center text-slate-400 mt-3 font-medium flex items-center justify-center gap-1">
                     <ShieldAlert className="w-3 h-3" /> Payments are securely encrypted and processed.
                   </p>

@@ -23,6 +23,7 @@ import {
   Calendar,
   Tag,
   FileText,
+  FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
   ArrowLeftRight,
@@ -1235,6 +1236,206 @@ export default function FinanceTracker() {
     document.body.removeChild(link);
   };
 
+  // Export Excel of Filtered Records
+  const handleExportExcel = () => {
+    if (filteredRecords.length === 0) {
+      toast.error("No transactions available to export.");
+      return;
+    }
+
+    const headers = ["ID", "Type", "Category", "Amount (INR)", "Description", "Date", "Status", "Client Name", "Source Account", "Destination Account"];
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+    html += `<head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Finance Transactions</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->`;
+    html += `<style>
+      table { border-collapse: collapse; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin-top: 20px; }
+      th { background-color: #0f172a; color: #ffffff; font-weight: bold; padding: 12px 10px; border: 1px solid #e2e8f0; text-align: left; }
+      td { padding: 10px 8px; border: 1px solid #e2e8f0; font-size: 13px; color: #334155; }
+      .header-title { font-size: 20px; font-weight: bold; color: #0f172a; }
+      .header-meta { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+      .number { text-align: right; mso-number-format:"\\#\\,\\#\\#0\\.00"; }
+      .text { text-align: left; }
+      .type-income { color: #059669; font-weight: bold; }
+      .type-expense { color: #dc2626; font-weight: bold; }
+      .type-transfer { color: #2563eb; font-weight: bold; }
+    </style></head><body>`;
+
+    html += `<div class="header-title">CA JYOSHI MANOHAR - FINANCIAL LEDGER REGISTER</div>`;
+    html += `<div class="header-meta">Generated on ${new Date().toLocaleDateString()} | Filter: ${selectedMonth}/${selectedYear} | Total Records: ${filteredRecords.length}</div>`;
+    html += `<table><thead><tr>`;
+    headers.forEach(h => {
+      html += `<th>${h}</th>`;
+    });
+    html += `</tr></thead><tbody>`;
+
+    filteredRecords.forEach(rec => {
+      const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "";
+      const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "";
+      const typeStyle = rec.type === "income" ? "type-income" : rec.type === "expense" ? "type-expense" : "type-transfer";
+
+      html += `<tr>`;
+      html += `<td class="text" style="font-family: monospace;">${rec.id}</td>`;
+      html += `<td class="${typeStyle}">${rec.type.toUpperCase()}</td>`;
+      html += `<td class="text">${rec.category}</td>`;
+      html += `<td class="number">${Number(rec.amount).toFixed(2)}</td>`;
+      html += `<td class="text">${rec.description || ""}</td>`;
+      html += `<td class="text">${rec.date}</td>`;
+      html += `<td class="text" style="text-align: center;">${rec.status.toUpperCase()}</td>`;
+      html += `<td class="text">${rec.clientName || "-"}</td>`;
+      html += `<td class="text">${sourceAcc}</td>`;
+      html += `<td class="text">${destAcc}</td>`;
+      html += `</tr>`;
+    });
+
+    html += `</tbody></table></body></html>`;
+
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `CA_Manohar_Finances_${selectedMonth}_${selectedYear}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Excel spreadsheet exported successfully!");
+  };
+
+  // Export PDF of Filtered Records
+  const handleExportPDF = () => {
+    if (filteredRecords.length === 0) {
+      toast.error("No transactions available to export.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Popup blocker prevented PDF generation. Please allow popups for this portal.");
+      return;
+    }
+
+    const symbol = "₹";
+    let rowsHtml = "";
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    filteredRecords.forEach(rec => {
+      if (rec.type === "income") totalIncome += Number(rec.amount);
+      if (rec.type === "expense") totalExpense += Number(rec.amount);
+
+      const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "-";
+      const typeColor = rec.type === "income" ? "#10b981" : rec.type === "expense" ? "#ef4444" : "#3b82f6";
+
+      rowsHtml += `
+        <tr>
+          <td><strong style="font-family: monospace; font-size: 11px;">${rec.id.substring(0, 8)}</strong></td>
+          <td><span style="color: ${typeColor}; font-weight: 700; text-transform: uppercase; font-size: 10px;">${rec.type}</span></td>
+          <td>${rec.category}</td>
+          <td>${rec.description || "-"}</td>
+          <td>${rec.date}</td>
+          <td style="text-align: right; font-weight: bold; color: ${typeColor};">${symbol}${Number(rec.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+          <td><span style="font-size: 10px; font-weight: 600; text-transform: uppercase;">${rec.status}</span></td>
+          <td>${sourceAcc}</td>
+        </tr>
+      `;
+    });
+
+    const netCashflow = totalIncome - totalExpense;
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Financial Ledger Summary - CA Jyoshi Manohar</title>
+          <style>
+            body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 40px; color: #1e293b; background: white; }
+            .header-container { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 30px; }
+            .logo-title { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+            .subtitle { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+            .meta-details { text-align: right; font-size: 12px; color: #475569; line-height: 1.5; }
+            .title-section { margin-bottom: 25px; }
+            .title-section h1 { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0; }
+            .title-section p { font-size: 12px; color: #64748b; margin: 4px 0 0 0; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            th { background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 10px; text-align: left; }
+            td { border-bottom: 1px solid #f1f5f9; padding: 12px 10px; font-size: 12px; color: #334155; }
+            .totals-container { float: right; width: 320px; margin-top: 10px; }
+            .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 12px; border-bottom: 1px solid #f1f5f9; }
+            .total-row-grand { font-weight: bold; font-size: 14px; border-bottom: 2px solid #0f172a; padding-top: 12px; color: #0f172a; }
+            .footer { position: fixed; bottom: 20px; left: 40px; right: 40px; font-size: 9px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-container">
+            <div>
+              <div class="logo-title">CA JYOSHI MANOHAR</div>
+              <div class="subtitle">Chartered Accountant & Business Advisors</div>
+            </div>
+            <div class="meta-details">
+              <strong>OFFICIAL FINANCIAL STATEMENT</strong><br/>
+              Date: ${new Date().toLocaleDateString()}<br/>
+              Scope: Real-time Transaction Ledger
+            </div>
+          </div>
+
+          <div class="title-section">
+            <h1>Ledger Balance Sheets</h1>
+            <p>Financial ledger statements containing income & expense records corresponding to active accounting clients.</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Tx ID</th>
+                <th>Type</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Date</th>
+                <th style="text-align: right;">Amount</th>
+                <th>Status</th>
+                <th>Account</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals-container">
+            <div class="total-row">
+              <span style="color: #64748b;">Cumulative Inflows (Income):</span>
+              <strong style="color: #10b981;">+ ${symbol}${totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            <div class="total-row">
+              <span style="color: #64748b;">Cumulative Outflows (Expenses):</span>
+              <strong style="color: #ef4444;">- ${symbol}${totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            <div class="total-row total-row-grand">
+              <span>Net Cash Flow (In-hand):</span>
+              <span style="color: ${netCashflow >= 0 ? '#15803d' : '#b91c1c'}">${symbol}${netCashflow.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+
+          <div class="footer">
+            CA Jyoshi Manohar Offices • Confidential Statement Report • Page 1 of 1
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 700);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    toast.success("PDF transaction statement generated successfully!");
+  };
+
   const renderLedgerLogsTable = (title: string, subtitle: string, defaultFormTypeToAdd?: "income" | "expense" | "transfer") => {
     return (
       <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -1532,15 +1733,34 @@ export default function FinanceTracker() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleExportCSV}
-            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150"
+            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer"
+            title="Download finances ledger as CSV"
           >
             <Download className="w-4 h-4 text-slate-600" />
             <span>Export CSV</span>
           </button>
 
           <button
+            onClick={handleExportExcel}
+            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer"
+            title="Download finance ledger formatted for MS Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-650" />
+            <span>Export Excel</span>
+          </button>
+
+          <button
+            onClick={handleExportPDF}
+            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer"
+            title="Generate professionally styled PDF financial ledger"
+          >
+            <FileText className="w-4 h-4 text-red-600" />
+            <span>Export PDF</span>
+          </button>
+
+          <button
             onClick={() => handleOpenAddModal()}
-            className="flex items-center space-x-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm"
+            className="flex items-center space-x-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Add Transaction</span>

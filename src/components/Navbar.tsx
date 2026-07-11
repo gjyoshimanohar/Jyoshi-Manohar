@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import { Menu, X, ChevronDown, Search } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { services } from '../data';
@@ -98,6 +98,14 @@ export default function Navbar() {
                               {service.title}
                             </Link>
                           ))}
+                          <div className="border-t border-slate-100 my-1" />
+                          <Link 
+                            to="/toolkit" 
+                            className="block px-3 py-2 text-sm font-semibold text-secondary hover:bg-secondary/5 hover:text-primary transition-colors rounded-lg flex items-center justify-between"
+                          >
+                            <span>Interactive Toolkit</span>
+                            <span className="text-[9px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">Smart Tools</span>
+                          </Link>
                         </div>
                       </div>
                     </div>
@@ -130,6 +138,14 @@ export default function Navbar() {
                   </Link>
                 );
               })}
+               <button
+                onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+                className="flex items-center gap-1.5 p-2.5 text-slate-500 hover:text-primary hover:bg-slate-50 rounded-xl transition-all cursor-pointer mr-2 shrink-0 border border-slate-100"
+                title="Search Console (Ctrl+K)"
+              >
+                <Search className="w-4 h-4 text-slate-400" />
+                <span className="hidden xl:inline text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-mono border border-slate-200/40">Ctrl K</span>
+              </button>
               <a
                 href="/#contact"
                 className="bg-primary text-white px-5 lg:px-8 py-3 text-xs font-medium uppercase tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 whitespace-nowrap shrink-0"
@@ -196,6 +212,15 @@ export default function Navbar() {
                                     {service.title}
                                   </Link>
                                 ))}
+                                <div className="border-t border-slate-150 my-1 mx-4" />
+                                <Link 
+                                  to="/toolkit" 
+                                  onClick={() => setIsOpen(false)}
+                                  className="block w-full px-4 py-3 text-sm font-semibold text-secondary hover:text-primary transition-colors flex items-center justify-between"
+                                >
+                                  <span>Interactive Toolkit</span>
+                                  <span className="text-[9px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded uppercase tracking-wider font-bold mr-2">Smart Tools</span>
+                                </Link>
                               </div>
                             </motion.div>
                           )}
