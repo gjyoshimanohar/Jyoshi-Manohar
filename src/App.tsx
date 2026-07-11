@@ -5,7 +5,6 @@ import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import CommandPalette from './components/CommandPalette';
 
 // A robust helper to handle chunk loading errors in production when assets change during a deployment/server restart
 function lazyWithRetry(componentImport: () => Promise<any>) {
@@ -97,7 +96,6 @@ export default function App() {
         <Toaster position="bottom-right" toastOptions={{ className: 'text-sm font-medium', style: { borderRadius: '12px', background: '#333', color: '#fff' } }} />
         <div className="flex flex-col min-h-screen">
           <Navbar />
-          <CommandPalette />
           <div className="flex-grow">
             <Suspense fallback={<PageLoader />}>
               <Routes>

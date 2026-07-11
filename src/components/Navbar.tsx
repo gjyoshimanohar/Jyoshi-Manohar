@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown, Search } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { services } from '../data';
@@ -138,14 +138,7 @@ export default function Navbar() {
                   </Link>
                 );
               })}
-               <button
-                onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-                className="flex items-center gap-1.5 p-2.5 text-slate-500 hover:text-primary hover:bg-slate-50 rounded-xl transition-all cursor-pointer mr-2 shrink-0 border border-slate-100"
-                title="Search Console (Ctrl+K)"
-              >
-                <Search className="w-4 h-4 text-slate-400" />
-                <span className="hidden xl:inline text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-mono border border-slate-200/40">Ctrl K</span>
-              </button>
+
               <a
                 href="/#contact"
                 className="bg-primary text-white px-5 lg:px-8 py-3 text-xs font-medium uppercase tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 whitespace-nowrap shrink-0"
