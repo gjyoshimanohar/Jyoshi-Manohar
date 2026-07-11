@@ -46,13 +46,13 @@ export default function Navbar() {
   return (
     <>
       {!isOnline && (
-        <div className="fixed top-0 inset-x-0 bg-amber-500 text-white text-xs font-semibold py-2 px-4 text-center z-[100] flex items-center justify-center gap-1.5 shadow-sm">
+        <div className="fixed top-0 inset-x-0 bg-amber-500 text-white text-xs font-semibold py-2 px-4 text-center z-[110] flex items-center justify-center gap-1.5 shadow-sm">
           <span className="inline-block w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
           <span>Working in offline mode. Firestore sync will resume when connection is restored.</span>
         </div>
       )}
       <nav className={cn(
-        "fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 transition-all",
+        "fixed w-full z-[100] bg-white/80 backdrop-blur-md border-b border-slate-100 transition-all",
         !isOnline ? "top-8" : "top-0"
       )}>
         <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
@@ -87,7 +87,7 @@ export default function Navbar() {
                         <ChevronDown className="h-3 w-3 group-hover:rotate-180 transition-transform duration-300" style={{ color: active ? 'var(--color-secondary)' : 'inherit' }} />
                       </a>
                       
-                      <div className="absolute top-12 left-0 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-left scale-95 group-hover:scale-100 pt-2">
+                      <div className="absolute top-12 left-0 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-left scale-95 group-hover:scale-100 pt-2 z-50">
                         <div className="bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 p-1.5 relative before:content-[''] before:absolute before:-top-4 before:left-0 before:w-full before:h-4 flex flex-col gap-0.5">
                           {services.map((service) => (
                             <Link 

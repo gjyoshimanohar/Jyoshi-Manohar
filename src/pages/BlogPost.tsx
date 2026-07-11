@@ -7,6 +7,7 @@ import { BlogPost as IBlogPost } from '../types';
 import { ArrowLeft, Clock, Calendar, Share2, Linkedin, Twitter, Loader2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import React from 'react';
+import Breadcrumb from '../components/Breadcrumb';
 
 import 'suneditor/dist/css/suneditor.min.css';
 
@@ -104,6 +105,11 @@ export default function BlogPost() {
  animate={{ opacity: 1 }}
  className="py-6 lg:py-10"
  >
+   <Breadcrumb items={[
+     { label: 'Home', to: '/' },
+     { label: 'Blog', to: '/blog' },
+     { label: post.title }
+   ]} />
  <Link 
  to="/blog" 
  className="inline-flex items-center text-xs uppercase tracking-[0.2em] text-black hover:text-primary transition-colors mb-6 group"

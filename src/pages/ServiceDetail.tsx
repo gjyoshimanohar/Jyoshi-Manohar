@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, CheckCircle2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { services } from '../data';
+import Breadcrumb from '../components/Breadcrumb';
 
 export default function ServiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -72,16 +73,14 @@ export default function ServiceDetail() {
 
   return (
     <div className="min-h-screen pt-28 pb-20 bg-[#FAFAFA]">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Breadcrumb */}
-        <nav className="flex items-center text-sm font-medium text-slate-500 mb-8" aria-label="Breadcrumb">
-          <Link to="/" className="hover:text-primary transition-colors">Home</Link>
-          <ChevronRight className="w-4 h-4 mx-2" />
-          <Link to="/#services" className="hover:text-primary transition-colors">Services</Link>
-          <ChevronRight className="w-4 h-4 mx-2" />
-          <span className="text-slate-900" aria-current="page">{service.title}</span>
-        </nav>
+        <Breadcrumb items={[
+          { label: 'Home', to: '/' },
+          { label: 'Services', to: '/#services' },
+          { label: service.title }
+        ]} />
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}

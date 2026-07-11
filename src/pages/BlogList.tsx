@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Helmet } from 'react-helmet-async';
 import BlogCard from '../components/BlogCard';
+import Breadcrumb from '../components/Breadcrumb';
 import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
 import { BlogPost } from '../types';
@@ -41,6 +42,10 @@ export default function BlogList() {
    <meta property="og:description" content="Read expert articles and insights on Indian taxation, corporate compliance, financial auditing, wealth stewardship, and business planning." />
  </Helmet>
  <div className="w-[98%] mx-auto px-3 sm:px-6">
+ <Breadcrumb items={[
+   { label: 'Home', to: '/' },
+   { label: 'Blog' }
+ ]} />
  <header className="mb-8">
  <motion.div
  initial={{ opacity: 0 }}

@@ -2877,12 +2877,12 @@ export default function FinanceTracker() {
                   onClick={(e) => {
                     e.preventDefault();
                     if (!budgetCategorySelect || !budgetAmountInput) {
-                      triggerToast("Please select a category and specify a valid budget amount.", false);
+                      toast.error("Please select a category and specify a valid budget amount.");
                       return;
                     }
                     const amt = parseFloat(budgetAmountInput);
                     if (isNaN(amt) || amt <= 0) {
-                      triggerToast("Please enter a valid positive numerical amount.", false);
+                      toast.error("Please enter a valid positive numerical amount.");
                       return;
                     }
                     setBudgetTargets(prev => ({
@@ -2891,7 +2891,7 @@ export default function FinanceTracker() {
                     }));
                     setBudgetCategorySelect("");
                     setBudgetAmountInput("");
-                    triggerToast(`Successfully set ₹${amt.toLocaleString("en-IN")} monthly budget for "${budgetCategorySelect}"`, true);
+                    toast.success(`Successfully set ₹${amt.toLocaleString("en-IN")} monthly budget for "${budgetCategorySelect}"`);
                   }}
                   className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-2"
                 >
@@ -2918,7 +2918,7 @@ export default function FinanceTracker() {
                               delete updated[cat];
                               return updated;
                             });
-                            triggerToast(`Removed budget limit for "${cat}"`, true);
+                            toast.success(`Removed budget limit for "${cat}"`);
                           }}
                           className="text-slate-400 hover:text-rose-500 transition p-1"
                           title="Remove Budget Target"
@@ -2955,7 +2955,7 @@ export default function FinanceTracker() {
               <button
                 onClick={() => {
                   setAiInsights("");
-                  triggerToast("Cleared AI advisory history.", true);
+                  toast.success("Cleared AI advisory history.");
                 }}
                 className="text-xs font-semibold text-slate-500 hover:text-rose-500 transition px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg"
               >

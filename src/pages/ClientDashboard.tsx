@@ -8,6 +8,7 @@ import CustomSelect from "../components/CustomSelect";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 import ProfileDropdown from "../components/ProfileDropdown";
 import UserProfileModal from "../components/UserProfileModal";
+import Breadcrumb from "../components/Breadcrumb";
 import InvoiceManagement from "../components/InvoiceManagement";
 import {
   signInWithEmailAndPassword,
@@ -57,6 +58,7 @@ import {
   Calendar,
   CreditCard,
   ChevronRight,
+  ChevronDown,
   Loader2,
   Shield,
   ArrowRight,
@@ -3444,6 +3446,10 @@ Stewardship, Accuracy, Legacy.
       />
       <main className="min-h-screen pt-28 pb-20 bg-[#FDFDFD]">
         <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
+          <Breadcrumb items={[
+            { label: 'Home', to: '/' },
+            { label: 'Portal' }
+          ]} />
           {/* Banner Notification feedback messages */}
           <AnimatePresence>
             {feedback && (
@@ -3451,7 +3457,7 @@ Stewardship, Accuracy, Legacy.
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className={`fixed top-24 left-1/2 -translate-x-1/2 z-[80] w-[90%] max-w-lg p-4 rounded-xl border shadow-lg ${
+                className={`fixed top-24 left-1/2 -translate-x-1/2 z-[120] w-[90%] max-w-lg p-4 rounded-xl border shadow-lg ${
                   feedback.type === "success"
                     ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                     : "bg-red-50 border-red-200 text-red-800"
@@ -3464,7 +3470,7 @@ Stewardship, Accuracy, Legacy.
           </AnimatePresence>
 
           {/* Dashboard Title Ribbon */}
-          <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-50">
+          <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-30">
             <div className="flex items-start gap-4">
               <div>
                 <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary text-[10px] uppercase font-bold tracking-widest rounded-full w-fit border border-primary/10">
@@ -5727,7 +5733,7 @@ Stewardship, Accuracy, Legacy.
                       </span>
                     </h2>
 
-                    <div className="overflow-x-auto">
+                    <div className={`overflow-x-auto md:overflow-visible ${isAdmin && complianceFilings.length > 0 ? 'min-h-[260px]' : ''}`}>
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="border-b border-slate-100/60">
@@ -5815,7 +5821,7 @@ Stewardship, Accuracy, Legacy.
                                             filing.arn,
                                           )
                                         }
-                                        className="w-32 px-2 bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px]"
+                                        className="w-32 px-2 bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px] flex items-center"
                                         options={[
                                           "Upcoming",
                                           "In Progress",

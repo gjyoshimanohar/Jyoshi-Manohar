@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { userService } from '../services/userService';
 import { UserProfile as UserProfileType } from '../types';
 import { onAuthStateChanged } from 'firebase/auth';
+import Breadcrumb from '../components/Breadcrumb';
 
 export default function UserProfile() {
   const navigate = useNavigate();
@@ -100,6 +101,11 @@ export default function UserProfile() {
   return (
     <main className="min-h-screen pt-28 pb-20 bg-[#FDFDFD]">
       <div className="w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6">
+        <Breadcrumb items={[
+          { label: 'Home', to: '/' },
+          { label: 'Portal', to: '/dashboard' },
+          { label: 'Profile' }
+        ]} />
         
         <button
           onClick={() => navigate(-1)}

@@ -10,6 +10,7 @@ interface CustomSelectProps { options: SelectOptionType[]; value: string; onChan
 
 export default function CustomSelect({ options, value, onChange, className = '', placeholder, disabled = false }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -19,6 +20,19 @@ export default function CustomSelect({ options, value, onChange, className = '',
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (isOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      // If less than 220px below and there's more space above, open upwards
+      if (spaceBelow < 220 && rect.top > spaceBelow) {
+        setOpenUp(true);
+      } else {
+        setOpenUp(false);
+      }
+    }
+  }, [isOpen]);
 
   const getLabel = (opt: string | SelectOption) => typeof opt === 'string' ? opt : opt.label;
   const getValue = (opt: string | SelectOption) => typeof opt === 'string' ? opt : opt.value;
@@ -41,7 +55,13 @@ export default function CustomSelect({ options, value, onChange, className = '',
       </div>
       <AnimatePresence>
         {isOpen && (
-          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.15 }} className="absolute z-50 w-full min-w-max mt-1 bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5">
+          <motion.div 
+            initial={{ opacity: 0, y: openUp ? 5 : -5 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, scale: 0.95 }} 
+            transition={{ duration: 0.15 }} 
+            className={`absolute z-50 w-full min-w-max bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5 ${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+          >
             <div className="space-y-0.5">
               {options.map((option, index) => {
                 if (typeof option === 'object' && 'options' in option) {

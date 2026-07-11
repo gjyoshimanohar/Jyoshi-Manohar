@@ -11,6 +11,7 @@ import {
 import { auth } from "../lib/firebase";
 import { blogService } from "../services/blogService";
 import ChangePasswordModal from "../components/ChangePasswordModal";
+import Breadcrumb from "../components/Breadcrumb";
 import ProfileDropdown from "../components/ProfileDropdown";
 import UserProfileModal from "../components/UserProfileModal";
 // import ProfileDropdown from "../components/ProfileDropdown";
@@ -316,6 +317,10 @@ export default function Admin() {
       <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
       <main className="pt-32 pb-24 bg-accent min-h-screen text-left">
       <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
+        <Breadcrumb items={[
+          { label: 'Home', to: '/' },
+          { label: 'Admin Panel' }
+        ]} />
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
             <p className="text-primary font-medium tracking-widest capitalize text-base mb-6">
