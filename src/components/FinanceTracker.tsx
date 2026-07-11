@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import CustomSelect from "./CustomSelect";
 import Markdown from "react-markdown";
@@ -528,7 +529,7 @@ export default function FinanceTracker() {
 
   const confirmMarkAsReceived = async () => {
     if (!receiveModalAccountId) {
-      alert("Please select the account where the funds were received.");
+      toast.error("Please select the account where the funds were received.");
       return;
     }
     
@@ -592,7 +593,7 @@ export default function FinanceTracker() {
           setRecords(_revRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         } catch (e) {
           console.error(e);
-          alert("Failed to undo.");
+          toast.error("Failed to undo.");
         } finally {
           setSyncing(false);
         }
@@ -602,7 +603,7 @@ export default function FinanceTracker() {
       setReceiveModalOpen(false);
     } catch (e) {
       console.error(e);
-      alert("Failed to process.");
+      toast.error("Failed to process.");
     } finally {
       setSyncing(false);
     }
@@ -612,21 +613,21 @@ export default function FinanceTracker() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formAmount || isNaN(parseFloat(formAmount))) {
-      alert("Please enter a valid amount.");
+      toast.error("Please enter a valid amount.");
       return;
     }
 
     if (formType === "transfer") {
       if (!formPaymentAccountId) {
-        alert("Please select the Source Account (From) for the transfer.");
+        toast.error("Please select the Source Account (From) for the transfer.");
         return;
       }
       if (!formTransferToAccountId) {
-        alert("Please select the Destination Account (To) for the transfer.");
+        toast.error("Please select the Destination Account (To) for the transfer.");
         return;
       }
       if (formPaymentAccountId === formTransferToAccountId) {
-        alert("Source Account (From) and Destination Account (To) cannot be the same.");
+        toast("Source Account (From) and Destination Account (To) cannot be the same.");
         return;
       }
     }
@@ -662,7 +663,7 @@ export default function FinanceTracker() {
       setIsModalOpen(false);
     } catch (err) {
       console.error("Failed to save finance transaction", err);
-      alert("Failed to save transaction. Please verify you are logged in as admin.");
+      toast.error("Failed to save transaction. Please verify you are logged in as admin.");
     } finally {
       setSyncing(false);
     }
@@ -676,7 +677,7 @@ export default function FinanceTracker() {
       setConfirmDeleteId(null);
     } catch (err) {
       console.error("Failed to delete transaction", err);
-      alert("Failed to delete. Access restricted.");
+      toast.error("Failed to delete. Access restricted.");
     } finally {
       setSyncing(false);
     }
@@ -801,10 +802,10 @@ export default function FinanceTracker() {
       for (const item of demoDataList) {
         await financeService.createRecord(item);
       }
-      alert("Successfully seeded 3 payment accounts and 6 months of financial transaction logs!");
+      toast.success("Successfully seeded 3 payment accounts and 6 months of financial transaction logs!");
     } catch (err) {
       console.error("Failed seeding demo finances: ", err);
-      alert("Failed to seed. Please make sure database is online and rules are deployed.");
+      toast.error("Failed to seed. Please make sure database is online and rules are deployed.");
     } finally {
       setSyncing(false);
     }
@@ -832,7 +833,7 @@ export default function FinanceTracker() {
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accountName.trim() || !accountOpeningBalance || isNaN(parseFloat(accountOpeningBalance))) {
-      alert("Please enter a valid name and opening balance.");
+      toast.error("Please enter a valid name and opening balance.");
       return;
     }
     try {
@@ -856,7 +857,7 @@ export default function FinanceTracker() {
       setIsAccountModalOpen(false);
     } catch (err) {
       console.error("Failed to save payment account", err);
-      alert(`Error ${editingAccount ? "updating" : "creating"} payment account.`);
+      toast.error(`Error ${editingAccount ? "updating" : "creating"} payment account.`);
     } finally {
       setSyncing(false);
     }
@@ -871,7 +872,7 @@ export default function FinanceTracker() {
       await financeService.deletePaymentAccount(id);
     } catch (err) {
       console.error("Failed to delete account", err);
-      alert("Failed to delete account.");
+      toast.error("Failed to delete account.");
     } finally {
       setSyncing(false);
     }
@@ -1201,7 +1202,7 @@ export default function FinanceTracker() {
   // Export CSV of Filtered Records
   const handleExportCSV = () => {
     if (filteredRecords.length === 0) {
-      alert("No transactions available to export.");
+      toast.error("No transactions available to export.");
       return;
     }
 

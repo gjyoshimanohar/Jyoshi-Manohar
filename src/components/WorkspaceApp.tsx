@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { 
@@ -784,10 +785,10 @@ export default function WorkspaceApp() {
  await todoService.deleteFolder(folder.id);
  }
  localStorage.removeItem(`ticktick_bootstrapped_${auth.currentUser?.uid}`);
- alert('All data cleared successfully.');
+ toast('All data cleared successfully.');
  } catch (err) {
  console.error('Failed to clear data', err);
- alert('Failed to clear some data');
+ toast('Failed to clear some data');
  }
  }
  };
@@ -1003,7 +1004,7 @@ export default function WorkspaceApp() {
 
   const handleToggleTodo = async (todo: Todo) => {
     if (!todo.completed && getActiveDependenciesCount(todo) > 0) {
-      alert('Cannot complete this task. It is blocked by ' + getActiveDependenciesCount(todo) + ' active task(s).');
+      toast('Cannot complete this task. It is blocked by ' + getActiveDependenciesCount(todo) + ' active task(s).');
       return;
     }
  const isCompleting = !todo.completed;

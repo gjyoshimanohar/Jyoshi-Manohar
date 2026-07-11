@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import React, { Suspense, lazy } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Helmet, HelmetProvider } from 'react-helmet-async';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
@@ -37,7 +38,8 @@ import Admin from './pages/Admin';
 import Tasks from './pages/Tasks';
 import ClientDashboard from './pages/ClientDashboard';
 import UserProfile from './pages/UserProfile';
-import UnderConstruction from './pages/UnderConstruction';
+import ServiceDetail from './pages/ServiceDetail';
+
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
@@ -90,6 +92,7 @@ export default function App() {
           <meta name="author" content="CA Jyoshi Manohar" />
           <meta name="robots" content="index, follow" />
         </Helmet>
+        <Toaster position="bottom-right" toastOptions={{ className: 'text-sm font-medium', style: { borderRadius: '12px', background: '#333', color: '#fff' } }} />
         <div className="flex flex-col min-h-screen">
           <Navbar />
           <div className="flex-grow">
@@ -98,7 +101,7 @@ export default function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/blog" element={<BlogList />} />
                 <Route path="/blog/:slug" element={<BlogPost />} />
-                <Route path="/services/:id" element={<UnderConstruction />} />
+                <Route path="/services/:id" element={<ServiceDetail />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/dashboard" element={<ClientDashboard />} />

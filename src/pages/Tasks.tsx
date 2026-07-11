@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
@@ -28,7 +29,7 @@ export default function Tasks() {
  await signInWithEmailAndPassword(auth, email, password);
  } catch (error: any) {
  // Supress confusing firebase errors in console\n      console.error("Login failed: ", error.code === "auth/invalid-credential" ? "Invalid credentials" : error.message);
- alert(error.code === "auth/invalid-credential" ? "Invalid email or password." : (error.message || "Login failed"));
+ toast.error(error.code === "auth/invalid-credential" ? "Invalid email or password." : (error.message || "Login failed"));
  }
  };
 

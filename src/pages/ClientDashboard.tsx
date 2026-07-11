@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from "react";
 import JSZip from "jszip";
 import { Link } from "react-router-dom";
@@ -867,7 +868,7 @@ export default function ClientDashboard() {
 
     const chatScopeUid = isAdmin ? selectedClientId : user.uid;
     if (!chatScopeUid) {
-      alert("Please select a target client first to deploy messages.");
+      toast.error("Please select a target client first to deploy messages.");
       return;
     }
 
@@ -1013,7 +1014,7 @@ export default function ClientDashboard() {
       setChatFile(null);
     } catch (err: any) {
       console.error("Failed to send message: ", err);
-      alert("Error sending message: " + err.message);
+      toast.error("Error sending message: " + err.message);
     } finally {
       setChatFileUploadProgress(null);
     }
@@ -1023,13 +1024,13 @@ export default function ClientDashboard() {
     if (!user) return;
     const chatScopeUid = selectedClientId;
     if (!chatScopeUid) {
-      alert(
+      toast(
         "Please select a target client first to dispatch a document request.",
       );
       return;
     }
     if (!reqDocName.trim()) {
-      alert("Please enter a Document Name to identify what is requested.");
+      toast.error("Please enter a Document Name to identify what is requested.");
       return;
     }
 
@@ -1100,7 +1101,7 @@ export default function ClientDashboard() {
       setShowRequestForm(false);
     } catch (err: any) {
       console.error("Failed to request document: ", err);
-      alert("Request failed: " + err.message);
+      toast("Request failed: " + err.message);
     } finally {
       setDataLoading(false);
     }
@@ -1211,7 +1212,7 @@ export default function ClientDashboard() {
       setTimeout(() => setFeedback(null), 4000);
     } catch (err: any) {
       console.error("Fulfill upload failed: ", err);
-      alert("Upload failed: " + err.message);
+      toast("Upload failed: " + err.message);
     } finally {
       setUploadingReqDocId(null);
       setActiveReqDocUploadProgress(null);
@@ -1809,7 +1810,7 @@ Stewardship, Accuracy, Legacy.
       ? clients.find((c) => c.uid === opsTargetClientId)?.email || ""
       : selectedClientEmail;
     if (!targetClient) {
-      alert("Please select a target client first.");
+      toast.error("Please select a target client first.");
       return;
     }
     try {
@@ -1893,7 +1894,7 @@ Stewardship, Accuracy, Legacy.
       ? clients.find((c) => c.uid === opsTargetClientId)?.email || ""
       : selectedClientEmail;
     if (!targetClient) {
-      alert("Please select a target client first.");
+      toast.error("Please select a target client first.");
       return;
     }
 
@@ -2061,7 +2062,7 @@ Stewardship, Accuracy, Legacy.
       ? clients.find((c) => c.uid === opsTargetClientId)?.email || ""
       : selectedClientEmail;
     if (!targetClient) {
-      alert("Please select a target client first.");
+      toast.error("Please select a target client first.");
       return;
     }
     try {
@@ -2131,11 +2132,11 @@ Stewardship, Accuracy, Legacy.
     e.preventDefault();
     const targetClient = opsModalType ? opsTargetClientId : selectedClientId;
     if (!targetClient) {
-      alert("Please select a target client first.");
+      toast.error("Please select a target client first.");
       return;
     }
     if (!newLoginPortal || !newLoginUsername) {
-      alert("Please fill in the portal name and username.");
+      toast.error("Please fill in the portal name and username.");
       return;
     }
     try {
@@ -2323,7 +2324,7 @@ Stewardship, Accuracy, Legacy.
       });
       setTimeout(() => setFeedback(null), 3000);
     } catch (err: any) {
-      alert("Status edit failed: " + err.message);
+      toast("Status edit failed: " + err.message);
     }
   };
 
@@ -2331,7 +2332,7 @@ Stewardship, Accuracy, Legacy.
     e.preventDefault();
     if (!user) return;
     if (!requestTitle.trim()) {
-      alert("Please specify a title or subject for your request.");
+      toast.error("Please specify a title or subject for your request.");
       return;
     }
 
@@ -2470,7 +2471,7 @@ Stewardship, Accuracy, Legacy.
       setRequestType("engagement");
     } catch (err: any) {
       console.error(err);
-      alert("Error submitting request: " + err.message);
+      toast.error("Error submitting request: " + err.message);
     } finally {
       setIsSubmittingRequest(false);
     }
@@ -2612,7 +2613,7 @@ Stewardship, Accuracy, Legacy.
       setDecliningReqId(null);
     } catch (err: any) {
       console.error(err);
-      alert("Decline request failed: " + err.message);
+      toast("Decline request failed: " + err.message);
     }
   };
 
@@ -2681,7 +2682,7 @@ Stewardship, Accuracy, Legacy.
 
             if (!emailRes.ok) {
               console.error("Email API failed:", emailData);
-              alert(
+              toast(
                 `Account created, but failed to send the email: ${emailData.error || "Server error"}. Please check your Brevo API key configuration in Settings.`,
               );
             } else {
@@ -2691,18 +2692,18 @@ Stewardship, Accuracy, Legacy.
             }
           } catch (emailErr) {
             console.error("Failed to dispatch welcome email:", emailErr);
-            alert(
+            toast(
               "Failed to communicate with the email server. Please check your connection.",
             );
           }
         } catch (authErr: any) {
           console.error("Failed to provision new client account:", authErr);
           if (authErr.code === "auth/email-already-in-use") {
-            alert(
+            toast(
               `This email (${req.userEmail}) is already registered in Firebase Auth, but missing from the Clients record. Please accept this request without assigning a password. When the client logs into the portal using their existing password, their account will sync the new request.`,
             );
           } else {
-            alert(
+            toast(
               `Account creation failed: ${authErr.message || "Unknown error"}`,
             );
           }
@@ -2864,7 +2865,7 @@ Stewardship, Accuracy, Legacy.
       setAcceptUserPassword("");
     } catch (err: any) {
       console.error(err);
-      alert("Error approving client request: " + err.message);
+      toast.error("Error approving client request: " + err.message);
     } finally {
       setIsProcessingApproval(false);
     }
@@ -2895,13 +2896,13 @@ Stewardship, Accuracy, Legacy.
       });
       setTimeout(() => setFeedback(null), 2500);
     } catch (err: any) {
-      alert("Failed to update step: " + err.message);
+      toast.error("Failed to update step: " + err.message);
     }
   };
 
   const handleAddMilestoneStep = async (appId: string) => {
     if (!newStepTitle.trim()) {
-      alert("Please enter a title for the new milestone.");
+      toast.error("Please enter a title for the new milestone.");
       return;
     }
     try {
@@ -2934,7 +2935,7 @@ Stewardship, Accuracy, Legacy.
       });
       setTimeout(() => setFeedback(null), 2500);
     } catch (err: any) {
-      alert("Failed to add milestone: " + err.message);
+      toast.error("Failed to add milestone: " + err.message);
     }
   };
 
@@ -2957,7 +2958,7 @@ Stewardship, Accuracy, Legacy.
 
   const handleSaveStepEdit = async (appId: string, stepIndex: number) => {
     if (!editStepTitle.trim()) {
-      alert("Milestone title cannot be empty.");
+      toast("Milestone title cannot be empty.");
       return;
     }
     try {
@@ -2986,7 +2987,7 @@ Stewardship, Accuracy, Legacy.
       setFeedback({ message: "Milestone details saved!", type: "success" });
       setTimeout(() => setFeedback(null), 2500);
     } catch (err: any) {
-      alert("Failed to save milestone: " + err.message);
+      toast.error("Failed to save milestone: " + err.message);
     }
   };
 
@@ -3008,7 +3009,7 @@ Stewardship, Accuracy, Legacy.
       setFeedback({ message: "Verification step removed!", type: "success" });
       setTimeout(() => setFeedback(null), 2500);
     } catch (err: any) {
-      alert("Failed to delete step: " + err.message);
+      toast.error("Failed to delete step: " + err.message);
     }
   };
 
@@ -3052,7 +3053,7 @@ Stewardship, Accuracy, Legacy.
       });
       setTimeout(() => setFeedback(null), 3500);
     } catch (err: any) {
-      alert("Filing update failed: " + err.message);
+      toast("Filing update failed: " + err.message);
     }
   };
 
@@ -3075,7 +3076,7 @@ Stewardship, Accuracy, Legacy.
       });
       setTimeout(() => setFeedback(null), 3000);
     } catch (err: any) {
-      alert("Delete failed: " + err.message);
+      toast("Delete failed: " + err.message);
     }
   };
 
@@ -3084,13 +3085,13 @@ Stewardship, Accuracy, Legacy.
     clientEmail: string,
   ) => {
     if (!clientId) {
-      alert("Please select a client to delete first.");
+      toast.error("Please select a client to delete first.");
       return;
     }
 
     // Safety check: Cannot delete self
     if (clientId === user?.uid) {
-      alert(
+      toast(
         "Security alert: You cannot delete your own admin/active user profile.",
       );
       return;
@@ -3155,7 +3156,7 @@ Stewardship, Accuracy, Legacy.
       setTimeout(() => setFeedback(null), 4000);
     } catch (e: any) {
       console.error("Failed to delete client: ", e);
-      alert("Failed to delete client: " + e.message);
+      toast.error("Failed to delete client: " + e.message);
     } finally {
       setDataLoading(false);
     }
@@ -3164,7 +3165,7 @@ Stewardship, Accuracy, Legacy.
   const handleAddNewClientInModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientEmail) {
-      alert("Please enter a valid email address.");
+      toast.error("Please enter a valid email address.");
       return;
     }
 
@@ -3232,7 +3233,7 @@ Stewardship, Accuracy, Legacy.
       });
       setTimeout(() => setFeedback(null), 4000);
     } catch (err: any) {
-      alert(
+      toast(
         `Failed to ${editingClientUid ? "update" : "create"} stub: ` +
           err.message,
       );
@@ -5926,7 +5927,7 @@ Stewardship, Accuracy, Legacy.
                                                 val,
                                               );
                                             } else {
-                                              alert(
+                                              toast(
                                                 "Disclaimer: If supporting tax logs or general ledger registers are pending, compile records and upload the spreadsheet files to Document vaults first so CA can sign off and dispatch.",
                                               );
                                             }

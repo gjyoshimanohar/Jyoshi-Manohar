@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect, useMemo } from 'react';
 import CustomSelect from './CustomSelect';
 import { 
@@ -132,7 +133,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
     if (feeInput === null) return;
     const feeAmount = parseFloat(feeInput);
     if (isNaN(feeAmount) || feeAmount <= 0) {
-      alert("Please enter a valid positive number.");
+      toast.error("Please enter a valid positive number.");
       return;
     }
 
@@ -201,10 +202,10 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
         ...updatedFields
       });
 
-      alert(`Overdue penalty of ₹${feeAmount.toFixed(2)} applied successfully!`);
+      toast.success(`Overdue penalty of ₹${feeAmount.toFixed(2)} applied successfully!`);
     } catch (err) {
       console.error("Error applying late fee", err);
-      alert("Failed to apply late fee. Please try again.");
+      toast.error("Failed to apply late fee. Please try again.");
     }
   };
 
@@ -251,17 +252,17 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
         ...updatedFields
       });
       
-      alert(`Estimate successfully converted to Invoice ${newInvNumber}!`);
+      toast.success(`Estimate successfully converted to Invoice ${newInvNumber}!`);
     } catch (err) {
       console.error("Error converting estimate to invoice", err);
-      alert("Failed to convert estimate. Please try again.");
+      toast.error("Failed to convert estimate. Please try again.");
     }
   };
 
   // CSV Ledger Export function
   const handleExportCSV = () => {
     if (filteredInvoices.length === 0) {
-      alert("No invoices found to export.");
+      toast.error("No invoices found to export.");
       return;
     }
 
@@ -355,13 +356,13 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
           : `https://web.whatsapp.com/send?text=${encodedText}`;
         window.open(waUrl, '_blank');
       } else {
-        alert(`Email dispatch triggered successfully to ${selectedInvoice.clientEmail}!`);
+        toast.success(`Email dispatch triggered successfully to ${selectedInvoice.clientEmail}!`);
       }
 
       setIsReminderModalOpen(false);
     } catch (err) {
       console.error("Error saving reminder log", err);
-      alert("Failed to save communication log. Please try again.");
+      toast.error("Failed to save communication log. Please try again.");
     }
   };
 
@@ -516,7 +517,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
     if (!auth.currentUser) return;
 
     if (!clientName || !clientEmail || items.some(i => !i.description)) {
-      alert("Please fill in all client details and description for all items.");
+      toast.error("Please fill in all client details and description for all items.");
       return;
     }
 
@@ -1082,7 +1083,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                               if (match) {
                                 openReminderModal(match);
                               } else {
-                                alert("No active outstanding invoices found for this client account to dispatch reminders.");
+                                toast.error("No active outstanding invoices found for this client account to dispatch reminders.");
                               }
                             }}
                             className="inline-flex items-center gap-1 bg-white border border-slate-200 hover:border-indigo-600 text-slate-700 hover:text-indigo-600 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer shadow-2xs"
@@ -2656,9 +2657,9 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                           });
                           setIsCheckoutModalOpen(false);
                           setCheckoutSimulating(false);
-                          alert(`Payment of ${getCurrencySymbol(selectedInvoice.currency)}${selectedInvoice.total.toFixed(2)} was successful!`);
+                          toast.success(`Payment of ${getCurrencySymbol(selectedInvoice.currency)}${selectedInvoice.total.toFixed(2)} was successful!`);
                         } catch (e) {
-                          alert("Payment failed or encountered an error.");
+                          toast("Payment failed or encountered an error.");
                           setCheckoutSimulating(false);
                         }
                       }, 2000);

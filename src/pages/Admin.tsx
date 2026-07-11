@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
@@ -76,7 +77,7 @@ export default function Admin() {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
       // Supress confusing firebase errors in console\n      console.error("Login failed: ", error.code === "auth/invalid-credential" ? "Invalid credentials" : error.message);
-      alert(error.code === "auth/invalid-credential" ? "Invalid email or password." : (error.message || "Login failed"));
+      toast.error(error.code === "auth/invalid-credential" ? "Invalid email or password." : (error.message || "Login failed"));
     }
   };
 
@@ -99,7 +100,7 @@ export default function Admin() {
       }));
     } catch (error) {
       console.error("Image upload failed", error);
-      alert(
+      toast(
         "Failed to upload image. Please ensure Storage is set up in Firebase.",
       );
     } finally {
@@ -133,7 +134,7 @@ export default function Admin() {
       })
       .catch((error) => {
         console.error("Editor Image upload failed", error);
-        alert(
+        toast(
           "Failed to upload image. Please ensure Storage is set up in Firebase.",
         );
         uploadHandler({ errorMessage: "Upload failed" });
@@ -188,7 +189,7 @@ export default function Admin() {
           await blogService.updatePost(existing.id, postWithoutId);
         }
       }
-      alert("Data seeded successfully!");
+      toast.success("Data seeded successfully!");
     } catch (error: any) {
       console.error("Seed error:", error);
 
@@ -210,7 +211,7 @@ export default function Admin() {
           "\n\nHINT: Make sure you have created the 'Firestore Database' in your Firebase Console (Build > Firestore Database).";
       }
 
-      alert(
+      toast(
         `An error occurred during seeding:\n${errorMsg}${hint}\n\nPlease check the browser console for more details.`,
       );
     } finally {
