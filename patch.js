@@ -2,7 +2,6 @@ const fs = require('fs');
 const content = fs.readFileSync('src/pages/ClientDashboard.tsx', 'utf8');
 const target = `      const appToUpdate = applications.find((a) => a.id === appId);
       if (!appToUpdate) return;
-
       const currentSteps = appToUpdate.steps || [];
       const updatedSteps = [
         ...currentSteps,
@@ -13,12 +12,10 @@ const target = `      const appToUpdate = applications.find((a) => a.id === appI
           completed: false,
         },
       ];
-
       await updateDoc(doc(db, "applications", appId), {
         steps: updatedSteps,
         updatedAt: Date.now(),
       });
-
       setNewStepTitle("");`;
 
 const replacement = `      const appToUpdate = applications.find((a) => a.id === appId);

@@ -12,9 +12,10 @@ import {
  Settings, FileSpreadsheet, Download, Lock, ListTodo, LayoutGrid, TrendingUp, Activity
 } from 'lucide-react';
 import { todoService } from '../services/todoService';
-import { FileText, MessageSquare, CornerDownRight, Key, Network } from 'lucide-react';
+import { FileText, MessageSquare, CornerDownRight, Key, Network, Users } from 'lucide-react';
 import { Todo, Project, Folder as FolderType, TaskActivity } from '../types';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { format, isToday, isTomorrow, isPast, isSameDay, startOfDay, subDays, addHours, addDays, addWeeks, addMonths, addYears, formatDistanceToNow } from 'date-fns';
 import EmojiPicker from 'emoji-picker-react';
 import { DayPicker } from 'react-day-picker';
@@ -491,6 +492,10 @@ export default function WorkspaceApp() {
  const [showDetailPriorityPicker, setShowDetailPriorityPicker] = useState(false);
  const [showDetailRepeatPicker, setShowDetailRepeatPicker] = useState(false);
  const [showDetailBlockingPicker, setShowDetailBlockingPicker] = useState(false);
+const [showDetailClientPicker, setShowDetailClientPicker] = useState(false);
+const [clients, setClients] = useState<{ uid: string; email: string; displayName?: string }[]>([]);
+const [newTaskClientId, setNewTaskClientId] = useState<string | null>(null);
+const [showClientPicker, setShowClientPicker] = useState(false);
  const [isNotesPreviewMode, setIsNotesPreviewMode] = useState(true);
 
  // Collapsible Checked Category State (Replicates visual checked list expander)
@@ -851,6 +856,34 @@ export default function WorkspaceApp() {
    }
  }, [loading, projects, todos]);
 
+ // Load clients securely for task association
+ useEffect(() => {
+   if (!auth.currentUser) return;
+   const isAdmin = auth.currentUser.email === "gjyoshimanohar@gmail.com";
+   if (isAdmin) {
+     const unsubscribe = onSnapshot(
+       collection(db, "users"),
+       (snapshot) => {
+         const clientList: any[] = [];
+         snapshot.forEach((docRef) => {
+           const data = docRef.data();
+           if (data.email === "gjyoshimanohar@gmail.com") return;
+           clientList.push({
+             uid: data.uid || docRef.id,
+             email: data.email,
+             displayName: data.displayName || data.email,
+           });
+         });
+         setClients(clientList);
+       },
+       (error) => {
+         console.error("Error loading clients in WorkspaceApp: ", error);
+       }
+     );
+     return () => unsubscribe();
+   }
+ }, []);
+
  // Ask for notification permission on mount
  useEffect(() => {
  if ("Notification" in window && Notification.permission === "default") {
@@ -931,6 +964,8 @@ export default function WorkspaceApp() {
  priority: newTaskPriority,
  dueDate: newTaskDueDate ? newTaskDueDate.getTime() : null,
  deadline: newTaskDeadline ? newTaskDeadline.getTime() : null,
+ clientId: newTaskClientId || undefined,
+ clientName: newTaskClientId ? (clients.find(c => c.uid === newTaskClientId)?.displayName || clients.find(c => c.uid === newTaskClientId)?.email) : undefined,
  });
 
  if (matchedProjectName && targetProjectId !== currentBaseProjId) {
@@ -941,6 +976,8 @@ export default function WorkspaceApp() {
  setNewTaskTitle('');
  setNewTaskDesc('');
  setNewTaskDeadline(undefined);
+ setNewTaskClientId(null);
+ setShowClientPicker(false);
  setIsAddingTask(false);
  };
 
@@ -1016,6 +1053,8 @@ export default function WorkspaceApp() {
  dueDate: dueDateVal,
  repeatInterval: newTaskRepeatInterval,
       tags: detectedTags.length > 0 ? detectedTags : undefined,
+ clientId: newTaskClientId || undefined,
+ clientName: newTaskClientId ? (clients.find(c => c.uid === newTaskClientId)?.displayName || clients.find(c => c.uid === newTaskClientId)?.email) : undefined,
  });
 
  if (matchedProjectName && targetProjectId !== currentBaseProjId) {
@@ -1030,6 +1069,8 @@ export default function WorkspaceApp() {
  setNewTaskPriority(4);
       setNewTaskRepeatInterval(null);
  setNewTaskDueDate(undefined);
+ setNewTaskClientId(null);
+ setShowClientPicker(false);
  setShowDatePicker(false);
  setShowPriorityPicker(false);
  setShowNotesField(false);
@@ -1631,6 +1672,13 @@ export default function WorkspaceApp() {
 
         <div className="flex items-center space-x-2.5 shrink-0 pl-2">
           {renderItemProjectBadge(todo)}
+
+          {todo.clientId && (
+            <span className="flex items-center gap-1 text-[10px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded-full font-bold border border-slate-200 select-none">
+              <Users className="w-2.5 h-2.5 text-slate-400" />
+              <span>{todo.clientName || 'Client'}</span>
+            </span>
+          )}
 
           {viewMode !== 'trash' && viewMode !== 'today' && (
             <span className={`text-xs sm:text-xs font-semibold flex items-center select-none shrink-0 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? 'text-red-500' : 'text-blue-500'}`}>
@@ -3692,6 +3740,55 @@ export default function WorkspaceApp() {
  <span>Subtasks</span>
  </button>
  </div>
+
+ {/* 6. Client Selector */}
+ {clients.length > 0 && (
+ <div className="relative">
+ <button
+ type="button"
+ onClick={() => { setShowClientPicker(!showClientPicker); setShowSubtasksField(false); setShowNotesField(false); setShowRepeatPicker(false); setShowPriorityPicker(false); setShowDatePicker(false); }}
+ className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${newTaskClientId ? 'bg-primary/5 text-primary border-primary/20 hover:bg-primary/10' : 'bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100'}`}
+ >
+ <Users className={`w-3.5 h-3.5 shrink-0 ${newTaskClientId ? 'text-primary' : 'text-gray-400'}`} />
+ <span>{newTaskClientId ? (clients.find(c => c.uid === newTaskClientId)?.displayName || 'Client selected') : 'Client'}</span>
+ <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+ </button>
+ <AnimatePresence>
+ {showClientPicker && (
+ <motion.div
+ initial={{ opacity: 0, y: 8, scale: 0.95 }}
+ animate={{ opacity: 1, y: 0, scale: 1 }}
+ exit={{ opacity: 0, y: 8, scale: 0.95 }}
+ transition={{ duration: 0.12 }}
+ className="absolute left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-48 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150"
+ >
+ <button
+ type="button"
+ onClick={() => { setNewTaskClientId(null); setShowClientPicker(false); }}
+ className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!newTaskClientId ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+ >
+ None
+ {!newTaskClientId && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+ </button>
+ {clients.map((c) => {
+ const isSelected = newTaskClientId === c.uid;
+ return (
+ <button
+ key={c.uid}
+ type="button"
+ onClick={() => { setNewTaskClientId(c.uid); setShowClientPicker(false); }}
+ className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+ >
+ <span className="truncate">{c.displayName || c.email}</span>
+ {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+ </button>
+ );
+ })}
+ </motion.div>
+ )}
+ </AnimatePresence>
+ </div>
+ )}
  </div>
 
  {/* Submit Button */}
@@ -5010,7 +5107,7 @@ export default function WorkspaceApp() {
  </div>
 
  {/* Detail picking controls */}
- <div className="grid grid-cols-3 gap-2.5 mt-5 border-b border-gray-150 pb-5">
+ <div className="grid grid-cols-4 gap-2.5 mt-5 border-b border-gray-150 pb-5">
  {/* Due Date */}
  <div className="relative">
  <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Due Date</label>
@@ -5205,6 +5302,64 @@ export default function WorkspaceApp() {
  <RefreshCw className={`w-3.5 h-3.5 mr-2 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
  {label}
  </span>
+ {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+ </button>
+ );
+ })}
+ </motion.div>
+ )}
+ </AnimatePresence>
+ </div>
+
+ {/* Client Picker */}
+ <div className="relative">
+ <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">Client</label>
+ <button 
+ onClick={() => { setShowDetailClientPicker(!showDetailClientPicker); setShowDetailDatePicker(false); setShowDetailPriorityPicker(false); setShowDetailRepeatPicker(false); }}
+ className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailClientPicker ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50/50 text-gray-700'}`}
+ >
+ <span className="flex items-center gap-1.5 truncate">
+ <Users className={`w-3.5 h-3.5 ${todo.clientId ? 'text-primary' : 'text-gray-400'}`} />
+ {todo.clientId ? (clients.find(c => c.uid === todo.clientId)?.displayName || todo.clientName || 'Client') : 'None'}
+ </span>
+ <ChevronDown className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailClientPicker ? 'rotate-180' : ''}`} />
+ </button>
+ <AnimatePresence>
+ {showDetailClientPicker && (
+ <motion.div 
+ initial={{ opacity: 0, y: 8, scale: 0.95 }}
+ animate={{ opacity: 1, y: 0, scale: 1 }}
+ exit={{ opacity: 0, y: 8, scale: 0.95 }}
+ transition={{ duration: 0.15 }}
+ className="absolute top-full right-0 mt-2 z-50 bg-white border border-gray-100 rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-48 max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150"
+ onClick={(e) => e.stopPropagation()}
+ >
+ <button
+ type="button"
+ onClick={async () => {
+ setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, clientId: undefined, clientName: undefined } : t));
+ await todoService.updateTodo(todo.id, { clientId: null, clientName: null });
+ setShowDetailClientPicker(false);
+ }}
+ className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.clientId ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+ >
+ None
+ {!todo.clientId && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+ </button>
+ {clients.map((c) => {
+ const isSelected = todo.clientId === c.uid;
+ return (
+ <button
+ key={c.uid}
+ type="button"
+ onClick={async () => {
+ setTodos(prev => prev.map(t => t.id === todo.id ? { ...t, clientId: c.uid, clientName: c.displayName || c.email } : t));
+ await todoService.updateTodo(todo.id, { clientId: c.uid, clientName: c.displayName || c.email });
+ setShowDetailClientPicker(false);
+ }}
+ className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-gray-50 text-gray-700'}`}
+ >
+ <span className="truncate">{c.displayName || c.email}</span>
  {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
  </button>
  );

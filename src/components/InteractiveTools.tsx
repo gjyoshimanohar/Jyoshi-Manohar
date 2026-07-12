@@ -19,12 +19,13 @@ import {
   Users,
   Percent,
   Check,
-  AlertCircle
+  AlertCircle,
+  ArrowUpRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Define Types
-type ToolTab = 'tax' | 'deadlines' | 'checklist' | 'pricing';
+type ToolTab = 'tax' | 'deadlines' | 'checklist';
 
 interface Deadline {
   id: string;
@@ -90,11 +91,6 @@ export default function InteractiveTools() {
   // --- 3. Document Checklist State ---
   const [selectedService, setSelectedService] = useState<string>('gst_reg');
   const [completedItems, setCompletedItems] = useState<Record<string, boolean>>({});
-
-  // --- 4. Service Cost Estimator State ---
-  const [turnover, setTurnover] = useState<string>('under_10l');
-  const [businessType, setBusinessType] = useState<string>('proprietorship');
-  const [neededServices, setNeededServices] = useState<string[]>(['gst_returns', 'bookkeeping']);
 
   // Initial Calculation & Deadlines Generation
   useEffect(() => {
@@ -220,42 +216,49 @@ export default function InteractiveTools() {
     const oldCess = oldTax * 0.04;
     const totalOldTax = oldTax + oldCess;
 
-    // 2. NEW REGIME CALCULATION (FY 2024-25 / AY 2025-26 under Finance Act 2024)
-    const newStandardDeduction = 75000;
+    // 2. NEW REGIME CALCULATION (FY 2026-27 / AY 2027-28 under the New Income Tax Act 2025 / Budget 2025)
+    const newStandardDeduction = 100000; // Increased to ₹1,00,000 in Budget 2025
     // No 80C, 80D deductions allowed under New Regime
     const totalNewDeductions = newStandardDeduction;
     const newTaxableIncome = Math.max(0, grossIncome - totalNewDeductions);
 
     let newTax = 0;
     
-    if (newTaxableIncome > 300000) {
-      if (newTaxableIncome <= 600000) {
-        newTax += (newTaxableIncome - 300000) * 0.05;
+    if (newTaxableIncome > 400000) {
+      if (newTaxableIncome <= 800000) {
+        newTax += (newTaxableIncome - 400000) * 0.05;
       } else {
-        newTax += 300000 * 0.05;
-        if (newTaxableIncome <= 900000) {
-          newTax += (newTaxableIncome - 600000) * 0.10;
+        newTax += 400000 * 0.05; // 5% of 4L-8L (₹20,000)
+        if (newTaxableIncome <= 1200000) {
+          newTax += (newTaxableIncome - 800000) * 0.10;
         } else {
-          newTax += 300000 * 0.10;
-          if (newTaxableIncome <= 1200000) {
-            newTax += (newTaxableIncome - 900000) * 0.15;
+          newTax += 400000 * 0.10; // 10% of 8L-12L (₹40,000)
+          if (newTaxableIncome <= 1600000) {
+            newTax += (newTaxableIncome - 1200000) * 0.15;
           } else {
-            newTax += 300000 * 0.15;
-            if (newTaxableIncome <= 1500000) {
-              newTax += (newTaxableIncome - 1200000) * 0.20;
+            newTax += 400000 * 0.15; // 15% of 12L-16L (₹60,000)
+            if (newTaxableIncome <= 2000000) {
+              newTax += (newTaxableIncome - 1600000) * 0.20;
             } else {
-              newTax += 300000 * 0.20;
-              newTax += (newTaxableIncome - 1500000) * 0.30;
+              newTax += 400000 * 0.20; // 20% of 16L-20L (₹80,000)
+              newTax += (newTaxableIncome - 2000000) * 0.30;
             }
           }
         }
       }
     }
 
-    // Tax Rebate under 87A (New Regime)
-    // Full rebate if taxable income is up to ₹7,00,000 (Marginal relief applies if slightly higher, let's keep it simple)
-    if (newTaxableIncome <= 700000) {
+    // Tax Rebate under Section 87A (New Regime - New Income Tax Act 2025)
+    // Full rebate if taxable income is up to ₹8,00,000 (meaning net tax is 0)
+    // Marginal relief applies if income slightly exceeds ₹8,00,000 (tax limited to excess income over ₹8,00,000)
+    if (newTaxableIncome <= 800000) {
       newTax = 0;
+    } else {
+      const baseTaxBeforeRebate = newTax;
+      const excessIncome = newTaxableIncome - 800000;
+      if (baseTaxBeforeRebate > excessIncome) {
+        newTax = excessIncome;
+      }
     }
 
     const newCess = newTax * 0.04;
@@ -403,71 +406,6 @@ export default function InteractiveTools() {
     toast.success('Checklist copied to clipboard!');
   };
 
-  // --- SERVICE ENGAGEMENT COST ESTIMATOR LOGIC ---
-  const getEstimatedFeeRange = () => {
-    let baseMin = 1500;
-    let baseMax = 3500;
-
-    // Adjust based on turnover
-    if (turnover === '10l_50l') {
-      baseMin = 4000;
-      baseMax = 8000;
-    } else if (turnover === '50l_2cr') {
-      baseMin = 10000;
-      baseMax = 20000;
-    } else if (turnover === 'above_2cr') {
-      baseMin = 25000;
-      baseMax = 55000;
-    }
-
-    // Adjust based on constitution type
-    if (businessType === 'partnership') {
-      baseMin *= 1.2;
-      baseMax *= 1.25;
-    } else if (businessType === 'pvt_ltd') {
-      baseMin *= 1.5;
-      baseMax *= 1.6;
-    }
-
-    // Add service costs
-    let serviceAdderMin = 0;
-    let serviceAdderMax = 0;
-
-    if (neededServices.includes('gst_returns')) {
-      serviceAdderMin += 2000;
-      serviceAdderMax += 4500;
-    }
-    if (neededServices.includes('bookkeeping')) {
-      serviceAdderMin += 2500;
-      serviceAdderMax += 6000;
-    }
-    if (neededServices.includes('itr_filing')) {
-      serviceAdderMin += 1500;
-      serviceAdderMax += 3000;
-    }
-    if (neededServices.includes('audit')) {
-      serviceAdderMin += 15000;
-      serviceAdderMax += 30000;
-    }
-    if (neededServices.includes('startup_compliance')) {
-      serviceAdderMin += 5000;
-      serviceAdderMax += 12000;
-    }
-
-    const minTotal = Math.round((baseMin + serviceAdderMin) / 500) * 500;
-    const maxTotal = Math.round((baseMax + serviceAdderMax) / 500) * 500;
-
-    return { min: minTotal, max: maxTotal };
-  };
-
-  const pricingEstimate = getEstimatedFeeRange();
-
-  const handleToggleServiceNeed = (svcId: string) => {
-    setNeededServices(prev => 
-      prev.includes(svcId) ? prev.filter(x => x !== svcId) : [...prev, svcId]
-    );
-  };
-
   return (
     <section id="interactive-tools" className="py-20 bg-gradient-to-b from-[#FAFBFD] to-white border-y border-slate-100">
       <div className="w-[98%] mx-auto px-4 sm:px-6 lg:px-8">
@@ -503,13 +441,12 @@ export default function InteractiveTools() {
           </motion.p>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex flex-wrap justify-center gap-2 md:gap-3 mb-12">
+        {/* Tab Selector Buttons */}
+        <div className="flex flex-wrap justify-center gap-3 md:gap-4 mb-12 max-w-4xl mx-auto px-4">
           {[
             { id: 'tax', name: 'Tax & GST Estimator', icon: Calculator },
             { id: 'deadlines', name: 'Compliance Deadlines', icon: Calendar },
             { id: 'checklist', name: 'Document Checklist', icon: CheckSquare },
-            { id: 'pricing', name: 'Fee Estimator', icon: Briefcase },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -518,14 +455,14 @@ export default function InteractiveTools() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as ToolTab)}
                 id={`tab-btn-${tab.id}`}
-                className={`flex items-center gap-2 px-5 py-3 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-300 border ${
+                className={`group flex items-center gap-3 px-6 py-3.5 md:px-8 md:py-4 rounded-2xl text-xs md:text-sm font-bold tracking-wide transition-all duration-300 outline-none cursor-pointer border ${
                   isActive 
-                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-105' 
-                    : 'bg-white text-slate-600 border-slate-200/80 hover:bg-slate-50 hover:border-slate-300'
+                    ? 'bg-primary text-white border-primary shadow-[0_10px_25px_rgba(49,80,160,0.2)] scale-[1.02] -translate-y-0.5' 
+                    : 'bg-white text-slate-600 border-slate-200 shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:border-slate-300 hover:text-primary hover:shadow-[0_8px_20px_rgba(49,80,160,0.1)] hover:-translate-y-0.5'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                {tab.name}
+                <Icon className={`h-4 w-4 md:h-5 md:w-5 transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-secondary' : 'text-slate-400 group-hover:text-primary'}`} />
+                <span>{tab.name}</span>
               </button>
             );
           })}
@@ -580,7 +517,7 @@ export default function InteractiveTools() {
                       <div className="lg:col-span-5 space-y-5 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
                           <span>Financial Parameters</span>
-                          <span className="text-[10px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded font-bold">FY 2024-25</span>
+                          <span className="text-[10px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded font-bold">FY 2026-27</span>
                         </h4>
                         
                         <div>
@@ -670,7 +607,7 @@ export default function InteractiveTools() {
                             <h4 className="text-3xl font-extrabold text-secondary mt-2">
                               ₹{taxResult?.newTax.toLocaleString('en-IN') || 0}
                             </h4>
-                            <p className="text-slate-500 text-[10px] mt-1.5">Includes Standard Deduction of ₹75K. Simple tax slabs.</p>
+                            <p className="text-slate-500 text-[10px] mt-1.5">Includes Standard Deduction of ₹1L under New Income Tax Act 2025. Simple tax slabs.</p>
                           </div>
                         </div>
 
@@ -919,11 +856,7 @@ export default function InteractiveTools() {
                         return (
                           <div 
                             key={deadline.id}
-                            className={`border rounded-2xl p-6 transition-all duration-300 relative flex flex-col justify-between min-h-[220px] bg-white ${
-                              isClose 
-                                ? 'border-amber-200 shadow-md shadow-amber-500/[0.02] hover:border-amber-300' 
-                                : 'border-slate-200/80 hover:border-slate-300'
-                            }`}
+                            className="bg-white border border-slate-200 p-8 lg:p-10 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_12px_40px_rgba(49,80,160,0.25)] transition-all duration-500 hover:-translate-y-2 hover:scale-[1.02] relative overflow-hidden group flex flex-col justify-between min-h-[240px]"
                           >
                             <div>
                               {/* Header tags */}
@@ -1094,156 +1027,6 @@ export default function InteractiveTools() {
                         >
                           Reset Checklist
                         </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* --- TAB 4: SERVICE FEE ESTIMATOR --- */}
-              {activeTab === 'pricing' && (
-                <div>
-                  <div className="border-b border-slate-100 pb-6 mb-8">
-                    <h3 className="text-2xl font-bold text-primary flex items-center gap-2">
-                      <Briefcase className="h-6 w-6 text-secondary" />
-                      Professional Service Fee Estimator
-                    </h3>
-                    <p className="text-slate-500 text-xs mt-1">Configure your business criteria and operational volume to obtain an upfront price range estimation.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-                    {/* Inputs */}
-                    <div className="lg:col-span-7 space-y-6">
-                      
-                      {/* Turnover Tier */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Annual Turn-Over of Entity</label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {[
-                            { id: 'under_10l', label: '< ₹10 Lakh' },
-                            { id: '10l_50l', label: '₹10L - ₹50L' },
-                            { id: '50l_2cr', label: '₹50L - ₹2 Crore' },
-                            { id: 'above_2cr', label: '> ₹2 Crore' }
-                          ].map((tier) => (
-                            <button
-                              key={tier.id}
-                              onClick={() => setTurnover(tier.id)}
-                              className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
-                                turnover === tier.id 
-                                  ? 'bg-primary text-white border-primary shadow-sm' 
-                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                              }`}
-                            >
-                              {tier.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Business Constitution */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Business Constitution Type</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {[
-                            { id: 'proprietorship', label: 'Proprietorship / Individual' },
-                            { id: 'partnership', label: 'Partnership / LLP' },
-                            { id: 'pvt_ltd', label: 'Pvt Ltd Company' }
-                          ].map((type) => (
-                            <button
-                              key={type.id}
-                              onClick={() => setBusinessType(type.id)}
-                              className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                                businessType === type.id 
-                                  ? 'bg-primary text-white border-primary shadow-sm' 
-                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                              }`}
-                            >
-                              {type.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Service check tags */}
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Select Services Required</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {[
-                            { id: 'gst_returns', label: 'GST Monthly Filings & Reconciliation' },
-                            { id: 'bookkeeping', label: 'End-to-End Accounting & Bookkeeping' },
-                            { id: 'itr_filing', label: 'Annual Income Tax Return (ITR) Filing' },
-                            { id: 'audit', label: 'Statutory or Internal Audits (Sec 44AB)' },
-                            { id: 'startup_compliance', label: 'Startup Advisory & ROC Filings' }
-                          ].map((svc) => {
-                            const selected = neededServices.includes(svc.id);
-                            return (
-                              <div
-                                key={svc.id}
-                                onClick={() => handleToggleServiceNeed(svc.id)}
-                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all ${
-                                  selected 
-                                    ? 'border-primary bg-primary/[0.01]' 
-                                    : 'border-slate-200 bg-white hover:bg-slate-50'
-                                }`}
-                              >
-                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                                  selected ? 'bg-primary border-primary text-white' : 'bg-white border-slate-300 text-transparent'
-                                }`}>
-                                  <Check className="h-3 w-3" strokeWidth={3} />
-                                </div>
-                                <span className="text-xs font-semibold text-slate-700">{svc.label}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Output Price Result Card */}
-                    <div className="lg:col-span-5 bg-gradient-to-br from-primary to-[#1e2f5c] text-white rounded-3xl p-6 md:p-8 flex flex-col justify-between shadow-xl">
-                      <div className="space-y-6">
-                        <div className="inline-flex items-center space-x-1.5 bg-white/10 border border-white/20 text-white font-bold tracking-widest uppercase text-[8px] px-2.5 py-1 rounded-full">
-                          <span>Custom Estimate</span>
-                        </div>
-                        
-                        <div>
-                          <span className="text-white/60 text-xs uppercase tracking-wider font-semibold block mb-1">Estimated Retainer Slabs</span>
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-4xl md:text-5xl font-extrabold text-white">₹{pricingEstimate.min.toLocaleString('en-IN')}</span>
-                            <span className="text-white/40 text-lg font-medium">-</span>
-                            <span className="text-4xl md:text-5xl font-extrabold text-white">₹{pricingEstimate.max.toLocaleString('en-IN')}</span>
-                          </div>
-                          <span className="text-white/50 text-[10px] mt-1.5 block">Estimated annual/project retainer range.</span>
-                        </div>
-
-                        <div className="space-y-3.5 border-t border-white/10 pt-5 text-xs text-white/80">
-                          <div className="flex justify-between">
-                            <span className="text-white/60">Constitution:</span>
-                            <span className="font-bold text-white capitalize">{businessType.replace('_', ' ')}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-white/60">Turnover Category:</span>
-                            <span className="font-bold text-white capitalize">{turnover.replace('under_', '< ').replace('above_', '> ').replace('_', ' - ')}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-white/60">Selected Addons:</span>
-                            <span className="font-bold text-white">{neededServices.length} Services Selected</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4 mt-8">
-                        <div className="flex items-start gap-2 text-[10px] text-white/60 bg-white/5 p-3 rounded-xl border border-white/10">
-                          <AlertCircle className="h-4 w-4 text-secondary shrink-0 mt-0.5" />
-                          <span>Fee ranges shown are indicative for standard operations. Actual packages are finalized post-consultation depending on ledger size and transaction volumes.</span>
-                        </div>
-
-                        <a 
-                          href="/#contact"
-                          className="block text-center w-full bg-secondary hover:bg-white hover:text-primary text-primary py-3.5 rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-md"
-                        >
-                          Book Personal Audit
-                        </a>
                       </div>
                     </div>
                   </div>

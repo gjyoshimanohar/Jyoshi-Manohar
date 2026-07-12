@@ -76,6 +76,8 @@ export interface Todo {
 	declineReason?: string;
 	repeatInterval?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null;
 	blockedBy?: string[];
+	clientId?: string;
+	clientName?: string;
 	metadata?: {
 		deleteReason?: string;
 		declineReason?: string;

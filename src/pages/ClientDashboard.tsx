@@ -101,6 +101,7 @@ interface Application {
   userEmail: string;
   title: string;
   type: string;
+  taskId?: string;
   status:
     | "Pending Documents"
     | "Under Review"
@@ -113,10 +114,12 @@ interface Application {
   createdAt: number;
   estimatedCompletion?: string;
   steps?: {
+    id?: string;
     title: string;
     description: string;
     date: string;
     completed: boolean;
+    subtaskId?: string;
   }[];
 }
 
@@ -142,6 +145,7 @@ interface ComplianceFiling {
   serviceType: string; // GST, Income Tax, ROC, Auditing, etc.
   dueDate: number; // timestamp
   status: "Filed" | "In Progress" | "Pending Client Action" | "Upcoming";
+  taskId?: string;
   financialYear: string;
   period: string;
   arn?: string;
@@ -1920,21 +1924,75 @@ Stewardship, Accuracy, Legacy.
         estimatedCompletion: newAppEstComp || "TBD",
         steps: [
           {
+            id: 'step1_' + Math.random().toString(36).substr(2, 9),
             title: "Application Created",
             description: "CA Jyoshi Manohar initialized the tax filing process",
             date: new Date().toLocaleDateString(),
             completed: true,
+            subtaskId: 'step1_' + Math.random().toString(36).substr(2, 9),
           },
           {
+            id: 'step2_' + Math.random().toString(36).substr(2, 9),
             title: "Internal Verification",
             description: newAppStep || "Awaiting document verification",
             date: "In Progress",
             completed: false,
+            subtaskId: 'step2_' + Math.random().toString(36).substr(2, 9),
           },
         ],
       };
 
-      await addDoc(collection(db, "applications"), newApp);
+      const appRef = await addDoc(collection(db, "applications"), newApp);
+
+      // Automatically create corresponding task in the task app/workspace
+      try {
+        let appDueDate: number | null = null;
+        if (newAppEstComp) {
+          const parsed = Date.parse(newAppEstComp);
+          if (!isNaN(parsed)) {
+            appDueDate = parsed;
+          }
+        }
+        
+        let targetProjectId = "inbox";
+        const taskUserId = auth.currentUser?.uid || targetClient;
+        
+        // Find 'Portal' project
+        const projectQuery = query(
+          collection(db, "projects"), 
+          where("userId", "==", taskUserId), 
+          where("name", "==", "Portal")
+        );
+        const projectSnap = await getDocs(projectQuery);
+        
+        if (!projectSnap.empty) {
+          targetProjectId = projectSnap.docs[0].id;
+        }
+        
+        const clientName = clients.find((c) => c.uid === targetClient)?.displayName || parentUserEmail;
+        const taskRef = await addDoc(collection(db, "todos"), {
+          title: `Service Engagement: ${newAppTitle}`,
+          description: newAppDesc || `Service engagement tracker for client. Status: ${newAppStatus}`,
+          completed: false,
+          userId: taskUserId,
+          projectId: targetProjectId,
+          priority: 2,
+          dueDate: appDueDate,
+          clientId: targetClient,
+          clientName: clientName,
+          createdAt: Date.now(),
+          subtasks: newApp.steps.map(s => ({
+            id: s.subtaskId || s.id,
+            title: s.title,
+            completed: s.completed
+          }))
+        });
+
+        // Store the taskId on the application record
+        await updateDoc(appRef, { taskId: taskRef.id });
+      } catch (taskErr) {
+        console.error("Failed to automatically create task for service engagement:", taskErr);
+      }
 
       // Trigger notification for the client
       try {
@@ -2187,7 +2245,44 @@ Stewardship, Accuracy, Legacy.
         attachments: []
       };
 
-      await addDoc(collection(db, "compliance_filings"), newFiling);
+      const filingRef = await addDoc(collection(db, "compliance_filings"), newFiling);
+
+      // Automatically create corresponding task in the task app/workspace
+      try {
+        let targetProjectId = "inbox";
+        const taskUserId = auth.currentUser?.uid || targetClient;
+        
+        // Find 'Portal' project
+        const projectQuery = query(
+          collection(db, "projects"), 
+          where("userId", "==", taskUserId), 
+          where("name", "==", "Portal")
+        );
+        const projectSnap = await getDocs(projectQuery);
+        
+        if (!projectSnap.empty) {
+          targetProjectId = projectSnap.docs[0].id;
+        }
+        
+        const clientName = clients.find((c) => c.uid === targetClient)?.displayName || parentUserEmail;
+        const taskRef = await addDoc(collection(db, "todos"), {
+          title: `Compliance: ${newFilingTitle}`,
+          description: `Compliance calendar tracking for ${newFilingService}. FY: ${newFilingFY}, Period: ${newFilingPeriod}`,
+          completed: false,
+          userId: taskUserId,
+          projectId: targetProjectId,
+          priority: 1, // High priority for compliance tasks
+          dueDate: timestampDueDate,
+          clientId: targetClient,
+          clientName: clientName,
+          createdAt: Date.now()
+        });
+
+        // Store taskId in the filing
+        await updateDoc(filingRef, { taskId: taskRef.id });
+      } catch (taskErr) {
+        console.error("Failed to automatically create task for compliance filing:", taskErr);
+      }
 
       // Trigger notification for the client
       try {
@@ -2976,9 +3071,13 @@ Stewardship, Accuracy, Legacy.
       const appToUpdate = applications.find((a) => a.id === appId);
       if (!appToUpdate || !appToUpdate.steps) return;
 
+      let subtaskIdToToggle = null;
+      let newCompletionStatus = false;
       const updatedSteps = appToUpdate.steps.map((s, idx) => {
         if (idx === stepIndex) {
-          return { ...s, completed: !s.completed };
+          subtaskIdToToggle = s.subtaskId || s.id;
+          newCompletionStatus = !s.completed;
+          return { ...s, completed: newCompletionStatus };
         }
         return s;
       });
@@ -2987,6 +3086,30 @@ Stewardship, Accuracy, Legacy.
         steps: updatedSteps,
         updatedAt: Date.now(),
       });
+      
+      // Sync with task
+      if (appToUpdate.taskId && subtaskIdToToggle) {
+        try {
+          const taskDoc = await getDocs(query(collection(db, "todos"), where("__name__", "==", appToUpdate.taskId)));
+          if (!taskDoc.empty) {
+            const taskData = taskDoc.docs[0].data();
+            const currentSubtasks = taskData.subtasks || [];
+            
+            const updatedSubtasks = currentSubtasks.map(st => {
+              if (st.id === subtaskIdToToggle) {
+                return { ...st, completed: newCompletionStatus };
+              }
+              return st;
+            });
+
+            await updateDoc(doc(db, "todos", appToUpdate.taskId), {
+              subtasks: updatedSubtasks
+            });
+          }
+        } catch (err) {
+          console.error("Failed to sync toggle step to task:", err);
+        }
+      }
       setFeedback({
         message: "Milestone status updated in real-time!",
         type: "success",
@@ -3006,21 +3129,46 @@ Stewardship, Accuracy, Legacy.
       const appToUpdate = applications.find((a) => a.id === appId);
       if (!appToUpdate) return;
 
+      const subtaskId = Math.random().toString(36).substring(2, 9);
+      const newStep = {
+        id: subtaskId,
+        title: newStepTitle,
+        description: newStepDesc || "Status verification log",
+        date: newStepDate || "In Progress",
+        completed: false,
+        subtaskId: subtaskId,
+      };
+
       const currentSteps = appToUpdate.steps || [];
       const updatedSteps = [
         ...currentSteps,
-        {
-          title: newStepTitle,
-          description: newStepDesc || "Status verification log",
-          date: newStepDate || "In Progress",
-          completed: false,
-        },
+        newStep,
       ];
 
       await updateDoc(doc(db, "applications", appId), {
         steps: updatedSteps,
         updatedAt: Date.now(),
       });
+
+      // Sync with task
+      if (appToUpdate.taskId) {
+        try {
+          const taskDoc = await getDocs(query(collection(db, "todos"), where("__name__", "==", appToUpdate.taskId)));
+          if (!taskDoc.empty) {
+            const taskData = taskDoc.docs[0].data();
+            const currentSubtasks = taskData.subtasks || [];
+            await updateDoc(doc(db, "todos", appToUpdate.taskId), {
+              subtasks: [...currentSubtasks, {
+                id: subtaskId,
+                title: newStepTitle,
+                completed: false
+              }]
+            });
+          }
+        } catch (err) {
+          console.error("Failed to sync new step to task:", err);
+        }
+      }
 
       setNewStepTitle("");
       setNewStepDesc("");
@@ -3145,6 +3293,16 @@ Stewardship, Accuracy, Legacy.
       }
 
       await updateDoc(doc(db, "compliance_filings", filingId), updates);
+
+      if (filingToUpdate?.taskId) {
+        try {
+          await updateDoc(doc(db, "todos", filingToUpdate.taskId), {
+            completed: status === "Filed"
+          });
+        } catch (err) {
+          console.error("Failed to sync compliance filing status with task:", err);
+        }
+      }
 
       if (filingToUpdate) {
         try {
@@ -4728,27 +4886,30 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* KPI Metrics bento grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {/* KPI 1 */}
                     <div
                       onClick={() => setActiveTab("clients")}
-                      className="bg-white border border-slate-100/60 rounded-2xl p-5 shadow-xs hover:border-slate-200 hover:shadow-md transition-all cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
-                      <div className="absolute -right-2 -bottom-2 opacity-5 text-primary">
-                        <Users className="h-16 w-16" />
+                      <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
+                        <Users className="h-24 w-24" />
                       </div>
-                      <div className="flex items-center gap-3 text-slate-400 mb-3">
-                        <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-primary/10 group-hover:text-primary transition-all">
-                          <Users className="h-4 w-4" />
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 transition-colors">
+                          <Users className="h-5 w-5" />
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
                           Total Clients
                         </span>
                       </div>
-                      <p className="text-3xl font-semibold text-primary tracking-tight">
+                      
+                      <p className="text-4xl sm:text-[44px] font-black text-[#0f294a] tracking-tight mt-5 mb-2 leading-none">
                         {clients.length}
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-2 truncate">
+                      
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed truncate">
                         {
                           clients.filter((c) => c.kycStatus === "Approved")
                             .length
@@ -4766,26 +4927,29 @@ Stewardship, Accuracy, Legacy.
                     {/* KPI 2 */}
                     <div
                       onClick={() => setActiveTab("admin")}
-                      className="bg-white border border-slate-100/60 rounded-2xl p-5 shadow-xs hover:border-slate-200 hover:shadow-md transition-all cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
-                      <div className="absolute -right-2 -bottom-2 opacity-5 text-primary">
-                        <Bell className="h-16 w-16" />
+                      <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
+                        <Bell className="h-24 w-24" />
                       </div>
-                      <div className="flex items-center gap-3 text-slate-400 mb-3">
-                        <div className="p-2 bg-slate-50 rounded-lg text-amber-600 bg-amber-50">
-                          <Bell className="h-4 w-4" />
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-amber-50/70 border border-amber-100/50 rounded-xl text-amber-600 transition-colors">
+                          <Bell className="h-5 w-5" />
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
                           Pending Proposals
                         </span>
                       </div>
-                      <p className="text-3xl font-semibold text-primary tracking-tight font-mono">
+                      
+                      <p className="text-4xl sm:text-[44px] font-black text-[#0f294a] tracking-tight mt-5 mb-2 leading-none">
                         {
                           clientRequests.filter((r) => r.status === "pending")
                             .length
                         }
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed truncate">
                         Requires immediate CA verification & deployment
                       </p>
                     </div>
@@ -4793,23 +4957,26 @@ Stewardship, Accuracy, Legacy.
                     {/* KPI 3 */}
                     <div
                       onClick={() => setActiveTab("applications")}
-                      className="bg-white border border-slate-100/60 rounded-2xl p-5 shadow-xs hover:border-slate-200 hover:shadow-md transition-all cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
-                      <div className="absolute -right-2 -bottom-2 opacity-5 text-primary">
-                        <Briefcase className="h-16 w-16" />
+                      <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
+                        <Briefcase className="h-24 w-24" />
                       </div>
-                      <div className="flex items-center gap-3 text-slate-400 mb-3">
-                        <div className="p-2 bg-slate-50 rounded-lg text-rose-600 bg-rose-50">
-                          <Briefcase className="h-4 w-4" />
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-rose-50/70 border border-rose-100/50 rounded-xl text-rose-500 transition-colors">
+                          <Briefcase className="h-5 w-5" />
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
                           Service Trackers
                         </span>
                       </div>
-                      <p className="text-3xl font-semibold text-primary tracking-tight font-mono">
+                      
+                      <p className="text-4xl sm:text-[44px] font-black text-[#0f294a] tracking-tight mt-5 mb-2 leading-none">
                         {applications.length}
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed truncate">
                         Active service tracker workflows in real-time
                       </p>
                     </div>
@@ -4817,23 +4984,26 @@ Stewardship, Accuracy, Legacy.
                     {/* KPI 4 */}
                     <div
                       onClick={() => setActiveTab("compliance")}
-                      className="bg-white border border-slate-100/60 rounded-2xl p-5 shadow-xs hover:border-slate-200 hover:shadow-md transition-all cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
-                      <div className="absolute -right-2 -bottom-2 opacity-5 text-primary">
-                        <Calendar className="h-16 w-16" />
+                      <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
+                        <Calendar className="h-24 w-24" />
                       </div>
-                      <div className="flex items-center gap-3 text-slate-400 mb-3">
-                        <div className="p-2 bg-slate-50 rounded-lg text-emerald-600 bg-emerald-50">
-                          <Calendar className="h-4 w-4" />
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-50/70 border border-emerald-100/50 rounded-xl text-emerald-600 transition-colors">
+                          <Calendar className="h-5 w-5" />
                         </div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
                           Compliance Filings
                         </span>
                       </div>
-                      <p className="text-3xl font-semibold text-primary tracking-tight font-mono">
+                      
+                      <p className="text-4xl sm:text-[44px] font-black text-[#0f294a] tracking-tight mt-5 mb-2 leading-none">
                         {complianceFilings.length}
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-2 truncate font-sans">
+                      
+                      <p className="text-[11px] text-slate-400 font-medium leading-relaxed truncate">
                         Upcoming, in-progress or filed compliance records
                       </p>
                     </div>
