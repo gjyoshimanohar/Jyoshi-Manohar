@@ -4414,7 +4414,7 @@ Stewardship, Accuracy, Legacy.
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === "compliance" ? "bg-white/15 text-white" : "bg-slate-100 text-slate-800"}`}
                         >
-                          {complianceFilings.length}
+                          {complianceFilings.filter((f) => f.status !== "Filed").length}
                         </span>
                       )}
                     </button>
@@ -5000,7 +5000,7 @@ Stewardship, Accuracy, Legacy.
                       </div>
                       
                       <p className="text-4xl sm:text-[44px] font-black text-[#0f294a] tracking-tight mt-5 mb-2 leading-none">
-                        {complianceFilings.length}
+                        {complianceFilings.filter((f) => f.status !== "Filed").length}
                       </p>
                       
                       <p className="text-[11px] text-slate-400 font-medium leading-relaxed truncate">
