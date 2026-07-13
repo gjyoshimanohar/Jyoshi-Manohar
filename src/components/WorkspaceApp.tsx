@@ -2,7 +2,7 @@ import toast from 'react-hot-toast';
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { 
- Check, Trash2, Sun, Plus, GripVertical, Calendar as CalendarIcon, Inbox, 
+ Check, Trash2, Sun, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Tag, 
  MoreHorizontal, ChevronDown, ChevronRight, Menu, LogOut, X, Flag, 
  CalendarDays, Search, Folder, Briefcase, Code, Map, Music, 
  Camera, Book, Heart, Star, Zap, Circle, BarChart2, Clock, Timer,
@@ -379,6 +379,8 @@ export default function WorkspaceApp() {
     return saved ? parseInt(saved, 10) : 5;
   });
  const [searchQuery, setSearchQuery] = useState('');
+  const [isQuickNoteModalOpen, setIsQuickNoteModalOpen] = useState(false);
+  const [quickNoteTitle, setQuickNoteTitle] = useState('');
  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProjectIdInModal, setEditingProjectIdInModal] = useState<string | null>(null);
   const [activeProjectMenu, setActiveProjectMenu] = useState<string | null>(null);
@@ -523,11 +525,11 @@ const [showClientPicker, setShowClientPicker] = useState(false);
  const [draggingOverSection, setDraggingOverSection] = useState<string | null>(null);
 
  // Tags and Kanban placeholder variables to satisfy legacy types / bypassed conditional loops safely
- const sidebarSelectedTag: string | null = null;
+ const [sidebarSelectedTag, setSidebarSelectedTag] = useState<string | null>(null);
  const kanbanSelectedTag: string | null = null;
  const collapsedKanbanColumns: Record<string, boolean> = {};
  const newTaskTagsInline = '';
- const setSidebarSelectedTag = (val: any) => {};
+ 
  const setKanbanSelectedTag = (val: any) => {};
  const setCollapsedKanbanColumns = (val: any) => {};
  const setNewTaskTagsInline = (val: string) => {};
@@ -1451,7 +1453,17 @@ const [showClientPicker, setShowClientPicker] = useState(false);
  }
  };
 
- const filteredTodos = getFilteredTodos();
+ const allTags = React.useMemo(() => {
+  const tagsSet = new Set<string>();
+  todos.forEach(t => {
+    if (t.tags) {
+      t.tags.forEach(tag => tagsSet.add(tag));
+    }
+  });
+  return Array.from(tagsSet).sort();
+}, [todos]);
+
+const filteredTodos = getFilteredTodos();
  
  // Sorting: High priority first, then date
  filteredTodos.sort((a, b) => {

@@ -1,15 +1,7 @@
-import {StrictMode} from 'react';
-import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
-import 'react-day-picker/style.css';
-import './index.css';
+const fs = require('fs');
+const content = fs.readFileSync('src/main.tsx', 'utf8');
 
-createRoot(document.getElementById('root')!).render(
- <StrictMode>
- <App />
- </StrictMode>,
-);
-
+const updated = content + `
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -20,3 +12,6 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+`;
+
+fs.writeFileSync('src/main.tsx', updated);

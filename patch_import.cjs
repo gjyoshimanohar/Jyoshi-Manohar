@@ -1,10 +1,8 @@
 const fs = require('fs');
-const file = 'src/pages/ClientDashboard.tsx';
-let content = fs.readFileSync(file, 'utf8');
+const content = fs.readFileSync('src/components/WorkspaceApp.tsx', 'utf8');
 
-if (!content.includes('CreditCard,')) {
-    content = content.replace('Calendar,', 'Calendar,\n  CreditCard,');
-}
-
-fs.writeFileSync(file, content, 'utf8');
-console.log("Patched imports");
+const updated = content.replace(
+  "Check, Trash2, Sun, Plus, GripVertical, Calendar as CalendarIcon, Inbox,",
+  "Check, Trash2, Sun, Plus, GripVertical, Calendar as CalendarIcon, Inbox, Tag,"
+);
+fs.writeFileSync('src/components/WorkspaceApp.tsx', updated);
