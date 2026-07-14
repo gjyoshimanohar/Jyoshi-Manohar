@@ -1789,6 +1789,31 @@ export default function WorkspaceApp() {
     await todoService.restoreTodo(todoId);
   };
 
+
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Minimum swipe distance (in px)
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    if (isLeftSwipe && isSidebarOpen) {
+      setIsSidebarOpen(false);
+    }
+  };
+
   const handleTriggerSync = () => {
     setIsSyncing(true);
     setTimeout(() => {
@@ -2818,13 +2843,19 @@ export default function WorkspaceApp() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsSidebarOpen(false)}
-              className="md:hidden absolute inset-0 z-20 bg-black/20 backdrop-blur-sm"
+              className="md:hidden fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
             />
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 240, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              className="absolute md:relative bg-[#FAFAFA] border-r border-[#ECECEC] shrink-0 h-full overflow-y-auto z-30 select-none pb-20 md:pb-6"
+              className="fixed md:relative top-20 md:top-auto bottom-0 md:bottom-auto left-0 md:left-auto bg-[#FAFAFA] border-r border-[#ECECEC] shrink-0 h-[calc(100vh-5rem)] md:h-full overflow-y-auto z-50 md:z-30 select-none pb-20 md:pb-6"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
             >
               <div className="p-4 w-[240px]">
                 {/* Inbox today metrics filters */}
@@ -3304,52 +3335,6 @@ export default function WorkspaceApp() {
               </span>
             </button>
 
-            {/* View options switcher (replacing Progress trigger button) */}
-            {activeAppTab === "tasks" && (
-              <div className="flex items-center bg-gray-100/80 border border-gray-200 rounded-lg p-0.5 shadow-sm">
-                <button
-                  onClick={async () => {
-                    if (viewMode === "project" && selectedProjectId) {
-                      await todoService.updateProject(selectedProjectId, {
-                        viewType: "list",
-                      });
-                    } else {
-                      setListViewType("list");
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    currentViewType === "list"
-                      ? "bg-white border border-gray-200/50 text-[#1a2b58] shadow-sm"
-                      : "border border-transparent text-gray-400 hover:text-gray-600"
-                  }`}
-                  title="Sequential List View"
-                >
-                  <ListTodo className="w-3.5 h-3.5" />
-                  <span>List</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    if (viewMode === "project" && selectedProjectId) {
-                      await todoService.updateProject(selectedProjectId, {
-                        viewType: "kanban",
-                      });
-                    } else {
-                      setListViewType("kanban");
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    currentViewType === "kanban"
-                      ? "bg-white border border-gray-200/50 text-[#1a2b58] shadow-sm"
-                      : "border border-transparent text-gray-400 hover:text-gray-600"
-                  }`}
-                  title="Kanban Board View"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Kanban</span>
-                </button>
-              </div>
-            )}
-
             {/* Sync trigger mini button */}
             <button
               onClick={handleTriggerSync}
@@ -3374,6 +3359,58 @@ export default function WorkspaceApp() {
 
               {isHeaderMenuOpen && (
                 <div className="absolute top-8 right-0 w-52 bg-white border-none rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 z-50 text-left scale-95 origin-top-right transition-transform animate-in fade-in duration-100">
+                  {activeAppTab === "tasks" && (
+                    <>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-400 px-2 py-1 mb-1">
+                        View Layout
+                      </div>
+                      <div className="flex items-center bg-gray-100/80 border border-gray-200 rounded-lg p-0.5 shadow-sm mx-1 mb-2">
+                        <button
+                          onClick={async () => {
+                            if (viewMode === "project" && selectedProjectId) {
+                              await todoService.updateProject(selectedProjectId, {
+                                viewType: "list",
+                              });
+                            } else {
+                              setListViewType("list");
+                            }
+                            setIsHeaderMenuOpen(false);
+                          }}
+                          className={`w-1/2 px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                            currentViewType === "list"
+                              ? "bg-white border border-gray-200/50 text-[#1a2b58] shadow-sm"
+                              : "border border-transparent text-gray-400 hover:text-gray-600"
+                          }`}
+                          title="Sequential List View"
+                        >
+                          <ListTodo className="w-3.5 h-3.5" />
+                          <span>List</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (viewMode === "project" && selectedProjectId) {
+                              await todoService.updateProject(selectedProjectId, {
+                                viewType: "kanban",
+                              });
+                            } else {
+                              setListViewType("kanban");
+                            }
+                            setIsHeaderMenuOpen(false);
+                          }}
+                          className={`w-1/2 px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                            currentViewType === "kanban"
+                              ? "bg-white border border-gray-200/50 text-[#1a2b58] shadow-sm"
+                              : "border border-transparent text-gray-400 hover:text-gray-600"
+                          }`}
+                          title="Kanban Board View"
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                          <span>Kanban</span>
+                        </button>
+                      </div>
+                      <div className="border-b border-gray-100 mx-1 mb-2"></div>
+                    </>
+                  )}
                   <div className="text-xs uppercase tracking-wider text-gray-400 px-2 py-1 border-b mb-1">
                     List operations
                   </div>

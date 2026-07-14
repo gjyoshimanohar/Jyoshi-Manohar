@@ -1876,13 +1876,15 @@ export default function FinanceTracker() {
             isSidebarOpen ? "opacity-100 block" : "opacity-0 hidden"
           }`}
           onClick={() => setIsSidebarOpen(false)}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         />
 
         {/* Side Navigation Bar */}
         <aside 
           className={`
-            fixed inset-y-0 left-0 z-50 bg-white border-r border-border shadow-2xl transition-all duration-300 ease-in-out flex flex-col gap-4 overflow-y-auto
-            lg:sticky lg:top-6 lg:border lg:rounded-2xl lg:shadow-xs lg:z-auto
+            fixed top-20 bottom-0 left-0 z-50 bg-white border-r border-border shadow-2xl transition-all duration-300 ease-in-out flex flex-col gap-4 overflow-y-auto lg:sticky lg:top-6 lg:border lg:rounded-2xl lg:shadow-xs lg:z-auto lg:bottom-auto
             ${isSidebarOpen ? "translate-x-0 w-72 lg:w-60 p-5 lg:p-4" : "-translate-x-full lg:translate-x-0 w-72 lg:w-[84px] p-5 lg:p-4"}
           `}
           onTouchStart={onTouchStart}
