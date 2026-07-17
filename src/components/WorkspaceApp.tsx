@@ -70,6 +70,7 @@ import {
   Key,
   Network,
   Users,
+  Banknote,
 } from "lucide-react";
 import { Todo, Project, Folder as FolderType, TaskActivity } from "../types";
 import { auth, db } from "../lib/firebase";
@@ -590,6 +591,7 @@ export default function WorkspaceApp() {
     | "search"
     | "settings"
     | "dependencies"
+    | "payables"
   >("tasks");
 
   // Sidebar controls
@@ -782,6 +784,7 @@ export default function WorkspaceApp() {
 
   // Detail Modal Picker States
   const [showDetailDatePicker, setShowDetailDatePicker] = useState(false);
+  const [showDetailPaymentDatePicker, setShowDetailPaymentDatePicker] = useState(false);
   const [showDetailPriorityPicker, setShowDetailPriorityPicker] =
     useState(false);
   const [showDetailRepeatPicker, setShowDetailRepeatPicker] = useState(false);
@@ -1194,6 +1197,7 @@ export default function WorkspaceApp() {
               title: task.title,
               description: task.description,
               userId: auth.currentUser.uid,
+      metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
               completed: false,
               projectId: complianceProjectId,
               priority: 1, // P1 (Urgent/High)
@@ -1327,6 +1331,7 @@ export default function WorkspaceApp() {
       title: newTaskTitle.trim(),
       description: newTaskDesc.trim(),
       userId: auth.currentUser.uid,
+      metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
       completed: false,
       projectId: targetProjectId,
       priority: newTaskPriority,
@@ -1363,6 +1368,7 @@ export default function WorkspaceApp() {
     await todoService.createTodo({
       title: title.trim(),
       userId: auth.currentUser.uid,
+      metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
       completed: false,
       projectId: targetProjectId,
       priority: 4,
@@ -1423,6 +1429,7 @@ export default function WorkspaceApp() {
             }))
           : undefined,
       userId: auth.currentUser.uid,
+      metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
       completed: false,
       projectId: targetProjectId,
       priority: newTaskPriority,
@@ -1613,6 +1620,7 @@ export default function WorkspaceApp() {
           title: todo.title,
           description: todo.description,
           userId: auth.currentUser.uid,
+      metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
           completed: false,
           projectId: todo.projectId,
           priority: todo.priority || 4,
@@ -1730,6 +1738,7 @@ export default function WorkspaceApp() {
             }))
           : undefined,
       userId: auth.currentUser.uid,
+      metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
       completed: false,
       projectId: selectedProjectId,
       priority: 4,
@@ -1862,6 +1871,13 @@ export default function WorkspaceApp() {
   // Filter Tasks
   const getFilteredTodos = (includeCompleted = false) => {
     let baseTodos = todos;
+
+    // Filter by payable type based on active tab
+    if (activeAppTab === "payables") {
+      baseTodos = baseTodos.filter(t => t.metadata?.type === "payable");
+    } else {
+      baseTodos = baseTodos.filter(t => t.metadata?.type !== "payable");
+    }
 
     if (viewMode === "trash") {
       baseTodos = todos.filter((t) => t.deletedAt);
@@ -2210,6 +2226,14 @@ export default function WorkspaceApp() {
             </span>
           )}
 
+          
+          {activeAppTab === "payables" && todo.metadata?.paymentDate && (
+            <span className="flex items-center gap-1 text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold border border-green-200 select-none">
+              <CalendarIcon className="w-2.5 h-2.5" />
+              <span>Paid: {formatCardDate(todo.metadata.paymentDate)}</span>
+            </span>
+          )}
+
           {viewMode !== "trash" && viewMode !== "today" && (
             <span
               className={`text-xs sm:text-xs font-semibold flex items-center select-none shrink-0 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? "text-red-500" : "text-blue-500"}`}
@@ -2311,7 +2335,7 @@ export default function WorkspaceApp() {
               setActiveAppTab("tasks");
               if (window.innerWidth < 768) setIsSidebarOpen(false);
             }}
-            className={`flex-grow flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === "project" && selectedProjectId === project.id && activeAppTab === "tasks" ? "bg-gray-200/60 text-gray-900 font-semibold" : "hover:bg-gray-100/80 text-gray-700"}`}
+            className={`flex-grow flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === "project" && selectedProjectId === project.id && (activeAppTab === "tasks" || activeAppTab === "payables") ? "bg-gray-200/60 text-gray-900 font-semibold" : "hover:bg-gray-100/80 text-gray-700"}`}
           >
             <div className="flex items-center space-x-2.5 truncate text-[#333333]">
               {/* Colored bullet circle dot mimicking TickTick */}
@@ -2832,11 +2856,19 @@ export default function WorkspaceApp() {
           <Network className="w-5 h-5" />
           <span className="text-[10px] font-medium mt-1">Tree</span>
         </button>
+        <button
+          onClick={() => setActiveAppTab("payables")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === "payables" ? "text-[#1a2b58] bg-[#1a2b58]/5" : "text-gray-400"}`}
+        >
+          <Banknote className="w-5 h-5" />
+          <span className="text-[10px] sm:text-xs font-medium mt-1">Payables</span>
+        </button>
+
       </div>
 
       {/* MIDDLE SIDEBAR - LIST SELECTORS & MAIN CONTROLS (Only holds active tasks hierarchy) */}
       <AnimatePresence>
-        {isSidebarOpen && activeAppTab === "tasks" && (
+        {isSidebarOpen && (activeAppTab === "tasks" || activeAppTab === "payables") && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -3190,7 +3222,7 @@ export default function WorkspaceApp() {
         {/* Header container */}
         <div className="w-[98%] mx-auto px-6 py-5 md:py-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
           <div className="flex flex-wrap items-center gap-3">
-            {activeAppTab === "tasks" && (
+            {(activeAppTab === "tasks" || activeAppTab === "payables") && (
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="mr-3 p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"
@@ -3200,10 +3232,10 @@ export default function WorkspaceApp() {
               </button>
             )}
             <h1 className="text-2xl font-bold text-gray-950 flex items-center tracking-tight">
-              {activeAppTab === "tasks"
+              {(activeAppTab === "tasks" || activeAppTab === "payables")
                 ? getViewTitle()
                 : activeAppTab.toUpperCase()}
-              {activeAppTab === "tasks" &&
+              {(activeAppTab === "tasks" || activeAppTab === "payables") &&
                 viewMode === "today" &&
                 viewMode !== "today" && (
                   <span className="text-xs text-gray-400 font-normal ml-2.5 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-full select-none">
@@ -3213,7 +3245,7 @@ export default function WorkspaceApp() {
             </h1>
 
             {/* Daily task goal progress header widget */}
-            {activeAppTab === "tasks" && (
+            {(activeAppTab === "tasks" || activeAppTab === "payables") && (
               <div
                 id="daily-task-goal-header-widget"
                 className="flex items-center bg-gray-50 border border-gray-100 rounded-full px-3 py-1 text-xs text-gray-600 gap-2 shrink-0 select-none shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
@@ -3277,7 +3309,7 @@ export default function WorkspaceApp() {
 
           {/* Large dynamic quick actions toolbar right */}
           <div className="flex items-center space-x-2.5">
-            {activeAppTab === "tasks" && (
+            {(activeAppTab === "tasks" || activeAppTab === "payables") && (
               <>
                 {/* Search */}
                 <div className="relative">
@@ -3359,7 +3391,7 @@ export default function WorkspaceApp() {
 
               {isHeaderMenuOpen && (
                 <div className="absolute top-8 right-0 w-52 bg-white border-none rounded-xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 z-50 text-left scale-95 origin-top-right transition-transform animate-in fade-in duration-100">
-                  {activeAppTab === "tasks" && (
+                  {(activeAppTab === "tasks" || activeAppTab === "payables") && (
                     <>
                       <div className="text-[10px] uppercase tracking-wider text-gray-400 px-2 py-1 mb-1">
                         View Layout
@@ -3694,7 +3726,7 @@ export default function WorkspaceApp() {
         {/* WORKSPACE SECTIONS RENDER ROUTERS */}
         <div className="w-[98%] mx-auto px-6 py-6 flex-1">
           {/* 1. SECTOR: UNIFIED FLAT TIKTIK MAIN LISTVIEW */}
-          {activeAppTab === "tasks" && (
+          {(activeAppTab === "tasks" || activeAppTab === "payables") && (
             <div className="text-left w-full">
               {viewMode === "trends" ? (
                 <div className="py-8 bg-white border border-[#f0f0f0] rounded-2xl shadow-xl p-6 mb-8 text-center max-w-2xl mx-auto">
@@ -6037,6 +6069,13 @@ export default function WorkspaceApp() {
 
                                         <div className="flex items-center space-x-2 shrink-0">
                                           {renderItemProjectBadge(todo)}
+                                          {activeAppTab === "payables" && todo.metadata?.paymentDate && (
+                                            <span className="flex items-center gap-1 text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold border border-green-200 select-none">
+                                              <CalendarIcon className="w-2.5 h-2.5" />
+                                              <span>Paid: {formatCardDate(todo.metadata.paymentDate)}</span>
+                                            </span>
+                                          )}
+
                                           <span
                                             className={`text-xs sm:text-xs font-semibold flex items-center select-none shrink-0 leading-none ${todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime() ? "text-red-500" : "text-blue-500"}`}
                                           >
@@ -6162,10 +6201,10 @@ export default function WorkspaceApp() {
                                 <div className="text-center py-12 bg-white rounded-xl select-none">
                                   <ShieldCheck className="w-8 h-8 text-green-300 mx-auto mb-2" />
                                   <h4 className="font-medium text-xs text-gray-700">
-                                    All targets met
+                                    {activeAppTab === "payables" ? "No pending payables" : "All targets met"}
                                   </h4>
                                   <p className="font-medium text-base text-gray-400">
-                                    Enjoy the rest of training day cycles.
+                                    {activeAppTab === "payables" ? "All financial obligations are clear." : "Enjoy the rest of training day cycles."}
                                   </p>
                                 </div>
                               )}
@@ -6289,10 +6328,10 @@ export default function WorkspaceApp() {
                                 <div className="text-center py-12 bg-white rounded-xl select-none">
                                   <ShieldCheck className="w-8 h-8 text-green-300 mx-auto mb-2" />
                                   <h4 className="font-medium text-xs text-gray-700">
-                                    All targets met
+                                    {activeAppTab === "payables" ? "No pending payables" : "All targets met"}
                                   </h4>
                                   <p className="font-medium text-base text-gray-400">
-                                    Enjoy the rest of training day cycles.
+                                    {activeAppTab === "payables" ? "All financial obligations are clear." : "Enjoy the rest of training day cycles."}
                                   </p>
                                 </div>
                               )}
@@ -6612,6 +6651,13 @@ export default function WorkspaceApp() {
 
                                           <div className="flex items-center space-x-2.5 shrink-0 pl-2">
                                             {renderItemProjectBadge(todo)}
+                                            {activeAppTab === "payables" && todo.metadata?.paymentDate && (
+                                              <span className="flex items-center gap-1 text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold border border-green-200 select-none">
+                                                <CalendarIcon className="w-2.5 h-2.5" />
+                                                <span>Paid: {formatCardDate(todo.metadata.paymentDate)}</span>
+                                              </span>
+                                            )}
+
                                             <span className="text-xs sm:text-xs text-gray-400 font-medium bg-gray-100 px-2 py-0.5 rounded-full flex items-center select-none">
                                               {todo.repeatInterval ? (
                                                 <RefreshCw className="w-3 h-3 mr-1 opacity-70" />
@@ -6651,7 +6697,7 @@ export default function WorkspaceApp() {
           )}
 
           {/* 3. SECTOR: GENERAL ADDERS INLINE FOR OTHER TABS */}
-          {activeAppTab === "tasks" && viewMode !== "today" && isAddingTask && (
+          {(activeAppTab === "tasks" || activeAppTab === "payables") && viewMode !== "today" && isAddingTask && (
             <div className="mt-4 border border-[#e5e7eb] bg-white rounded-xl shadow-lg p-4 text-left">
               <div className="relative mb-2">
                 <input
@@ -7389,7 +7435,7 @@ export default function WorkspaceApp() {
                         </div>
 
                         {/* Detail picking controls */}
-                        <div className="grid grid-cols-4 gap-2.5 mt-5 border-b border-gray-150 pb-5">
+                        <div className={`grid gap-2.5 mt-5 border-b border-gray-150 pb-5 ${activeAppTab === "payables" ? "grid-cols-5" : "grid-cols-4"}`}>
                           {/* Due Date */}
                           <div className="relative">
                             <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">
@@ -7399,7 +7445,9 @@ export default function WorkspaceApp() {
                               onClick={() => {
                                 setShowDetailDatePicker(!showDetailDatePicker);
                                 setShowDetailPriorityPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                 setShowDetailRepeatPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailDatePicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -7479,6 +7527,7 @@ export default function WorkspaceApp() {
                                             activities: updatedActivities,
                                           });
                                           setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                         }}
                                         className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
                                       >
@@ -7515,6 +7564,7 @@ export default function WorkspaceApp() {
                                         activities: updatedActivities,
                                       });
                                       setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                     }}
                                     className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.dueDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
                                   >
@@ -7569,6 +7619,7 @@ export default function WorkspaceApp() {
                                             activities: updatedActivities,
                                           });
                                           setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                         } else {
                                           const updatedActivities =
                                             logDueDateChange(null);
@@ -7589,6 +7640,7 @@ export default function WorkspaceApp() {
                                             activities: updatedActivities,
                                           });
                                           setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                         }
                                       }}
                                     />
@@ -7597,6 +7649,176 @@ export default function WorkspaceApp() {
                               )}
                             </AnimatePresence>
                           </div>
+
+                                                    {/* Payment Date Picker (Only for Payables) */}
+                          {activeAppTab === "payables" && (
+                            <div className="relative">
+                              <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">
+                                Payment Date
+                              </label>
+                              <button
+                                onClick={() => {
+                                  setShowDetailPaymentDatePicker(!showDetailPaymentDatePicker);
+                                  setShowDetailDatePicker(false);
+                                  setShowDetailPriorityPicker(false);
+                                  setShowDetailRepeatPicker(false);
+                                  setShowDetailClientPicker(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailPaymentDatePicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
+                              >
+                                <span
+                                  className={`truncate flex items-center gap-1.5 ${todo.metadata?.paymentDate ? "text-primary" : "text-gray-400"}`}
+                                >
+                                  <CalendarIcon
+                                    className={`w-3.5 h-3.5 ${todo.metadata?.paymentDate ? "text-primary" : "text-gray-400"}`}
+                                  />
+                                  {todo.metadata?.paymentDate
+                                    ? format(
+                                        new Date(todo.metadata.paymentDate),
+                                        "MMM d, yyyy"
+                                      )
+                                    : "Not Paid"}
+                                </span>
+                                <ChevronDown
+                                  className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${showDetailPaymentDatePicker ? "rotate-180" : ""}`}
+                                />
+                              </button>
+                              <AnimatePresence>
+                                {showDetailPaymentDatePicker && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute top-full left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-44"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {[
+                                      {
+                                        label: "Today",
+                                        date: startOfDay(new Date()),
+                                        color: "bg-green-500",
+                                      },
+                                      {
+                                        label: "Yesterday",
+                                        date: startOfDay(addDays(new Date(), -1)),
+                                        color: "bg-amber-500",
+                                      },
+                                    ].map((preset) => {
+                                      const isSelected =
+                                        todo.metadata?.paymentDate &&
+                                        isSameDay(
+                                          new Date(todo.metadata.paymentDate),
+                                          preset.date
+                                        );
+                                      return (
+                                        <button
+                                          key={preset.label}
+                                          type="button"
+                                          onClick={() => {
+                                            const nextDate = preset.date.getTime();
+                                            const newMetadata = { ...(todo.metadata || {}), paymentDate: nextDate };
+                                            setTodos((prev) =>
+                                              prev.map((t) =>
+                                                t.id === todo.id
+                                                  ? { ...t, metadata: newMetadata }
+                                                  : t
+                                              )
+                                            );
+                                            todoService.updateTodo(todo.id, { metadata: newMetadata });
+                                            setShowDetailPaymentDatePicker(false);
+                                          }}
+                                          className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
+                                        >
+                                          <span className="flex items-center">
+                                            <span
+                                              className={`w-2 h-2 rounded-full mr-2 ${preset.color}`}
+                                            />
+                                            {preset.label}
+                                          </span>
+                                          {isSelected && (
+                                            <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newMetadata = { ...(todo.metadata || {}) };
+                                        delete newMetadata.paymentDate;
+                                        setTodos((prev) =>
+                                          prev.map((t) =>
+                                            t.id === todo.id
+                                              ? { ...t, metadata: newMetadata }
+                                              : t
+                                          )
+                                        );
+                                        todoService.updateTodo(todo.id, { metadata: newMetadata });
+                                        setShowDetailPaymentDatePicker(false);
+                                      }}
+                                      className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.metadata?.paymentDate ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
+                                    >
+                                      <span className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                        Clear Date
+                                      </span>
+                                      {!todo.metadata?.paymentDate && (
+                                        <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+                                      )}
+                                    </button>
+                                    <div className="mx-1 h-px bg-gray-100 my-1.5" />
+                                    <div className="px-1.5 pb-1">
+                                      <label className="block text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-1.5 pl-1">
+                                        Custom Date
+                                      </label>
+                                      <input
+                                        type="date"
+                                        className="w-full text-xs p-1.5 border border-gray-200 rounded-md outline-none focus:border-primary/50 text-gray-700 cursor-text bg-gray-50"
+                                        value={
+                                          todo.metadata?.paymentDate
+                                            ? format(
+                                                new Date(todo.metadata.paymentDate),
+                                                "yyyy-MM-dd"
+                                              )
+                                            : ""
+                                        }
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            const [year, month, day] = e.target.value.split("-").map(Number);
+                                            const nextDate = new Date(year, month - 1, day).getTime();
+                                            const newMetadata = { ...(todo.metadata || {}), paymentDate: nextDate };
+                                            setTodos((prev) =>
+                                              prev.map((t) =>
+                                                t.id === todo.id
+                                                  ? { ...t, metadata: newMetadata }
+                                                  : t
+                                              )
+                                            );
+                                            todoService.updateTodo(todo.id, { metadata: newMetadata });
+                                            setShowDetailPaymentDatePicker(false);
+                                          } else {
+                                            const newMetadata = { ...(todo.metadata || {}) };
+                                            delete newMetadata.paymentDate;
+                                            setTodos((prev) =>
+                                              prev.map((t) =>
+                                                t.id === todo.id
+                                                  ? { ...t, metadata: newMetadata }
+                                                  : t
+                                              )
+                                            );
+                                            todoService.updateTodo(todo.id, { metadata: newMetadata });
+                                            setShowDetailPaymentDatePicker(false);
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          )}
 
                           {/* Priority Picker */}
                           <div className="relative">
@@ -7609,7 +7831,9 @@ export default function WorkspaceApp() {
                                   !showDetailPriorityPicker,
                                 );
                                 setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                 setShowDetailRepeatPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailPriorityPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -7680,6 +7904,7 @@ export default function WorkspaceApp() {
                                             },
                                           );
                                           setShowDetailPriorityPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                         }}
                                         className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
                                       >
@@ -7711,7 +7936,9 @@ export default function WorkspaceApp() {
                                   !showDetailRepeatPicker,
                                 );
                                 setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                 setShowDetailPriorityPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailRepeatPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -7767,6 +7994,7 @@ export default function WorkspaceApp() {
                                             repeatInterval: value as any,
                                           });
                                           setShowDetailRepeatPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                         }}
                                         className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
                                       >
@@ -7798,8 +8026,11 @@ export default function WorkspaceApp() {
                                   !showDetailClientPicker,
                                 );
                                 setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                 setShowDetailPriorityPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                 setShowDetailRepeatPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailClientPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -7847,6 +8078,7 @@ export default function WorkspaceApp() {
                                         clientName: null,
                                       });
                                       setShowDetailClientPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                     }}
                                     className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${!todo.clientId ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
                                   >
@@ -7883,6 +8115,7 @@ export default function WorkspaceApp() {
                                             },
                                           );
                                           setShowDetailClientPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                                         }}
                                         className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-gray-50 text-gray-700"}`}
                                       >
@@ -7912,8 +8145,11 @@ export default function WorkspaceApp() {
                                 !showDetailBlockingPicker,
                               );
                               setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
                               setShowDetailPriorityPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                               setShowDetailRepeatPicker(false);
+                                setShowDetailPaymentDatePicker(false);
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailBlockingPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                           >

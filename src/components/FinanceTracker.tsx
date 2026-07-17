@@ -175,7 +175,7 @@ export default function FinanceTracker() {
   };
 
   // Filters
-  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account" | "settings" | "receivables" | "ai_insights">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account" | "settings" | "receivables" | "payables" | "ai_insights">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
   const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
@@ -249,8 +249,8 @@ export default function FinanceTracker() {
         if (q) {
           const responseText = data.insights;
           setAiInsights((prev) => {
-            const heading = `### 💬 Question: ${q}`;
-            return `${prev ? prev + "\n\n" : ""}${heading}\n\n${responseText}`;
+            const heading = `### 💬 Question: ${q}\n\n`;
+            return `${prev ? prev + "\n\n" : ""}${heading}\n${responseText}\n\n`;
           });
           setAiQuestion("");
         } else {
@@ -652,8 +652,8 @@ export default function FinanceTracker() {
       clientName: formType === "transfer" ? "" : clientName,
       clientId: formType === "transfer" ? "" : (formClientId || ""),
       scope: formScope,
-      paymentMode: formPaymentMode,
-      paymentAccountId: formPaymentAccountId,
+      paymentMode: (formStatus === "paid" || formType === "transfer") ? formPaymentMode : "",
+      paymentAccountId: (formStatus === "paid" || formType === "transfer") ? formPaymentAccountId : "",
       transferToAccountId: formType === "transfer" ? formTransferToAccountId : "",
       isReceivableFromClient: formIsReceivableFromClient
     };
@@ -889,6 +889,9 @@ export default function FinanceTracker() {
       // Tab pre-filters
       if (activeTab === "incomes" && (rec.type !== "income" || rec.category === "Reimbursement")) return false;
       if (activeTab === "expenses" && rec.type !== "expense" && rec.type !== "transfer") return false;
+            if (activeTab === "payables") {
+        if (rec.type !== "expense" || (rec.status !== "pending" && rec.status !== "overdue")) return false;
+      }
       if (activeTab === "receivables") {
         const isPendingInvoice = rec.type === "income" && rec.category !== "Reimbursement" && (rec.status === "pending" || rec.status === "overdue");
         const isPendingReimbursement = rec.type === "expense" && rec.isReceivableFromClient;
@@ -1028,6 +1031,19 @@ export default function FinanceTracker() {
   }, [records]);
 
   const totalReceivables = pendingReimbursementsBalance + pendingInvoicesBalance;
+
+  const pendingPayablesBalance = useMemo(() => {
+    let balance = 0;
+    records.forEach(rec => {
+      if (rec.type === 'expense' && (rec.status === 'pending' || rec.status === 'overdue')) {
+        balance += rec.amount;
+      }
+    });
+    return balance;
+  }, [records]);
+
+  const totalPayables = pendingPayablesBalance;
+
 
   // Compute Assets, Liabilities, and Net Worth
   const balanceSheetMetrics = useMemo(() => {
@@ -1481,7 +1497,7 @@ export default function FinanceTracker() {
                 className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                Mark as Received
+                {activeTab === "payables" ? "Mark as Paid" : "Mark as Received"}
               </button>
               <button
                 onClick={() => setSelectedRecordIds([])}
@@ -1679,8 +1695,7 @@ export default function FinanceTracker() {
                           {((rec.status === "pending" || rec.status === "overdue") || (rec.type === "expense" && rec.isReceivableFromClient)) && (
                             <button
                               onClick={() => handleMarkAsPaid(rec)}
-                              title="Mark as Received"
-                              className="p-1 rounded-full text-green-600 hover:bg-green-100 hover:text-green-700 transition"
+                              title={rec.type === "expense" && !rec.isReceivableFromClient ? "Mark as Paid" : "Mark as Received"} className="p-1 rounded-full text-green-600 hover:bg-green-100 hover:text-green-700 transition"
                             >
                               <CheckCircle2 className="w-4 h-4" />
                             </button>
@@ -1867,6 +1882,33 @@ export default function FinanceTracker() {
         </div>
       )}
 
+            {/* Pending Payables Summary Bar */}
+      {totalPayables > 0 && (
+        <div 
+          onClick={() => {
+            setActiveTab("payables");
+            if (window.innerWidth < 1024) setIsSidebarOpen(false);
+          }}
+          className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in cursor-pointer hover:bg-rose-100 transition-colors group mt-4"
+        >
+           <div className="flex items-center gap-3">
+             <div className="p-2 bg-rose-100 rounded-lg group-hover:bg-rose-200 transition-colors">
+               <AlertCircle className="w-5 h-5 text-rose-700" />
+             </div>
+             <div>
+               <h3 className="text-rose-900 font-bold tracking-tight">Total Pending Payables</h3>
+               <p className="text-rose-700/80 text-sm font-medium">₹{pendingPayablesBalance.toLocaleString("en-IN")} Expenses</p>
+             </div>
+           </div>
+           <div className="flex items-center gap-2">
+             <div className="text-2xl font-extrabold text-rose-900 tracking-tight group-hover:scale-105 transition-transform">
+               ₹{totalPayables.toLocaleString("en-IN")}
+             </div>
+             <ArrowLeftRight className="w-5 h-5 text-rose-600 opacity-50 group-hover:opacity-100 group-hover:-rotate-12 transition-all" />
+           </div>
+        </div>
+      )}
+
       {/* Two-Column Sidebar Layout */}
       <div className="flex flex-col lg:flex-row gap-8 items-start relative">
         
@@ -1905,6 +1947,7 @@ export default function FinanceTracker() {
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, desc: "Overview & Analytics" },
               { id: "receivables", label: "Receivables", icon: AlertCircle, desc: "Pending Payments" },
+              { id: "payables", label: "Payables", icon: AlertCircle, desc: "Pending Outlays" },
               { id: "incomes", label: "Incomes", icon: TrendingUp, desc: "Professional Inflows" },
               { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
               { id: "account", label: "Account", icon: Wallet, desc: "Assets & Liabilities" },
@@ -2814,6 +2857,7 @@ export default function FinanceTracker() {
       )}
 
       {/* Tab-Specific Ledger Content */}
+      {activeTab === "payables" && renderLedgerLogsTable("Pending Payables", "All outstanding expenses and outlays")}
       {activeTab === "receivables" && renderLedgerLogsTable("Pending Receivables", "All outstanding invoices and reimbursements")}
       {activeTab === "incomes" && renderLedgerLogsTable("Professional Income Streams", "Inflows of professional billings & fee drawings", "income")}
       {activeTab === "expenses" && renderLedgerLogsTable("Firm Operating Expenses", "Operating overheads, staff drawdowns, and equipment purchases", "expense")}
@@ -2957,8 +3001,7 @@ export default function FinanceTracker() {
                             {((rec.status === "pending" || rec.status === "overdue") || (rec.type === "expense" && rec.isReceivableFromClient)) && (
                               <button
                                 onClick={() => handleMarkAsPaid(rec)}
-                                title="Mark as Received"
-                                className="p-1 rounded-full text-green-600 hover:bg-green-100 hover:text-green-700 transition"
+                                title={rec.type === "expense" && !rec.isReceivableFromClient ? "Mark as Paid" : "Mark as Received"} className="p-1 rounded-full text-green-600 hover:bg-green-100 hover:text-green-700 transition"
                               >
                                 <CheckCircle2 className="w-4 h-4" />
                               </button>
@@ -3292,6 +3335,14 @@ export default function FinanceTracker() {
                   <FileText className="w-3.5 h-3.5 text-blue-500 group-hover:scale-110 transition-transform" />
                 </button>
                 <button
+                  onClick={() => fetchAiInsights("Based on our current pending payables, what strategy can we use to optimize our cash flow and manage these expenses?")}
+                  disabled={aiLoading}
+                  className="w-full text-left bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl p-3 text-xs font-semibold text-primary transition-all flex items-center justify-between group shadow-xs"
+                >
+                  <span>💸 Manage Payables & Cash Flow</span>
+                  <FileText className="w-3.5 h-3.5 text-rose-500 group-hover:scale-110 transition-transform" />
+                </button>
+                <button
                   onClick={() => fetchAiInsights("Estimate our financial trajectory/forecast for the next 3 months based on current spending and earning patterns.")}
                   disabled={aiLoading}
                   className="w-full text-left bg-white hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl p-3 text-xs font-semibold text-primary transition-all flex items-center justify-between group shadow-xs"
@@ -3416,10 +3467,15 @@ export default function FinanceTracker() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 overflow-hidden flex flex-col max-h-full"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 overflow-visible flex flex-col max-h-full"
             >
-              <div className="px-6 py-5 border-b border-border bg-slate-50 flex items-center justify-between sticky top-0 z-10">
-                <h3 className="text-lg font-bold text-primary tracking-tight">Mark as Received</h3>
+              <div className="px-6 py-5 border-b border-border bg-slate-50 flex items-center justify-between sticky top-0 z-10 rounded-t-2xl">
+                {/* Dynamic modal content based on action type */}
+                <h3 className="text-lg font-bold text-primary tracking-tight">
+                  {receiveModalRecords.length > 0 && receiveModalRecords[0].type === "expense" && !receiveModalRecords[0].isReceivableFromClient 
+                    ? "Mark as Paid" 
+                    : "Mark as Received"}
+                </h3>
                 <button 
                   onClick={() => setReceiveModalOpen(false)}
                   className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition"
@@ -3427,14 +3483,18 @@ export default function FinanceTracker() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-6 overflow-y-auto">
+              <div className="p-6 overflow-visible">
                 <p className="text-sm text-slate-600 mb-4">
-                  You are marking {receiveModalRecords.length} record(s) as received. Please select the account where the funds were credited.
+                  
+                You are marking {receiveModalRecords.length} record(s) as {receiveModalRecords.length > 0 && receiveModalRecords[0].type === "expense" && !receiveModalRecords[0].isReceivableFromClient ? "paid" : "received"}. Please select the account {receiveModalRecords.length > 0 && receiveModalRecords[0].type === "expense" && !receiveModalRecords[0].isReceivableFromClient ? "from which the funds were paid" : "where the funds were credited"}.
                 </p>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    Credit to Account
-                  </label>
+                  
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  {receiveModalRecords.length > 0 && receiveModalRecords[0].type === "expense" && !receiveModalRecords[0].isReceivableFromClient 
+                    ? "Paid from Account" 
+                    : "Credit to Account"}
+                </label>
                   <CustomSelect
                     value={receiveModalAccountId}
                     onChange={(val) => setReceiveModalAccountId(val)}
@@ -3447,7 +3507,7 @@ export default function FinanceTracker() {
                   />
                 </div>
               </div>
-              <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0">
+              <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
                 <button
                   onClick={() => setReceiveModalOpen(false)}
                   className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
@@ -3766,7 +3826,7 @@ export default function FinanceTracker() {
             />
                   </div>
                 </div>
-              ) : (
+              ) : formStatus === "paid" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
@@ -3796,7 +3856,10 @@ export default function FinanceTracker() {
               onChange={setFormPaymentAccountId}
               placeholder="Select account"
               className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
-              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(a => ({ value: a.id, label: a.name }))}
+              options={paymentAccounts
+                .filter(a => a.id !== 'virtual_pending_reimbursements')
+                .filter(a => formPaymentMode === 'Credit Card' ? a.type === 'credit_card' : a.type !== 'credit_card')
+                .map(a => ({ value: a.id, label: a.name }))}
             />
                   </div>
                 </div>
