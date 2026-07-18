@@ -250,8 +250,8 @@ export default function FinanceTracker() {
         if (q) {
           const responseText = data.insights;
           setAiInsights((prev) => {
-            const heading = `### 💬 Question: ${q}\n\n`;
-            return `${prev ? prev + "\n\n" : ""}${heading}\n${responseText}\n\n`;
+            const heading = `### 💬 Question: ${q}`;
+            return `${prev ? prev + "\n\n" : ""}${heading}\n\n${responseText}`;
           });
           setAiQuestion("");
         } else {
@@ -1307,7 +1307,7 @@ export default function FinanceTracker() {
 
   // Auto-generate EMI bills
   useEffect(() => {
-    if (loading || !records.length || !paymentAccounts.length) return;
+    if (loading || !paymentAccounts.length) return;
 
     const generateEmis = async () => {
       const today = new Date();
@@ -1325,8 +1325,7 @@ export default function FinanceTracker() {
 
           if (!hasEmiThisMonth) {
             const dueDay = acc.emiDueDate ? parseInt(acc.emiDueDate, 10) : 1;
-            const dueDateObj = new Date(currentYear, currentMonth, dueDay);
-            const dueDateStr = dueDateObj.toISOString().split("T")[0];
+            const dueDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
 
             try {
               await financeService.createRecord({
@@ -4652,65 +4651,6 @@ export default function FinanceTracker() {
                 />
               </div>
 
-              {/* EMI Section for Loans */}
-              {accountType === 'loan' && (
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <label className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
-                    <div className="mt-0.5">
-                      <input 
-                        type="checkbox" 
-                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
-                        checked={accountIsEmiPayable}
-                        onChange={(e) => setAccountIsEmiPayable(e.target.checked)}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-800">EMI Payable</p>
-                      <p className="text-[10px] font-medium text-slate-500 mt-0.5 leading-relaxed">
-                        Track monthly EMI payments for this loan.
-                      </p>
-                    </div>
-                  </label>
-
-                  {accountIsEmiPayable && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                          EMI Amount *
-                        </label>
-                        <div className="relative">
-                          <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none font-bold text-slate-400">
-                            ₹
-                          </span>
-                          <input
-                            type="number"
-                            required
-                            placeholder="0.00"
-                            value={accountEmiAmount}
-                            onChange={(e) => setAccountEmiAmount(e.target.value)}
-                            className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                          Due Date *
-                        </label>
-                        <select
-                          value={accountEmiDueDate}
-                          onChange={(e) => setAccountEmiDueDate(e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
-                        >
-                          {Array.from({length: 28}, (_, i) => i + 1).map(day => (
-                            <option key={day} value={day}>{day}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
                 <button
@@ -4829,6 +4769,65 @@ export default function FinanceTracker() {
                   For Assets, enter a positive starting balance. For Liabilities (Credit Cards, Loans, etc.), enter a negative value for starting outstanding debt (or 0 if empty).
                 </p>
               </div>
+
+              {/* EMI Section for Loans */}
+              {accountType === 'loan' && (
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <label className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                    <div className="mt-0.5">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                        checked={accountIsEmiPayable}
+                        onChange={(e) => setAccountIsEmiPayable(e.target.checked)}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-800">EMI Payable</p>
+                      <p className="text-[10px] font-medium text-slate-500 mt-0.5 leading-relaxed">
+                        Track monthly EMI payments for this loan.
+                      </p>
+                    </div>
+                  </label>
+
+                  {accountIsEmiPayable && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          EMI Amount *
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none font-bold text-slate-400">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            required
+                            placeholder="0.00"
+                            value={accountEmiAmount}
+                            onChange={(e) => setAccountEmiAmount(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          Due Date *
+                        </label>
+                        <select
+                          value={accountEmiDueDate}
+                          onChange={(e) => setAccountEmiDueDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
+                        >
+                          {Array.from({length: 28}, (_, i) => i + 1).map(day => (
+                            <option key={day} value={day}>{day}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-border mt-5">
