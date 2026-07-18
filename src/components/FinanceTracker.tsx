@@ -1360,27 +1360,38 @@ export default function FinanceTracker() {
       const today = new Date();
       const currentMonth = today.getMonth();
       const currentYear = today.getFullYear();
+      const currentDay = today.getDate();
 
       for (const acc of paymentAccounts) {
         if (acc.type === 'loan' && acc.isEmiPayable && acc.emiAmount) {
-          const hasEmiThisMonth = records.some(rec => 
-            rec.paymentAccountId === acc.id && 
-            rec.category === 'Loan EMI' && 
-            new Date(rec.date).getMonth() === currentMonth &&
-            new Date(rec.date).getFullYear() === currentYear
-          );
-
-          if (!hasEmiThisMonth) {
-            const dueDay = acc.emiDueDate ? parseInt(acc.emiDueDate, 10) : 1;
-            
-            // Start EMI from next month if due date is before the creation date in the current month
+          const dueDay = acc.emiDueDate ? parseInt(acc.emiDueDate, 10) : 1;
+          
+          let targetMonth = currentMonth;
+          let targetYear = currentYear;
+          
+          if (acc.createdAt) {
             const createdDate = new Date(acc.createdAt);
             const isCreatedThisMonth = createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
             
+            // Start EMI from next month if due date is before the creation date in the current month
             if (isCreatedThisMonth && dueDay < createdDate.getDate()) {
-              continue;
+              targetMonth = currentMonth + 1;
+              if (targetMonth > 11) {
+                targetMonth = 0;
+                targetYear++;
+              }
             }
-            const dueDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+          }
+
+          const hasEmiTargetMonth = records.some(rec => 
+            rec.paymentAccountId === acc.id && 
+            rec.category === 'Loan EMI' && 
+            new Date(rec.date).getMonth() === targetMonth &&
+            new Date(rec.date).getFullYear() === targetYear
+          );
+
+          if (!hasEmiTargetMonth) {
+            const dueDateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
 
             try {
               await financeService.createRecord({
