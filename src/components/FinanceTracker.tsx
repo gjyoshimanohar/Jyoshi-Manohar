@@ -354,7 +354,7 @@ export default function FinanceTracker() {
 
   const confirmAdjustCcBalance = async () => {
     if (!adjustCcAccount) return;
-    const newDebt = parseFloat(adjustCcNewBalance);
+    const newDebt = Math.abs(parseFloat(adjustCcNewBalance));
     if (isNaN(newDebt)) {
       toast.error("Please enter a valid amount.");
       return;
@@ -423,7 +423,7 @@ export default function FinanceTracker() {
       });
 
       if (addCcBillAdjustLedger) {
-        const diff = parseFloat(adjustCcNewBalance) - adjustCcCurrentBalance;
+        const diff = Math.abs(parseFloat(adjustCcNewBalance)) - adjustCcCurrentBalance;
         if (!isNaN(diff) && diff !== 0) {
           await financeService.createRecord({
             type: diff > 0 ? 'expense' : 'income',
@@ -529,6 +529,9 @@ export default function FinanceTracker() {
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState<'bank_account' | 'credit_card' | 'investment' | 'loan' | 'other_asset' | 'other_liability'>("bank_account");
   const [accountOpeningBalance, setAccountOpeningBalance] = useState("");
+  const [accountIsEmiPayable, setAccountIsEmiPayable] = useState(false);
+  const [accountEmiAmount, setAccountEmiAmount] = useState("");
+  const [accountEmiDueDate, setAccountEmiDueDate] = useState("1");
 
   // Payment fields in the Transaction Form
   const [formPaymentMode, setFormPaymentMode] = useState<string>("Cash");
@@ -1002,6 +1005,9 @@ export default function FinanceTracker() {
     setAccountName("");
     setAccountType("bank_account");
     setAccountOpeningBalance("");
+    setAccountIsEmiPayable(false);
+    setAccountEmiAmount("");
+    setAccountEmiDueDate("1");
     setIsAccountModalOpen(true);
   };
 
@@ -1010,7 +1016,11 @@ export default function FinanceTracker() {
     setEditingAccount(acc);
     setAccountName(acc.name);
     setAccountType(acc.type);
-    setAccountOpeningBalance(acc.openingBalance.toString());
+    const info = getAccountTypeInfo(acc.type);
+    setAccountOpeningBalance(info.isAsset ? acc.openingBalance.toString() : Math.abs(acc.openingBalance).toString());
+    setAccountIsEmiPayable(acc.isEmiPayable || false);
+    setAccountEmiAmount(acc.emiAmount?.toString() || "");
+    setAccountEmiDueDate(acc.emiDueDate || "1");
     setIsAccountModalOpen(true);
   };
 
@@ -1023,18 +1033,32 @@ export default function FinanceTracker() {
     }
     try {
       setSyncing(true);
-      if (editingAccount) {
-        await financeService.updatePaymentAccount(editingAccount.id, {
-          name: accountName.trim(),
-          type: accountType,
-          openingBalance: parseFloat(accountOpeningBalance)
-        });
+      let parsedBal = parseFloat(accountOpeningBalance);
+      const isAsset = getAccountTypeInfo(accountType).isAsset;
+      if (!isAsset && parsedBal > 0) {
+        parsedBal = -parsedBal; // liabilities are stored as negative
+      }
+
+      const payload: any = {
+        name: accountName.trim(),
+        type: accountType,
+        openingBalance: parsedBal
+      };
+      
+      if (accountType === 'loan' && accountIsEmiPayable) {
+        payload.isEmiPayable = true;
+        payload.emiAmount = parseFloat(accountEmiAmount) || 0;
+        payload.emiDueDate = accountEmiDueDate;
       } else {
-        await financeService.createPaymentAccount({
-          name: accountName.trim(),
-          type: accountType,
-          openingBalance: parseFloat(accountOpeningBalance)
-        });
+        payload.isEmiPayable = false;
+        payload.emiAmount = 0;
+        payload.emiDueDate = "1";
+      }
+
+      if (editingAccount) {
+        await financeService.updatePaymentAccount(editingAccount.id, payload);
+      } else {
+        await financeService.createPaymentAccount(payload);
       }
       setAccountName("");
       setAccountOpeningBalance("");
@@ -1153,10 +1177,17 @@ export default function FinanceTracker() {
     
     // Initialize with opening balances
     paymentAccounts.forEach(acc => {
+      const isAsset = getAccountTypeInfo(acc.type).isAsset;
+      let opening = acc.openingBalance;
+      // If the user entered a positive opening balance for a liability, they mean debt.
+      // In the ledger, debt is represented as a negative balance.
+      if (!isAsset && opening > 0) {
+        opening = -opening;
+      }
       balances[acc.id] = {
         income: 0,
         expense: 0,
-        current: acc.openingBalance
+        current: opening
       };
     });
 
@@ -1231,7 +1262,7 @@ export default function FinanceTracker() {
     let liabilitiesSum = 0;
 
     paymentAccounts.forEach(acc => {
-      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: (!getAccountTypeInfo(acc.type).isAsset && acc.openingBalance > 0) ? -acc.openingBalance : acc.openingBalance };
       const info = getAccountTypeInfo(acc.type);
       if (info.isAsset) {
         assetsSum += b.current;
@@ -1273,6 +1304,51 @@ export default function FinanceTracker() {
 
     return { assets: assList, liabilities: liabList };
   }, [paymentAccounts, pendingReimbursementsBalance]);
+
+  // Auto-generate EMI bills
+  useEffect(() => {
+    if (loading || !records.length || !paymentAccounts.length) return;
+
+    const generateEmis = async () => {
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+
+      for (const acc of paymentAccounts) {
+        if (acc.type === 'loan' && acc.isEmiPayable && acc.emiAmount) {
+          const hasEmiThisMonth = records.some(rec => 
+            rec.paymentAccountId === acc.id && 
+            rec.category === 'Loan EMI' && 
+            new Date(rec.date).getMonth() === currentMonth &&
+            new Date(rec.date).getFullYear() === currentYear
+          );
+
+          if (!hasEmiThisMonth) {
+            const dueDay = acc.emiDueDate ? parseInt(acc.emiDueDate, 10) : 1;
+            const dueDateObj = new Date(currentYear, currentMonth, dueDay);
+            const dueDateStr = dueDateObj.toISOString().split("T")[0];
+
+            try {
+              await financeService.createRecord({
+                type: 'expense',
+                amount: acc.emiAmount,
+                category: 'Loan EMI',
+                description: `EMI for ${acc.name}`,
+                date: dueDateStr,
+                status: 'pending',
+                scope: 'business',
+                paymentAccountId: acc.id
+              });
+            } catch (err) {
+              console.error("Failed to auto-generate EMI", err);
+            }
+          }
+        }
+      }
+    };
+
+    generateEmis();
+  }, [loading, records.length, paymentAccounts.length]);
 
   // Aggregate Metrics based on ALL records for selected month, year, and scope (ignores type/category filters for context)
   const metrics = useMemo(() => {
@@ -2544,7 +2620,7 @@ export default function FinanceTracker() {
                 ) : (
                   <div className="space-y-3">
                     {assets.map((acc) => {
-                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: (!getAccountTypeInfo(acc.type).isAsset && acc.openingBalance > 0) ? -acc.openingBalance : acc.openingBalance };
                       const typeInfo = getAccountTypeInfo(acc.type);
                       const IconComp = typeInfo.icon;
                       return (
@@ -2631,7 +2707,7 @@ export default function FinanceTracker() {
                 ) : (
                   <div className="space-y-3">
                     {liabilities.map((acc) => {
-                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: acc.openingBalance };
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: (!getAccountTypeInfo(acc.type).isAsset && acc.openingBalance > 0) ? -acc.openingBalance : acc.openingBalance };
                       const typeInfo = getAccountTypeInfo(acc.type);
                       const IconComp = typeInfo.icon;
                       // Outstanding debt is the positive presentation of negative ledger balance
@@ -3866,10 +3942,10 @@ export default function FinanceTracker() {
                   />
                 </div>
                 
-                {parseFloat(adjustCcNewBalance) !== adjustCcCurrentBalance && !isNaN(parseFloat(adjustCcNewBalance)) && (
+                {Math.abs(parseFloat(adjustCcNewBalance)) !== adjustCcCurrentBalance && !isNaN(parseFloat(adjustCcNewBalance)) && (
                   <div className="pt-2">
                     <p className="text-xs text-slate-500 font-medium">
-                      A <span className="font-bold text-slate-700">{parseFloat(adjustCcNewBalance) > adjustCcCurrentBalance ? "Debit (Expense)" : "Credit (Income)"}</span> entry of <span className="font-bold text-slate-700">₹{Math.abs(parseFloat(adjustCcNewBalance) - adjustCcCurrentBalance).toLocaleString("en-IN")}</span> will be created.
+                      A <span className="font-bold text-slate-700">{Math.abs(parseFloat(adjustCcNewBalance)) > adjustCcCurrentBalance ? "Debit (Expense)" : "Credit (Income)"}</span> entry of <span className="font-bold text-slate-700">₹{Math.abs(Math.abs(parseFloat(adjustCcNewBalance)) - adjustCcCurrentBalance).toLocaleString("en-IN")}</span> will be created.
                     </p>
                   </div>
                 )}
@@ -3884,7 +3960,7 @@ export default function FinanceTracker() {
                 </button>
                 <button
                   onClick={confirmAdjustCcBalance}
-                  disabled={syncing || isNaN(parseFloat(adjustCcNewBalance)) || parseFloat(adjustCcNewBalance) === adjustCcCurrentBalance}
+                  disabled={syncing || isNaN(parseFloat(adjustCcNewBalance)) || Math.abs(parseFloat(adjustCcNewBalance)) === adjustCcCurrentBalance}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
                 >
                   {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {syncing ? "Saving..." : "Update Balance"}
@@ -4053,10 +4129,10 @@ export default function FinanceTracker() {
                       />
                     </div>
                     
-                    {parseFloat(adjustCcNewBalance) !== adjustCcCurrentBalance && !isNaN(parseFloat(adjustCcNewBalance)) && (
+                    {Math.abs(parseFloat(adjustCcNewBalance)) !== adjustCcCurrentBalance && !isNaN(parseFloat(adjustCcNewBalance)) && (
                       <div className="pt-1">
                         <p className="text-xs text-slate-500 font-medium">
-                          A <span className="font-bold text-slate-700">{parseFloat(adjustCcNewBalance) > adjustCcCurrentBalance ? "Debit (Expense)" : "Credit (Income)"}</span> entry of <span className="font-bold text-slate-700">₹{Math.abs(parseFloat(adjustCcNewBalance) - adjustCcCurrentBalance).toLocaleString("en-IN")}</span> will be created.
+                          A <span className="font-bold text-slate-700">{Math.abs(parseFloat(adjustCcNewBalance)) > adjustCcCurrentBalance ? "Debit (Expense)" : "Credit (Income)"}</span> entry of <span className="font-bold text-slate-700">₹{Math.abs(Math.abs(parseFloat(adjustCcNewBalance)) - adjustCcCurrentBalance).toLocaleString("en-IN")}</span> will be created.
                         </p>
                       </div>
                     )}
@@ -4576,6 +4652,65 @@ export default function FinanceTracker() {
                 />
               </div>
 
+              {/* EMI Section for Loans */}
+              {accountType === 'loan' && (
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <label className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                    <div className="mt-0.5">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                        checked={accountIsEmiPayable}
+                        onChange={(e) => setAccountIsEmiPayable(e.target.checked)}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-800">EMI Payable</p>
+                      <p className="text-[10px] font-medium text-slate-500 mt-0.5 leading-relaxed">
+                        Track monthly EMI payments for this loan.
+                      </p>
+                    </div>
+                  </label>
+
+                  {accountIsEmiPayable && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          EMI Amount *
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none font-bold text-slate-400">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            required
+                            placeholder="0.00"
+                            value={accountEmiAmount}
+                            onChange={(e) => setAccountEmiAmount(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          Due Date *
+                        </label>
+                        <select
+                          value={accountEmiDueDate}
+                          onChange={(e) => setAccountEmiDueDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
+                        >
+                          {Array.from({length: 28}, (_, i) => i + 1).map(day => (
+                            <option key={day} value={day}>{day}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
                 <button
@@ -4644,17 +4779,30 @@ export default function FinanceTracker() {
               {/* Account Type */}
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Payment Account Type *
+                  Account Type *
                 </label>
                 <CustomSelect
               value={accountType}
               onChange={(val) => setAccountType(val as any)}
               className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
               options={[
-                { value: "bank", label: "Bank Account" },
-                { value: "upi", label: "UPI Wallet" },
-                { value: "credit_card", label: "Credit Card" },
-                { value: "cash", label: "Cash on Hand" }
+                {
+                  label: "Assets",
+                  options: [
+                    { value: "bank_account", label: "Bank Account" },
+                    { value: "investment", label: "Investment" },
+                    { value: "cash", label: "Cash on Hand" },
+                    { value: "other_asset", label: "Other Asset" }
+                  ]
+                },
+                {
+                  label: "Liabilities",
+                  options: [
+                    { value: "credit_card", label: "Credit Card" },
+                    { value: "loan", label: "Loan / Debt" },
+                    { value: "other_liability", label: "Other Liability" }
+                  ]
+                }
               ]}
             />
               </div>

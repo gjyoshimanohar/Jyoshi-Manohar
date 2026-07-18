@@ -114,6 +114,9 @@ export interface PaymentAccount {
   name: string;
   type: 'bank_account' | 'credit_card' | 'investment' | 'loan' | 'other_asset' | 'other_liability';
   openingBalance: number;
+  isEmiPayable?: boolean;
+  emiAmount?: number;
+  emiDueDate?: string;
   createdAt: number;
 }
 
