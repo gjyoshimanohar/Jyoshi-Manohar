@@ -1680,18 +1680,27 @@ export default function FinanceTracker() {
                       {/* Status */}
                       <td className="py-4 px-6 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            rec.status === "paid" 
-                              ? "bg-green-50 text-green-700 border border-green-200" 
-                              : rec.status === "overdue"
-                                ? "bg-red-50 text-red-700 border border-red-200"
-                                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                          }`}>
-                            {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
-                            {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
-                            {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
-                            {rec.status}
-                          </span>
+                          <AnimatePresence mode="popLayout">
+                            <motion.span
+                              key={rec.status}
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.8, position: 'absolute' }}
+                              transition={{ duration: 0.2 }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                rec.status === "paid" 
+                                  ? "bg-green-50 text-green-700 border border-green-200" 
+                                  : rec.status === "overdue"
+                                    ? "bg-red-50 text-red-700 border border-red-200"
+                                    : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                              }`}
+                            >
+                              {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                              {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                              {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                              {rec.status}
+                            </motion.span>
+                          </AnimatePresence>
                           {((rec.status === "pending" || rec.status === "overdue") || (rec.type === "expense" && rec.isReceivableFromClient)) && (
                             <button
                               onClick={() => handleMarkAsPaid(rec)}
@@ -2857,7 +2866,36 @@ export default function FinanceTracker() {
       )}
 
       {/* Tab-Specific Ledger Content */}
-      {activeTab === "payables" && renderLedgerLogsTable("Pending Payables", "All outstanding expenses and outlays")}
+      {activeTab === "payables" && (
+        <div className="flex flex-col gap-6">
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-rose-100/80 rounded-xl">
+                 <AlertCircle className="w-7 h-7 text-rose-700" />
+              </div>
+              <div>
+                <h3 className="text-rose-900 font-bold tracking-tight text-lg">Total Outstanding Payables</h3>
+                <p className="text-rose-700/80 text-sm font-medium mt-0.5">Sum of all pending and overdue active payables</p>
+              </div>
+            </div>
+            <div className="mt-4 md:mt-0 px-5 py-3 bg-white rounded-xl shadow-sm border border-rose-100 flex items-center justify-center min-w-[200px]">
+               <AnimatePresence mode="popLayout">
+                 <motion.div 
+                   key={pendingPayablesBalance}
+                   initial={{ scale: 0.8, opacity: 0 }}
+                   animate={{ scale: 1, opacity: 1 }}
+                   exit={{ scale: 1.1, opacity: 0, position: 'absolute' }}
+                   transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                   className="text-3xl font-extrabold text-rose-900 tracking-tight"
+                 >
+                   ₹{pendingPayablesBalance.toLocaleString("en-IN")}
+                 </motion.div>
+               </AnimatePresence>
+            </div>
+          </div>
+          {renderLedgerLogsTable("Pending Payables", "All outstanding expenses and outlays")}
+        </div>
+      )}
       {activeTab === "receivables" && renderLedgerLogsTable("Pending Receivables", "All outstanding invoices and reimbursements")}
       {activeTab === "incomes" && renderLedgerLogsTable("Professional Income Streams", "Inflows of professional billings & fee drawings", "income")}
       {activeTab === "expenses" && renderLedgerLogsTable("Firm Operating Expenses", "Operating overheads, staff drawdowns, and equipment purchases", "expense")}
@@ -2986,18 +3024,27 @@ export default function FinanceTracker() {
                         </td>
                         <td className="py-4 px-6 text-center">
                           <div className="flex items-center justify-center gap-1.5">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              rec.status === "paid" 
-                                ? "bg-green-50 text-green-700 border border-green-200" 
-                                : rec.status === "overdue"
-                                  ? "bg-red-50 text-red-700 border border-red-200"
-                                  : "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                            }`}>
-                              {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
-                              {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
-                              {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
-                              {rec.status}
-                            </span>
+                            <AnimatePresence mode="popLayout">
+                              <motion.span
+                                key={rec.status}
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8, position: 'absolute' }}
+                                transition={{ duration: 0.2 }}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                  rec.status === "paid" 
+                                    ? "bg-green-50 text-green-700 border border-green-200" 
+                                    : rec.status === "overdue"
+                                      ? "bg-red-50 text-red-700 border border-red-200"
+                                      : "bg-yellow-50 text-yellow-800 border border-yellow-200"
+                                }`}
+                              >
+                                {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
+                                {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
+                                {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
+                                {rec.status}
+                              </motion.span>
+                            </AnimatePresence>
                             {((rec.status === "pending" || rec.status === "overdue") || (rec.type === "expense" && rec.isReceivableFromClient)) && (
                               <button
                                 onClick={() => handleMarkAsPaid(rec)}
@@ -3469,6 +3516,14 @@ export default function FinanceTracker() {
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 overflow-visible flex flex-col max-h-full"
             >
+              
+              {syncing && (
+                <div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl">
+                  <RefreshCw className="w-10 h-10 text-primary animate-spin mb-4" />
+                  <p className="text-lg font-bold text-slate-800">Updating balances...</p>
+                  <p className="text-sm text-slate-500 mt-1">Please wait a moment</p>
+                </div>
+              )}
               <div className="px-6 py-5 border-b border-border bg-slate-50 flex items-center justify-between sticky top-0 z-10 rounded-t-2xl">
                 {/* Dynamic modal content based on action type */}
                 <h3 className="text-lg font-bold text-primary tracking-tight">
@@ -3502,7 +3557,7 @@ export default function FinanceTracker() {
                     className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary transition hover:border-slate-300 hover:shadow-sm"
                     options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(acc => ({
                       value: acc.id,
-                      label: `${acc.name} (₹${acc.openingBalance.toLocaleString("en-IN")})`
+                      label: `${acc.name} (₹${(accountBalances[acc.id]?.current ?? acc.openingBalance).toLocaleString("en-IN")})`
                     }))}
                   />
                 </div>
@@ -3516,9 +3571,10 @@ export default function FinanceTracker() {
                 </button>
                 <button
                   onClick={confirmMarkAsReceived}
-                  className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                  disabled={syncing}
+                  className="px-5 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
                 >
-                  <CheckCircle2 className="w-4 h-4" /> Confirm
+                  {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {syncing ? "Updating..." : "Confirm"}
                 </button>
               </div>
             </motion.div>
@@ -3789,10 +3845,9 @@ export default function FinanceTracker() {
               onChange={setFormPaymentAccountId}
               placeholder="Select account"
               className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
-              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(a => ({ value: a.id, label: a.name }))}
+              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
             />
                     </div>
-
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                         Destination Account (To) *
@@ -3802,7 +3857,7 @@ export default function FinanceTracker() {
               onChange={setFormTransferToAccountId}
               placeholder="Select destination account"
               className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
-              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements' && a.id !== formPaymentAccountId).map(a => ({ value: a.id, label: a.name }))}
+              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements' && a.id !== formPaymentAccountId).map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
             />
                     </div>
                   </div>
@@ -3859,7 +3914,7 @@ export default function FinanceTracker() {
               options={paymentAccounts
                 .filter(a => a.id !== 'virtual_pending_reimbursements')
                 .filter(a => formPaymentMode === 'Credit Card' ? a.type === 'credit_card' : a.type !== 'credit_card')
-                .map(a => ({ value: a.id, label: a.name }))}
+                .map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
             />
                   </div>
                 </div>

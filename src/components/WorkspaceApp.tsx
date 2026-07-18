@@ -610,6 +610,7 @@ export default function WorkspaceApp() {
     return saved ? parseInt(saved, 10) : 5;
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [payablesDateRange, setPayablesDateRange] = useState<{ start: string; end: string }>({ start: "", end: "" });
   const [isQuickNoteModalOpen, setIsQuickNoteModalOpen] = useState(false);
   const [quickNoteTitle, setQuickNoteTitle] = useState("");
 
@@ -1880,14 +1881,14 @@ export default function WorkspaceApp() {
     }
 
     if (viewMode === "trash") {
-      baseTodos = todos.filter((t) => t.deletedAt);
+      baseTodos = baseTodos.filter((t) => t.deletedAt);
     } else if (viewMode === "completed") {
-      baseTodos = todos.filter((t) => t.completed && !t.deletedAt);
+      baseTodos = baseTodos.filter((t) => t.completed && !t.deletedAt);
     } else {
       if (includeCompleted) {
-        baseTodos = todos.filter((t) => !t.deletedAt);
+        baseTodos = baseTodos.filter((t) => !t.deletedAt);
       } else {
-        baseTodos = todos.filter((t) => !t.completed && !t.deletedAt);
+        baseTodos = baseTodos.filter((t) => !t.completed && !t.deletedAt);
       }
     }
 
@@ -1898,6 +1899,18 @@ export default function WorkspaceApp() {
           t.title.toLowerCase().includes(lowerQuery) ||
           (t.description && t.description.toLowerCase().includes(lowerQuery)),
       );
+    }
+    
+    if (activeAppTab === "payables") {
+      if (payablesDateRange.start) {
+        const startDate = new Date(payablesDateRange.start).getTime();
+        baseTodos = baseTodos.filter((t) => t.metadata?.paymentDate && t.metadata.paymentDate >= startDate);
+      }
+      if (payablesDateRange.end) {
+        const endDate = new Date(payablesDateRange.end);
+        endDate.setHours(23, 59, 59, 999);
+        baseTodos = baseTodos.filter((t) => t.metadata?.paymentDate && t.metadata.paymentDate <= endDate.getTime());
+      }
     }
 
     switch (viewMode) {
@@ -2118,15 +2131,18 @@ export default function WorkspaceApp() {
   };
 
   // Render individual todo item row
-  const renderTodoItem = (todo: Todo) => {
+  const renderTodoItem = (todo: Todo, index?: number) => {
     const hasPriority = todo.priority && todo.priority < 4;
     const isOverdue =
       todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime();
     return (
       <motion.div
+        layout="position"
         key={todo.id}
-        initial={{ opacity: 0, scale: 0.99 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, scale: 0.99, y: 10 }}
+        exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: (index ?? 0) * 0.05, ease: "easeOut" }}
         className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
           hasPriority
             ? todo.priority === 1
@@ -2489,6 +2505,7 @@ export default function WorkspaceApp() {
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
+
                       exit={{ opacity: 0, scale: 0.95 }}
                       className="absolute left-0 top-full mt-2 z-[150] shadow-2xl"
                     >
@@ -3070,6 +3087,7 @@ export default function WorkspaceApp() {
                             <motion.div
                               initial={{ opacity: 0, scale: 0.95 }}
                               animate={{ opacity: 1, scale: 1 }}
+
                               exit={{ opacity: 0, scale: 0.95 }}
                               className="absolute left-0 top-full mt-2 z-[150] shadow-2xl"
                             >
@@ -3332,6 +3350,31 @@ export default function WorkspaceApp() {
                     </button>
                   )}
                 </div>
+                
+                {/* Date Range Filter (Payables) */}
+                {activeAppTab === "payables" && (
+                  <div className="flex items-center space-x-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 transition-all focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+                    <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Date:</span>
+                    <input
+                      type="date"
+                      value={payablesDateRange.start}
+                      onChange={(e) => setPayablesDateRange(prev => ({ ...prev, start: e.target.value }))}
+                      className="bg-transparent text-xs text-gray-700 outline-none w-24 cursor-pointer"
+                    />
+                    <span className="text-xs text-gray-300">-</span>
+                    <input
+                      type="date"
+                      value={payablesDateRange.end}
+                      onChange={(e) => setPayablesDateRange(prev => ({ ...prev, end: e.target.value }))}
+                      className="bg-transparent text-xs text-gray-700 outline-none w-24 cursor-pointer"
+                    />
+                    {(payablesDateRange.start || payablesDateRange.end) && (
+                      <button onClick={() => setPayablesDateRange({ start: "", end: "" })} className="pl-1 border-l border-gray-200 ml-1 hover:text-gray-600 transition-colors">
+                         <X className="w-3.5 h-3.5 text-gray-400" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -5055,6 +5098,7 @@ export default function WorkspaceApp() {
                                   <motion.div
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
+
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     className="absolute right-0 top-6 z-[150] shadow-2xl"
                                   >
@@ -5990,8 +6034,9 @@ export default function WorkspaceApp() {
                                     )
                                     .map((todo) => (
                                       <motion.div
-                                        key={todo.id}
-                                        initial={{ opacity: 0 }}
+        layout="position"
+        key={todo.id}
+        initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         className="group flex items-center justify-between py-3 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1"
                                       >
@@ -6151,9 +6196,7 @@ export default function WorkspaceApp() {
                                   {isOverdueExpanded && (
                                     <div className="border-l-2 border-[#a1dbcb] pl-[11px] ml-1.5 space-y-0.5">
                                       <AnimatePresence>
-                                        {overdueList.map((todo) =>
-                                          renderTodoItem(todo),
-                                        )}
+                                        {overdueList.map((todo, index) => renderTodoItem(todo, index))}
                                       </AnimatePresence>
                                     </div>
                                   )}
@@ -6184,9 +6227,7 @@ export default function WorkspaceApp() {
                                 {isTodayExpanded && (
                                   <div className="border-l-2 border-transparent pl-[11px] ml-1.5 space-y-0.5">
                                     <AnimatePresence>
-                                      {todayList.map((todo) =>
-                                        renderTodoItem(todo),
-                                      )}
+                                      {todayList.map((todo, index) => renderTodoItem(todo, index))}
                                     </AnimatePresence>
                                     {todayList.length === 0 && (
                                       <div className="text-xs text-gray-400 italic py-2 pl-3">
@@ -6310,9 +6351,7 @@ export default function WorkspaceApp() {
                                                 borderColor: project.color,
                                               }}
                                             >
-                                              {projectTasks.map((todo) =>
-                                                renderTodoItem(todo),
-                                              )}
+                                              {projectTasks.map((todo, index) => renderTodoItem(todo, index))}
                                             </div>
                                           </div>
                                         );
@@ -6320,7 +6359,7 @@ export default function WorkspaceApp() {
                                     })()
                                   : allActiveViewTodos
                                       .filter((t) => !t.completed)
-                                      .map((todo) => renderTodoItem(todo))}
+                                      .map((todo, index) => renderTodoItem(todo, index))}
                               </AnimatePresence>
 
                               {allActiveViewTodos.filter((t) => !t.completed)
@@ -6432,8 +6471,9 @@ export default function WorkspaceApp() {
                                             >
                                               {projectTasks.map((todo) => (
                                                 <motion.div
-                                                  key={todo.id}
-                                                  initial={{ opacity: 0 }}
+        layout="position"
+        key={todo.id}
+        initial={{ opacity: 0 }}
                                                   animate={{ opacity: 1 }}
                                                   className="group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/40 hover:bg-[#fafafa]/80 transition-colors px-1"
                                                 >
@@ -6561,8 +6601,9 @@ export default function WorkspaceApp() {
                                       .filter((t) => t.completed)
                                       .map((todo) => (
                                         <motion.div
-                                          key={todo.id}
-                                          initial={{ opacity: 0 }}
+        layout="position"
+        key={todo.id}
+        initial={{ opacity: 0 }}
                                           animate={{ opacity: 1 }}
                                           className="group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/40 hover:bg-[#fafafa]/80 transition-colors px-1"
                                         >
@@ -7415,6 +7456,7 @@ export default function WorkspaceApp() {
                                 <motion.div
                                   initial={{ opacity: 0, scale: 0.95 }}
                                   animate={{ opacity: 1, scale: 1 }}
+
                                   exit={{ opacity: 0, scale: 0.95 }}
                                   className="absolute right-0 top-full mt-2 z-[150] shadow-2xl"
                                 >
@@ -8839,6 +8881,7 @@ export default function WorkspaceApp() {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
+
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-[24px] shadow-2xl border border-gray-150 max-w-md w-full flex flex-col overflow-visible text-left"
             >
@@ -8898,6 +8941,7 @@ export default function WorkspaceApp() {
                             <motion.div
                               initial={{ opacity: 0, scale: 0.95 }}
                               animate={{ opacity: 1, scale: 1 }}
+
                               exit={{ opacity: 0, scale: 0.95 }}
                               className="absolute right-0 top-full mt-2 z-[150] shadow-2xl"
                             >
@@ -9098,6 +9142,7 @@ export default function WorkspaceApp() {
                               <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
+
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 className="absolute left-0 top-full mt-2 z-[150] shadow-2xl"
                               >
@@ -9285,6 +9330,7 @@ export default function WorkspaceApp() {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
+
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-3xl shadow-2xl border border-gray-150 max-w-md w-full overflow-hidden text-left p-6 md:p-8"
             >
