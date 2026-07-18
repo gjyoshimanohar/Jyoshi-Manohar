@@ -3,8 +3,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import CustomSelect from "./CustomSelect";
 import Markdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
-import { db, auth } from "../lib/firebase";
-import { 
+import {  db, auth } from "../lib/firebase";
+import {  
   collection, 
   onSnapshot, 
   doc, 
@@ -14,9 +14,9 @@ import {
   query, 
   orderBy 
 } from "firebase/firestore";
-import { FinanceRecord, PaymentAccount } from "../types";
-import { financeService } from "../services/financeService";
-import {
+import {  FinanceRecord, PaymentAccount } from "../types";
+import {  financeService } from "../services/financeService";
+import { 
   TrendingUp,
   TrendingDown,
   DollarSign,
@@ -37,6 +37,7 @@ import {
   RefreshCw,
   PlusCircle,
   User,
+  SlidersHorizontal,
   X,
   PieChart as PieIcon,
   BarChart3,
@@ -48,7 +49,7 @@ import {
   Menu,
   Settings
 } from "lucide-react";
-import {
+import { 
   ResponsiveContainer,
   AreaChart,
   Area,
@@ -318,6 +319,185 @@ export default function FinanceTracker() {
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [receiveModalRecords, setReceiveModalRecords] = useState<FinanceRecord[]>([]);
   const [receiveModalAccountId, setReceiveModalAccountId] = useState("");
+
+  const [payCcModalOpen, setPayCcModalOpen] = useState(false);
+  const [payCcAccount, setPayCcAccount] = useState<PaymentAccount | null>(null);
+  const [payCcOutstanding, setPayCcOutstanding] = useState(0);
+  const [payCcAmountType, setPayCcAmountType] = useState<"full" | "minimum" | "custom">("full");
+  const [payCcCustomAmount, setPayCcCustomAmount] = useState("");
+  const [payCcSourceAccountId, setPayCcSourceAccountId] = useState("");
+
+  // Add CC Bill States
+  const [payCcMinAmount, setPayCcMinAmount] = useState(0);
+  const [payCcPendingBillId, setPayCcPendingBillId] = useState<string | null>(null);
+  const [addCcBillModalOpen, setAddCcBillModalOpen] = useState(false);
+  const [addCcBillAccountId, setAddCcBillAccountId] = useState("");
+  const [addCcBillFullAmount, setAddCcBillFullAmount] = useState("");
+  const [addCcBillMinAmount, setAddCcBillMinAmount] = useState("");
+  const [addCcBillDueDate, setAddCcBillDueDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [addCcBillAdjustLedger, setAddCcBillAdjustLedger] = useState(false);
+
+  // Adjust CC Balance States
+  const [adjustCcBalanceModalOpen, setAdjustCcBalanceModalOpen] = useState(false);
+  const [adjustCcAccount, setAdjustCcAccount] = useState<PaymentAccount | null>(null);
+  const [adjustCcCurrentBalance, setAdjustCcCurrentBalance] = useState(0);
+  const [adjustCcNewBalance, setAdjustCcNewBalance] = useState("");
+  const [adjustCcReason, setAdjustCcReason] = useState("");
+
+  const handleAdjustCcBalance = (acc: PaymentAccount, currentDebt: number) => {
+    setAdjustCcAccount(acc);
+    setAdjustCcCurrentBalance(currentDebt);
+    setAdjustCcNewBalance(currentDebt.toString());
+    setAdjustCcReason("Interest / EMI / Fee Adjustment");
+    setAdjustCcBalanceModalOpen(true);
+  };
+
+  const confirmAdjustCcBalance = async () => {
+    if (!adjustCcAccount) return;
+    const newDebt = parseFloat(adjustCcNewBalance);
+    if (isNaN(newDebt)) {
+      toast.error("Please enter a valid amount.");
+      return;
+    }
+    const diff = newDebt - adjustCcCurrentBalance;
+    if (diff === 0) {
+      toast.error("New balance is same as current balance.");
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      await financeService.createRecord({
+        type: diff > 0 ? 'expense' : 'income',
+        amount: Math.abs(diff),
+        category: 'Balance Adjustment',
+        description: adjustCcReason || `Manual Balance Adjustment`,
+        date: new Date().toISOString().split("T")[0],
+        status: 'paid',
+        scope: selectedScope === "all" ? "business" : selectedScope,
+        paymentAccountId: adjustCcAccount.id
+      });
+      
+      const _records = await financeService.getAllRecords();
+      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      toast.success("Balance adjusted successfully");
+      setAdjustCcBalanceModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to adjust balance");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const confirmAddCcBill = async () => {
+    if (!addCcBillAccountId) {
+      toast.error("Please select a credit card.");
+      return;
+    }
+    const fullAmt = parseFloat(addCcBillFullAmount);
+    const minAmt = parseFloat(addCcBillMinAmount);
+    if (isNaN(fullAmt) || isNaN(minAmt)) {
+      toast.error("Please enter valid amounts.");
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      const ccAcc = paymentAccounts.find(a => a.id === addCcBillAccountId);
+      
+      const newRec = await financeService.createRecord({
+        type: 'expense',
+        amount: fullAmt,
+        category: 'Credit Card Bill',
+        description: `Statement Bill for ${ccAcc?.name || 'Credit Card'}`,
+        date: addCcBillDueDate,
+        status: 'pending',
+        scope: selectedScope === "all" ? "business" : selectedScope,
+        paymentAccountId: addCcBillAccountId,
+        ccBillDetails: {
+          fullAmount: fullAmt,
+          minAmount: minAmt,
+          dueDate: addCcBillDueDate
+        }
+      });
+
+      if (addCcBillAdjustLedger) {
+        const diff = parseFloat(adjustCcNewBalance) - adjustCcCurrentBalance;
+        if (!isNaN(diff) && diff !== 0) {
+          await financeService.createRecord({
+            type: diff > 0 ? 'expense' : 'income',
+            amount: Math.abs(diff),
+            category: 'Balance Adjustment',
+            description: adjustCcReason || `Auto-adjustment to match Statement Bill`,
+            date: new Date().toISOString().split("T")[0],
+            status: 'paid',
+            scope: selectedScope === "all" ? "business" : selectedScope,
+            paymentAccountId: addCcBillAccountId
+          });
+        }
+      }
+
+      const _records = await financeService.getAllRecords();
+      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      toast.success(`Successfully added bill for ${ccAcc?.name}`);
+      setAddCcBillModalOpen(false);
+      
+      setAddCcBillAccountId("");
+      setAddCcBillFullAmount("");
+      setAddCcBillMinAmount("");
+      setAddCcBillAdjustLedger(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to add bill.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handlePayCreditCardBill = (acc: PaymentAccount, outstanding: number) => {
+    setPayCcAccount(acc);
+    setPayCcOutstanding(outstanding);
+    setPayCcAmountType("full");
+    setPayCcCustomAmount("");
+    setPayCcSourceAccountId("");
+    setPayCcModalOpen(true);
+  };
+
+  const confirmPayCreditCardBill = async () => {
+    if (!payCcSourceAccountId) {
+      toast.error("Please select an asset account to pay from.");
+      return;
+    }
+    if (!payCcAccount) return;
+
+    const amountToPay = payCcAmountType === "full" ? payCcOutstanding : payCcAmountType === "minimum" ? (payCcOutstanding * 0.05) : parseFloat(payCcCustomAmount) || 0;
+
+    try {
+      setSyncing(true);
+      await financeService.createRecord({
+        type: 'transfer',
+        amount: amountToPay,
+        category: 'Credit Card Bill Payment',
+        description: `Paid ${payCcAmountType === 'full' ? 'Full' : payCcAmountType === 'minimum' ? 'Minimum' : 'Custom'} Amount for ${payCcAccount.name}`,
+        date: new Date().toISOString().split("T")[0],
+        status: 'paid',
+        paymentAccountId: payCcSourceAccountId,
+        transferToAccountId: payCcAccount.id,
+        scope: selectedScope === "all" ? "business" : selectedScope,
+      });
+      const _records = await financeService.getAllRecords();
+      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      toast.success(`Successfully paid ₹${amountToPay.toLocaleString("en-IN")}`);
+      setPayCcModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to process payment");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
 
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -2471,6 +2651,7 @@ export default function FinanceTracker() {
                             </div>
                             
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+
                               <button
                                 onClick={() => handleOpenEditAccountModal(acc)}
                                 className="text-slate-400 hover:text-slate-700 transition p-1"
@@ -2495,6 +2676,28 @@ export default function FinanceTracker() {
                                 ₹{outstandingDebt.toLocaleString("en-IN")}
                               </span>
                             </div>
+                            
+                            {acc.type === 'credit_card' && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleAdjustCcBalance(acc, outstandingDebt)}
+                                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 transition-colors shadow-sm"
+                                  title="Adjust Balance"
+                                >
+                                  <SlidersHorizontal className="w-4 h-4" />
+                                  <span className="text-xs font-bold hidden sm:inline">Adjust</span>
+                                </button>
+                                {outstandingDebt > 0 && (
+                                  <button
+                                    onClick={() => handlePayCreditCardBill(acc, outstandingDebt)}
+                                    className="bg-primary hover:bg-primary/90 text-white rounded-lg px-3 py-1.5 flex items-center gap-1.5 transition-colors shadow-sm"
+                                  >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span className="text-xs font-bold">Pay Bill</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
@@ -2878,7 +3081,14 @@ export default function FinanceTracker() {
                 <p className="text-rose-700/80 text-sm font-medium mt-0.5">Sum of all pending and overdue active payables</p>
               </div>
             </div>
-            <div className="mt-4 md:mt-0 px-5 py-3 bg-white rounded-xl shadow-sm border border-rose-100 flex items-center justify-center min-w-[200px]">
+            <div className="mt-4 md:mt-0 flex flex-col sm:flex-row items-center gap-4">
+              <button 
+                onClick={() => setAddCcBillModalOpen(true)}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2"
+              >
+                <CreditCard className="w-4 h-4" /> Add CC Bill
+              </button>
+              <div className="px-5 py-3 bg-white rounded-xl shadow-sm border border-rose-100 flex items-center justify-center min-w-[200px]">
                <AnimatePresence mode="popLayout">
                  <motion.div 
                    key={pendingPayablesBalance}
@@ -2891,6 +3101,7 @@ export default function FinanceTracker() {
                    ₹{pendingPayablesBalance.toLocaleString("en-IN")}
                  </motion.div>
                </AnimatePresence>
+            </div>
             </div>
           </div>
           {renderLedgerLogsTable("Pending Payables", "All outstanding expenses and outlays")}
@@ -3582,7 +3793,438 @@ export default function FinanceTracker() {
         )}
       </AnimatePresence>
 
-{/* Slide-over Form Drawer Modal */}
+{/* Adjust Credit Card Balance Modal */}
+      <AnimatePresence>
+        {adjustCcBalanceModalOpen && adjustCcAccount && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <div 
+              onClick={() => setAdjustCcBalanceModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col overflow-hidden text-left"
+            >
+              <div className="flex justify-between items-center border-b border-border p-4 bg-slate-50/50">
+                <h3 className="text-lg font-bold text-primary flex items-center gap-2">
+                  <SlidersHorizontal className="w-5 h-5 text-indigo-600" />
+                  Adjust CC Balance
+                </h3>
+                <button 
+                  onClick={() => setAdjustCcBalanceModalOpen(false)}
+                  className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                  <p className="text-xs text-indigo-800 font-medium">
+                    Manually adjust the ledger balance for <span className="font-bold">{adjustCcAccount.name}</span>. This creates a correction entry to account for missing interest charges, EMIs, or fees.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Current Debt
+                    </label>
+                    <div className="bg-slate-100 rounded-xl py-2.5 px-3 border border-slate-200">
+                      <span className="text-sm font-semibold text-slate-500">₹{adjustCcCurrentBalance.toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Actual Debt
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        value={adjustCcNewBalance}
+                        onChange={(e) => setAdjustCcNewBalance(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Reason / Description
+                  </label>
+                  <input
+                    type="text"
+                    value={adjustCcReason}
+                    onChange={(e) => setAdjustCcReason(e.target.value)}
+                    placeholder="Interest / EMI / Fee Adjustment"
+                    className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                  />
+                </div>
+                
+                {parseFloat(adjustCcNewBalance) !== adjustCcCurrentBalance && !isNaN(parseFloat(adjustCcNewBalance)) && (
+                  <div className="pt-2">
+                    <p className="text-xs text-slate-500 font-medium">
+                      A <span className="font-bold text-slate-700">{parseFloat(adjustCcNewBalance) > adjustCcCurrentBalance ? "Debit (Expense)" : "Credit (Income)"}</span> entry of <span className="font-bold text-slate-700">₹{Math.abs(parseFloat(adjustCcNewBalance) - adjustCcCurrentBalance).toLocaleString("en-IN")}</span> will be created.
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
+                <button
+                  onClick={() => setAdjustCcBalanceModalOpen(false)}
+                  className="px-5 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmAdjustCcBalance}
+                  disabled={syncing || isNaN(parseFloat(adjustCcNewBalance)) || parseFloat(adjustCcNewBalance) === adjustCcCurrentBalance}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                >
+                  {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {syncing ? "Saving..." : "Update Balance"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+{/* Add Credit Card Bill Modal */}
+      <AnimatePresence>
+        {addCcBillModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <div 
+              onClick={() => setAddCcBillModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col overflow-hidden text-left"
+            >
+              <div className="flex justify-between items-center border-b border-border p-4 bg-slate-50/50">
+                <h3 className="text-lg font-bold text-primary flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-rose-600" />
+                  Add Credit Card Bill
+                </h3>
+                <button 
+                  onClick={() => setAddCcBillModalOpen(false)}
+                  className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Credit Card
+                  </label>
+                  <CustomSelect
+                    value={addCcBillAccountId}
+                    onChange={(val) => setAddCcBillAccountId(val)}
+                    placeholder="Select credit card..."
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary transition hover:border-slate-300"
+                    options={paymentAccounts.filter(a => a.type === 'credit_card').map(acc => ({
+                      value: acc.id,
+                      label: `${acc.name}`
+                    }))}
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Full Amount Due
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        value={addCcBillFullAmount}
+                        onChange={(e) => setAddCcBillFullAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                      Minimum Due
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        value={addCcBillMinAmount}
+                        onChange={(e) => setAddCcBillMinAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={addCcBillDueDate}
+                    onChange={(e) => setAddCcBillDueDate(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                  />
+                </div>
+                
+                <label className="flex items-start gap-3 p-3 mt-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
+                  <div className="mt-0.5">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      checked={addCcBillAdjustLedger}
+                      onChange={(e) => {
+                        setAddCcBillAdjustLedger(e.target.checked);
+                        if (e.target.checked && addCcBillAccountId) {
+                          const b = accountBalances[addCcBillAccountId] || { current: 0 };
+                          setAdjustCcCurrentBalance(-b.current);
+                          setAdjustCcNewBalance(addCcBillFullAmount || (-b.current).toString());
+                          setAdjustCcReason("Auto-adjustment to match Statement Bill");
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-800">Adjust Ledger Balance</p>
+                    <p className="text-[10px] font-medium text-slate-500 mt-0.5 leading-relaxed">
+                      Manually adjust the credit card's outstanding balance along with adding the bill.
+                    </p>
+                  </div>
+                </label>
+
+                {addCcBillAdjustLedger && !addCcBillAccountId && (
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl mt-3">
+                    <p className="text-xs text-rose-700 font-medium">Please select a credit card first to adjust its balance.</p>
+                  </div>
+                )}
+                {addCcBillAdjustLedger && addCcBillAccountId && (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl mt-3 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          Current Debt
+                        </label>
+                        <div className="bg-slate-100 rounded-xl py-2.5 px-3 border border-slate-200">
+                          <span className="text-sm font-semibold text-slate-500">₹{adjustCcCurrentBalance.toLocaleString("en-IN")}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                          Actual Debt
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                          <input
+                            type="number"
+                            value={adjustCcNewBalance}
+                            onChange={(e) => setAdjustCcNewBalance(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                        Reason / Description
+                      </label>
+                      <input
+                        type="text"
+                        value={adjustCcReason}
+                        onChange={(e) => setAdjustCcReason(e.target.value)}
+                        placeholder="Interest / EMI / Fee Adjustment"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                      />
+                    </div>
+                    
+                    {parseFloat(adjustCcNewBalance) !== adjustCcCurrentBalance && !isNaN(parseFloat(adjustCcNewBalance)) && (
+                      <div className="pt-1">
+                        <p className="text-xs text-slate-500 font-medium">
+                          A <span className="font-bold text-slate-700">{parseFloat(adjustCcNewBalance) > adjustCcCurrentBalance ? "Debit (Expense)" : "Credit (Income)"}</span> entry of <span className="font-bold text-slate-700">₹{Math.abs(parseFloat(adjustCcNewBalance) - adjustCcCurrentBalance).toLocaleString("en-IN")}</span> will be created.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
+                <button
+                  onClick={() => setAddCcBillModalOpen(false)}
+                  className="px-5 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmAddCcBill}
+                  disabled={syncing}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                >
+                  {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {syncing ? "Adding..." : "Add Bill"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+{/* Pay Credit Card Bill Modal */}
+      <AnimatePresence>
+        {payCcModalOpen && payCcAccount && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <div 
+              onClick={() => setPayCcModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col overflow-hidden text-left"
+            >
+              <div className="flex justify-between items-center border-b border-border p-4 bg-slate-50/50">
+                <h3 className="text-lg font-bold text-primary flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-amber-600" />
+                  Pay Credit Card Bill
+                </h3>
+                <button 
+                  onClick={() => setPayCcModalOpen(false)}
+                  className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-5">
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Card / Account
+                  </p>
+                  <p className="text-sm font-bold text-slate-800">{payCcAccount.name}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Payment Amount Option
+                  </p>
+                  <div className="space-y-2">
+                    <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-colors ${payCcAmountType === 'full' ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-slate-200 hover:border-slate-300'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${payCcAmountType === 'full' ? 'border-primary' : 'border-slate-300'}`}>
+                          {payCcAmountType === 'full' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">Full Amount</span>
+                      </div>
+                      <span className="text-sm font-extrabold text-slate-900">₹{payCcOutstanding.toLocaleString("en-IN")}</span>
+                      <input 
+                        type="radio" 
+                        name="ccAmount" 
+                        className="hidden" 
+                        checked={payCcAmountType === 'full'} 
+                        onChange={() => setPayCcAmountType('full')} 
+                      />
+                    </label>
+                    
+                    <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-colors ${payCcAmountType === 'minimum' ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-slate-200 hover:border-slate-300'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${payCcAmountType === 'minimum' ? 'border-primary' : 'border-slate-300'}`}>
+                          {payCcAmountType === 'minimum' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">Minimum Amount <span className="text-[10px] text-slate-400 ml-1 font-normal">(5%)</span></span>
+                      </div>
+                      <span className="text-sm font-extrabold text-slate-900">₹{(payCcOutstanding * 0.05).toLocaleString("en-IN")}</span>
+                      <input 
+                        type="radio" 
+                        name="ccAmount" 
+                        className="hidden" 
+                        checked={payCcAmountType === 'minimum'} 
+                        onChange={() => setPayCcAmountType('minimum')} 
+                      />
+                    </label>
+                    
+                    <label className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-colors ${payCcAmountType === 'custom' ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-slate-200 hover:border-slate-300'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${payCcAmountType === 'custom' ? 'border-primary' : 'border-slate-300'}`}>
+                          {payCcAmountType === 'custom' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                        </div>
+                        <span className="text-sm font-semibold text-slate-700">Custom Statement Amount</span>
+                      </div>
+                      <input 
+                        type="radio" 
+                        name="ccAmount" 
+                        className="hidden" 
+                        checked={payCcAmountType === 'custom'} 
+                        onChange={() => setPayCcAmountType('custom')} 
+                      />
+                    </label>
+                    {payCcAmountType === 'custom' && (
+                      <div className="mt-2 animate-in fade-in slide-in-from-top-2">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                          <input
+                            type="number"
+                            value={payCcCustomAmount}
+                            onChange={(e) => setPayCcCustomAmount(e.target.value)}
+                            placeholder="Enter exact bill amount..."
+                            className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Pay From (Asset Account)
+                  </label>
+                  <CustomSelect
+                    value={payCcSourceAccountId}
+                    onChange={(val) => setPayCcSourceAccountId(val)}
+                    placeholder="Select payment source..."
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary transition hover:border-slate-300"
+                    options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements' && a.type !== 'credit_card' && a.type !== 'loan').map(acc => ({
+                      value: acc.id,
+                      label: `${acc.name} (₹${(accountBalances[acc.id]?.current ?? acc.openingBalance).toLocaleString("en-IN")})`
+                    }))}
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
+                <button
+                  onClick={() => setPayCcModalOpen(false)}
+                  className="px-5 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmPayCreditCardBill}
+                  disabled={syncing}
+                  className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                >
+                  {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {syncing ? "Processing..." : "Pay Bill"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* Slide-over Form Drawer Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           

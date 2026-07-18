@@ -135,6 +135,11 @@ export interface FinanceRecord {
   isReceivableFromClient?: boolean;
   isReimbursed?: boolean;
   invoiceId?: string;
+  ccBillDetails?: {
+    fullAmount: number;
+    minAmount: number;
+    dueDate: string;
+  };
 }
 
 export interface UserProfile {
