@@ -77,7 +77,16 @@ export const todoService = {
  });
  },
 
- createTodo: async (todoData: Omit<Todo, 'id' | 'createdAt'>) => {
+ getTodosOnce: async (userId: string): Promise<Todo[]> => {
+    try {
+      const q = query(collection(db, COLLECTION_NAME), where('userId', '==', userId));
+      const snapshot = await import('firebase/firestore').then(m => m.getDocs(q));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Todo));
+    } catch (e) {
+      return [];
+    }
+  },
+  createTodo: async (todoData: Omit<Todo, 'id' | 'createdAt'>) => {
  try {
  const newTodo = {
  ...todoData,

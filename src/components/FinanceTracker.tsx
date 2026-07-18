@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import {  FinanceRecord, PaymentAccount } from "../types";
 import {  financeService } from "../services/financeService";
+import { todoService } from "../services/todoService";
 import { 
   TrendingUp,
   TrendingDown,
@@ -332,6 +333,52 @@ export default function FinanceTracker() {
   const [payCcPendingBillId, setPayCcPendingBillId] = useState<string | null>(null);
   const [addCcBillModalOpen, setAddCcBillModalOpen] = useState(false);
   const [addCcBillAccountId, setAddCcBillAccountId] = useState("");
+
+  const handleSyncPayables = async () => {
+    if (!auth.currentUser) return;
+    try {
+      setSyncing(true);
+      const pendingPayables = records.filter(r => r.type === 'expense' && r.status !== 'paid');
+      const allTodos = await todoService.getTodosOnce(auth.currentUser.uid);
+      
+      let added = 0;
+      for (const payable of pendingPayables) {
+        const title = `Pay ${payable.category}: ${payable.description || payable.amount}`;
+        let dueDateMillis = null;
+        if (payable.ccBillDetails && payable.ccBillDetails.dueDate) {
+          dueDateMillis = new Date(payable.ccBillDetails.dueDate).getTime();
+        } else if (payable.date) {
+          dueDateMillis = new Date(payable.date).getTime();
+        }
+
+        const exists = allTodos.some(t => t.title === title && t.dueDate === dueDateMillis);
+        if (!exists && dueDateMillis) {
+          await todoService.createTodo({
+            userId: auth.currentUser.uid,
+            title,
+            description: `Amount: ₹${payable.amount.toLocaleString("en-IN")}\nCategory: ${payable.category}`,
+            completed: false,
+            dueDate: dueDateMillis,
+            projectId: 'inbox',
+            priority: 1
+          });
+          added++;
+        }
+      }
+      
+      if (added > 0) {
+        toast.success(`Synced ${added} payables to tasks!`);
+      } else {
+        toast.success(`All payables are already synced.`);
+      }
+    } catch (err) {
+      toast.error("Failed to sync payables");
+      console.error(err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const [addCcBillFullAmount, setAddCcBillFullAmount] = useState("");
   const [addCcBillMinAmount, setAddCcBillMinAmount] = useState("");
   const [addCcBillDueDate, setAddCcBillDueDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -1325,6 +1372,14 @@ export default function FinanceTracker() {
 
           if (!hasEmiThisMonth) {
             const dueDay = acc.emiDueDate ? parseInt(acc.emiDueDate, 10) : 1;
+            
+            // Start EMI from next month if due date is before the creation date in the current month
+            const createdDate = new Date(acc.createdAt);
+            const isCreatedThisMonth = createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
+            
+            if (isCreatedThisMonth && dueDay < createdDate.getDate()) {
+              continue;
+            }
             const dueDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
 
             try {
@@ -3157,6 +3212,13 @@ export default function FinanceTracker() {
               </div>
             </div>
             <div className="mt-4 md:mt-0 flex flex-col sm:flex-row items-center gap-4">
+              <button 
+                onClick={handleSyncPayables}
+                disabled={syncing}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} /> Sync to Tasks
+              </button>
               <button 
                 onClick={() => setAddCcBillModalOpen(true)}
                 className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2"

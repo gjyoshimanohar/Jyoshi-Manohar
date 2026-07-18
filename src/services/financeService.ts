@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { FinanceRecord, PaymentAccount } from '../types';
+import { todoService } from './todoService';
 
 const COLLECTION_NAME = 'finances';
 const ACCOUNTS_COLLECTION = 'payment_accounts';
@@ -87,6 +88,32 @@ export const financeService = {
         createdAt: Date.now()
       };
       await setDoc(newDocRef, newRecord);
+
+      // Create a task if it's a CC bill or EMI
+      try {
+        if (newRecord.category === 'Credit Card Bill' || newRecord.category === 'Loan EMI' || newRecord.category === 'EMI') {
+          let dueDateMillis = null;
+          if (newRecord.ccBillDetails && newRecord.ccBillDetails.dueDate) {
+            dueDateMillis = new Date(newRecord.ccBillDetails.dueDate).getTime();
+          } else if (newRecord.date) {
+            dueDateMillis = new Date(newRecord.date).getTime();
+          }
+
+          if (dueDateMillis && auth.currentUser) {
+            await todoService.createTodo({
+              userId: auth.currentUser.uid,
+              title: `Pay ${newRecord.category}: ${newRecord.description || newRecord.amount}`,
+              description: `Amount: ₹${newRecord.amount.toLocaleString("en-IN")}\nCategory: ${newRecord.category}`,
+              completed: false,
+              dueDate: dueDateMillis,
+              projectId: 'inbox',
+              priority: 1
+            });
+          }
+        }
+      } catch (taskErr) {
+        console.error("Failed to sync finance record to Tasks", taskErr);
+      }
       return newRecord;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, COLLECTION_NAME);
