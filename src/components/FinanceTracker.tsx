@@ -16,7 +16,6 @@ import {
 } from "firebase/firestore";
 import {  FinanceRecord, PaymentAccount } from "../types";
 import {  financeService } from "../services/financeService";
-import { todoService } from "../services/todoService";
 import { 
   TrendingUp,
   TrendingDown,
@@ -334,51 +333,7 @@ export default function FinanceTracker() {
   const [addCcBillModalOpen, setAddCcBillModalOpen] = useState(false);
   const [addCcBillAccountId, setAddCcBillAccountId] = useState("");
 
-  const handleSyncPayables = async () => {
-    if (!auth.currentUser) return;
-    try {
-      setSyncing(true);
-      const pendingPayables = records.filter(r => r.type === 'expense' && r.status !== 'paid');
-      const allTodos = await todoService.getTodosOnce(auth.currentUser.uid);
-      
-      let added = 0;
-      for (const payable of pendingPayables) {
-        const title = `Pay ${payable.category}: ${payable.description || payable.amount}`;
-        let dueDateMillis = null;
-        if (payable.ccBillDetails && payable.ccBillDetails.dueDate) {
-          dueDateMillis = new Date(payable.ccBillDetails.dueDate).getTime();
-        } else if (payable.date) {
-          dueDateMillis = new Date(payable.date).getTime();
-        }
-
-        const exists = allTodos.some(t => t.title === title && t.dueDate === dueDateMillis);
-        if (!exists && dueDateMillis) {
-          await todoService.createTodo({
-            userId: auth.currentUser.uid,
-            title,
-            description: `Amount: ₹${payable.amount.toLocaleString("en-IN")}\nCategory: ${payable.category}`,
-            completed: false,
-            dueDate: dueDateMillis,
-            projectId: 'inbox',
-            priority: 1
-          });
-          added++;
-        }
-      }
-      
-      if (added > 0) {
-        toast.success(`Synced ${added} payables to tasks!`);
-      } else {
-        toast.success(`All payables are already synced.`);
-      }
-    } catch (err) {
-      toast.error("Failed to sync payables");
-      console.error(err);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
+  
   const [addCcBillFullAmount, setAddCcBillFullAmount] = useState("");
   const [addCcBillMinAmount, setAddCcBillMinAmount] = useState("");
   const [addCcBillDueDate, setAddCcBillDueDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -1414,6 +1369,46 @@ export default function FinanceTracker() {
 
     generateEmis();
   }, [loading, records.length, paymentAccounts.length]);
+
+  const payablesChartData = useMemo(() => {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const today = new Date();
+    let currentMonth = today.getMonth();
+    let currentYear = today.getFullYear();
+
+    const result = [];
+    for (let i = 0; i < 6; i++) {
+      result.push({
+        name: `${monthNames[currentMonth]} ${currentYear}`,
+        amount: 0,
+        monthStr: String(currentMonth + 1).padStart(2, '0'),
+        yearStr: String(currentYear)
+      });
+
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+    }
+
+    records.forEach(rec => {
+      if (rec.type === 'expense' && (rec.status === 'pending' || rec.status === 'overdue') && !rec.isReimbursed && !rec.isReceivableFromClient) {
+        const recScope = rec.scope || "business";
+        if (selectedScope !== "all" && recScope !== selectedScope) return;
+        
+        const recYear = rec.date.split("-")[0];
+        const recMonth = rec.date.split("-")[1];
+        
+        const targetObj = result.find(r => r.monthStr === recMonth && r.yearStr === recYear);
+        if (targetObj) {
+          targetObj.amount += rec.amount;
+        }
+      }
+    });
+
+    return result;
+  }, [records, selectedScope]);
 
   // Aggregate Metrics based on ALL records for selected month, year, and scope (ignores type/category filters for context)
   const metrics = useMemo(() => {
@@ -3224,13 +3219,6 @@ export default function FinanceTracker() {
             </div>
             <div className="mt-4 md:mt-0 flex flex-col sm:flex-row items-center gap-4">
               <button 
-                onClick={handleSyncPayables}
-                disabled={syncing}
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} /> Sync to Tasks
-              </button>
-              <button 
                 onClick={() => setAddCcBillModalOpen(true)}
                 className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2"
               >
@@ -3252,6 +3240,29 @@ export default function FinanceTracker() {
             </div>
             </div>
           </div>
+          
+          <div className="bg-white border border-border rounded-2xl p-6 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-800 tracking-tight mb-4 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-rose-500" />
+              Payables Cash Flow Projection (Next 6 Months)
+            </h3>
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={payablesChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
+                  <Tooltip
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    formatter={(value: any) => [`₹${Number(value).toLocaleString("en-IN")}`, 'Amount']}
+                  />
+                  <Bar dataKey="amount" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
           {renderLedgerLogsTable("Pending Payables", "All outstanding expenses and outlays")}
         </div>
       )}

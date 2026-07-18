@@ -89,9 +89,9 @@ export const financeService = {
       };
       await setDoc(newDocRef, newRecord);
 
-      // Create a task if it's a CC bill or EMI
+      // Auto-create a task if it's a pending expense (payable)
       try {
-        if (newRecord.category === 'Credit Card Bill' || newRecord.category === 'Loan EMI' || newRecord.category === 'EMI') {
+        if (newRecord.type === 'expense' && (newRecord.status === 'pending' || newRecord.status === 'overdue') && !newRecord.isReimbursed && !newRecord.isReceivableFromClient) {
           let dueDateMillis = null;
           if (newRecord.ccBillDetails && newRecord.ccBillDetails.dueDate) {
             dueDateMillis = new Date(newRecord.ccBillDetails.dueDate).getTime();
@@ -107,7 +107,12 @@ export const financeService = {
               completed: false,
               dueDate: dueDateMillis,
               projectId: 'inbox',
-              priority: 1
+              priority: 1,
+              tags: ['payable'],
+              metadata: {
+                payableAmount: newRecord.amount,
+                paidAmount: 0
+              }
             });
           }
         }
