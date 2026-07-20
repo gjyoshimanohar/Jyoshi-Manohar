@@ -16,6 +16,8 @@ import {
 } from "firebase/firestore";
 import {  FinanceRecord, PaymentAccount } from "../types";
 import {  financeService } from "../services/financeService";
+import { DayPicker, DateRange } from "react-day-picker";
+import { format, parseISO } from "date-fns";
 import { 
   TrendingUp,
   TrendingDown,
@@ -331,6 +333,15 @@ export default function FinanceTracker() {
 
   // Add CC Bill States
   const [payCcMinAmount, setPayCcMinAmount] = useState(0);
+
+  // Export Modal States
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportReportType, setExportReportType] = useState<"expenses" | "income" | "payable" | "receivables">("expenses");
+  const [exportPeriod, setExportPeriod] = useState<"all" | "this_month" | "last_month" | "custom">("this_month");
+  const [exportFormat, setExportFormat] = useState<"excel" | "pdf">("excel");
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
+  
   const [payCcPendingBillId, setPayCcPendingBillId] = useState<string | null>(null);
   const [addCcBillModalOpen, setAddCcBillModalOpen] = useState(false);
   const [addCcBillAccountId, setAddCcBillAccountId] = useState("");
@@ -1603,15 +1614,62 @@ export default function FinanceTracker() {
     };
   }, [filteredRecords]);
 
+  const executeExport = () => {
+    let recordsToExport = records;
+
+    // Filter by report type
+    if (exportReportType === "expenses") {
+      recordsToExport = recordsToExport.filter(r => r.type === "expense" && r.status === "paid");
+    } else if (exportReportType === "income") {
+      recordsToExport = recordsToExport.filter(r => r.type === "income" && r.status === "paid");
+    } else if (exportReportType === "payable") {
+      recordsToExport = recordsToExport.filter(r => r.type === "expense" && r.status !== "paid");
+    } else if (exportReportType === "receivables") {
+      recordsToExport = recordsToExport.filter(r => r.type === "income" && r.status !== "paid");
+    }
+
+    // Filter by period
+    if (exportPeriod !== "all") {
+      let sDate = new Date();
+      let eDate = new Date();
+      if (exportPeriod === "this_month") {
+        sDate.setDate(1);
+        eDate.setMonth(eDate.getMonth() + 1);
+        eDate.setDate(0);
+      } else if (exportPeriod === "last_month") {
+        sDate.setMonth(sDate.getMonth() - 1);
+        sDate.setDate(1);
+        eDate.setDate(0);
+      } else if (exportPeriod === "custom") {
+        sDate = new Date(exportStartDate);
+        eDate = new Date(exportEndDate);
+      }
+      
+      const sDateStr = sDate.toISOString().split("T")[0];
+      const eDateStr = eDate.toISOString().split("T")[0];
+
+      recordsToExport = recordsToExport.filter(r => {
+        return r.date >= sDateStr && r.date <= eDateStr;
+      });
+    }
+
+    if (exportFormat === "excel") {
+      handleExportExcel(recordsToExport);
+    } else {
+      handleExportPDF(recordsToExport);
+    }
+    setIsExportModalOpen(false);
+  };
+
   // Export CSV of Filtered Records
-  const handleExportCSV = () => {
-    if (filteredRecords.length === 0) {
+  const handleExportCSV = (recordsToExport: FinanceRecord[] = filteredRecords) => {
+    if (recordsToExport.length === 0) {
       toast.error("No transactions available to export.");
       return;
     }
 
     const headers = ["ID", "Type", "Category", "Amount", "Description", "Date", "Status", "Client Name", "Source Account", "Destination Account"];
-    const rows = filteredRecords.map(rec => {
+    const rows = recordsToExport.map(rec => {
       const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "";
       const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "";
       return [
@@ -1640,8 +1698,8 @@ export default function FinanceTracker() {
   };
 
   // Export Excel of Filtered Records
-  const handleExportExcel = () => {
-    if (filteredRecords.length === 0) {
+  const handleExportExcel = (recordsToExport: FinanceRecord[] = filteredRecords) => {
+    if (recordsToExport.length === 0) {
       toast.error("No transactions available to export.");
       return;
     }
@@ -1703,8 +1761,8 @@ export default function FinanceTracker() {
   };
 
   // Export PDF of Filtered Records
-  const handleExportPDF = () => {
-    if (filteredRecords.length === 0) {
+  const handleExportPDF = (recordsToExport: FinanceRecord[] = filteredRecords) => {
+    if (recordsToExport.length === 0) {
       toast.error("No transactions available to export.");
       return;
     }
@@ -1841,386 +1899,83 @@ export default function FinanceTracker() {
 
   const renderLedgerLogsTable = (title: string, subtitle: string, defaultFormTypeToAdd?: "income" | "expense" | "transfer") => {
     return (
-      <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
-        
-        {/* Table Header toolbar */}
+      <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm mt-6 mb-6">
         {selectedRecordIds.length > 0 ? (
           <div className="px-6 py-4 border-b border-border bg-indigo-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <span className="text-indigo-700 font-bold text-sm">{selectedRecordIds.length} record(s) selected</span>
             <div className="flex gap-2">
-              <button
+              <button 
                 onClick={handleBulkMarkAsPaid}
-                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                {activeTab === "payables" ? "Mark as Paid" : "Mark as Received"}
-              </button>
-              <button
-                onClick={() => setSelectedRecordIds([])}
-                className="px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold transition"
-              >
-                Cancel
+                Mark as Paid / Received
               </button>
             </div>
           </div>
         ) : (
-          <div className="px-6 py-5 border-b border-border bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h3 className="text-base font-bold text-primary tracking-tight">{title}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Showing {filteredRecords.length} of {records.length} total logged transactions.</p>
+          <div className="px-6 py-4 border-b border-border bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <h3 className="font-bold text-primary">{title}</h3>
+              <span className="text-xs font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">{filteredRecords.length} records</span>
             </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Date Range</span>
-                <input 
-                  type="date" 
-                  value={filterStartDate} 
-                  onChange={(e) => setFilterStartDate(e.target.value)}
-                  className="bg-white border border-slate-200 rounded py-1 px-2 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
-                />
-                <span className="text-gray-400 text-xs">to</span>
-                <input 
-                  type="date" 
-                  value={filterEndDate} 
-                  onChange={(e) => setFilterEndDate(e.target.value)}
-                  className="bg-white border border-slate-200 rounded py-1 px-2 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sort By</span>
-                <CustomSelect
-                  value={sortBy}
-                  onChange={(val) => setSortBy(val as any)}
-                  className="bg-white border border-slate-200 rounded py-1 px-2 text-xs font-medium text-primary outline-none min-w-[100px]"
-                  options={[
-                    { value: "date", label: "Date" },
-                    { value: "amount", label: "Amount" },
-                    { value: "category", label: "Category" },
-                    { value: "status", label: "Status" }
-                  ]}
-                />
-                <button
-                  onClick={() => setSortOrder(prev => prev === "desc" ? "asc" : "desc")}
-                  className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
-                  title={sortOrder === "desc" ? "Descending" : "Ascending"}
-                >
-                  <ArrowLeftRight className={`w-4 h-4 transition-transform ${sortOrder === 'asc' ? 'rotate-90' : '-rotate-90'}`} />
-                </button>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setIsExportModalOpen(true)}
+                className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer"
+                title="Export Reports"
+              >
+                <Download className="w-4 h-4 text-slate-600" />
+                <span>Export</span>
+              </button>
+              <button
+                onClick={() => handleOpenAddModal(defaultFormTypeToAdd)}
+                className="flex items-center space-x-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Transaction</span>
+              </button>
             </div>
           </div>
         )}
-
-        {/* Real Table */}
+        
         <div className="overflow-x-auto">
-          {filteredRecords.length === 0 ? (
-            <div className="p-20 text-center flex flex-col items-center">
-              <Building className="w-10 h-10 text-gray-300 mb-3" />
-              <p className="text-slate-600 font-semibold italic text-sm">No transaction records match active filters.</p>
-              <button
-                onClick={() => handleOpenAddModal(defaultFormTypeToAdd)}
-                className="mt-4 flex items-center space-x-1.5 bg-primary hover:bg-primary/90 text-white text-xs px-4 py-2 rounded-lg font-bold transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Log first transaction</span>
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto"><table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-border text-slate-400 font-bold uppercase text-[10px] tracking-widest">
-                  <th className="py-4 px-4 w-12 text-center">
-                    <input 
-                      type="checkbox" 
-                      className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
-                      checked={filteredRecords.length > 0 && selectedRecordIds.length === filteredRecords.length}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedRecordIds(filteredRecords.map(r => r.id));
-                        } else {
-                          setSelectedRecordIds([]);
-                        }
-                      }}
-                    />
-                  </th>
-                  <th className="py-4 px-6">Date</th>
-                  <th className="py-4 px-6 text-center">Book</th>
-                  <th className="py-4 px-6">Category</th>
-                  <th className="py-4 px-6">Description / Client</th>
-                  <th className="py-4 px-6 text-center">Status</th>
-                  <th className="py-4 px-6 text-center">Source</th>
-                  <th className="py-4 px-6 text-right">Amount</th>
-                  <th className="py-4 px-6 text-center">Actions</th>
+          <table className="w-full whitespace-nowrap text-left text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="px-6 py-3 font-semibold">Date</th>
+                <th className="px-6 py-3 font-semibold">Description</th>
+                <th className="px-6 py-3 font-semibold">Category</th>
+                <th className="px-6 py-3 font-semibold">Type</th>
+                <th className="px-6 py-3 font-semibold text-right">Amount</th>
+                <th className="px-6 py-3 font-semibold text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredRecords.map(record => (
+                <tr key={record.id} className="hover:bg-slate-50/50 transition">
+                  <td className="px-6 py-4">{new Date(record.date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 font-medium text-slate-900">{record.description || record.clientName || "-"}</td>
+                  <td className="px-6 py-4">{record.category}</td>
+                  <td className="px-6 py-4 uppercase text-xs font-bold tracking-wider">{record.type}</td>
+                  <td className="px-6 py-4 text-right font-semibold">₹{record.amount.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${record.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : record.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {record.status}
+                    </span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="text-xs divide-y divide-border font-medium">
-                {filteredRecords.map((rec) => {
-                  const isIncome = rec.type === "income";
-                  const isTransfer = rec.type === "transfer";
-                  const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "--";
-                  const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "--";
-
-                  return (
-                    <tr key={rec.id} className={`transition-colors ${selectedRecordIds.includes(rec.id) ? 'bg-indigo-50/50' : 'hover:bg-slate-50/80'}`}>
-                      {/* Selection */}
-                      <td className="py-4 px-4 text-center">
-                        <input 
-                          type="checkbox" 
-                          className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
-                          checked={selectedRecordIds.includes(rec.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedRecordIds(prev => [...prev, rec.id]);
-                            } else {
-                              setSelectedRecordIds(prev => prev.filter(id => id !== rec.id));
-                            }
-                          }}
-                        />
-                      </td>
-                      {/* Date */}
-                      <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
-                        <span className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {new Date(rec.date).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric"
-                          })}
-                        </span>
-                      </td>
-
-                      {/* Scope */}
-                      <td className="py-4 px-6 text-center font-bold">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${
-                          rec.scope === "personal" 
-                            ? "bg-rose-50 text-rose-700 border border-rose-100" 
-                            : "bg-[#1a2b58]/5 text-[#1a2b58] border border-[#1a2b58]/10"
-                        }`}>
-                          {rec.scope === "personal" ? "Private" : "Corporate"}
-                        </span>
-                      </td>
-
-                      {/* Category */}
-                      <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          isTransfer
-                            ? "bg-blue-50 text-blue-700 border border-blue-100"
-                            : isIncome 
-                              ? "bg-indigo-50/80 text-primary" 
-                              : "bg-amber-50/80 text-amber-800"
-                        }`}>
-                          {isTransfer ? (
-                            <ArrowLeftRight className="w-3 h-3 shrink-0 text-blue-500" />
-                          ) : (
-                            <Tag className="w-3 h-3 shrink-0" />
-                          )}
-                          {rec.category}
-                        </span>
-                      </td>
-
-                      {/* Description & Client */}
-                      <td className="py-4 px-6 font-semibold text-primary max-w-sm truncate" title={rec.description}>
-                        {rec.description || "N/A"}
-                        {rec.clientName && (
-                          <div className="flex items-center gap-1.5 mt-1.5 text-gray-600 font-normal">
-                            <span className="p-1 bg-slate-100 rounded-full text-slate-500">
-                              <User className="w-3 h-3" />
-                            </span>
-                            <span className="truncate text-[11px]">{rec.clientName}</span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-4 px-6 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <AnimatePresence mode="popLayout">
-                            <motion.span
-                              key={rec.status}
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8, position: 'absolute' }}
-                              transition={{ duration: 0.2 }}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                rec.status === "paid" 
-                                  ? "bg-green-50 text-green-700 border border-green-200" 
-                                  : rec.status === "overdue"
-                                    ? "bg-red-50 text-red-700 border border-red-200"
-                                    : "bg-yellow-50 text-yellow-800 border border-yellow-200"
-                              }`}
-                            >
-                              {rec.status === "paid" && <Check className="w-2.5 h-2.5" />}
-                              {rec.status === "pending" && <AlertCircle className="w-2.5 h-2.5" />}
-                              {rec.status === "overdue" && <AlertCircle className="w-2.5 h-2.5" />}
-                              {rec.status}
-                            </motion.span>
-                          </AnimatePresence>
-                          {((rec.status === "pending" || rec.status === "overdue") || (rec.type === "expense" && rec.isReceivableFromClient)) && (
-                            <button
-                              onClick={() => handleMarkAsPaid(rec)}
-                              title={rec.type === "expense" && !rec.isReceivableFromClient ? "Mark as Paid" : "Mark as Received"} className="p-1 rounded-full text-green-600 hover:bg-green-100 hover:text-green-700 transition"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Method / Source */}
-                      <td className="py-4 px-6 text-center font-bold text-slate-600">
-                        {isTransfer ? (
-                          <div className="flex flex-col items-center text-[10px] text-blue-700 bg-blue-50/50 px-2 py-1 rounded-lg border border-blue-100">
-                            <span className="flex items-center gap-1 font-semibold">
-                              <ArrowLeftRight className="w-3 h-3 text-blue-500" /> Transfer
-                            </span>
-                            <span className="text-[9px] text-slate-500 mt-0.5">{sourceAcc} → {destAcc}</span>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center">
-                            <span className="text-slate-700 text-[11px]">{rec.paymentMode || "Cash"}</span>
-                            {rec.paymentAccountId && (
-                              <span className="text-[9px] text-gray-400 font-semibold mt-0.5">({sourceAcc})</span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Amount */}
-                      <td className={`py-4 px-6 text-right font-extrabold text-sm whitespace-nowrap ${
-                        isTransfer 
-                          ? "text-blue-600" 
-                          : isIncome 
-                            ? "text-green-600" 
-                            : "text-primary"
-                      }`}>
-                        {isTransfer ? "⇆" : (isIncome ? "+" : "-")} ₹{rec.amount.toLocaleString("en-IN")}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-4 px-6 text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          <button
-                            onClick={() => handleOpenEditModal(rec)}
-                            className="p-1.5 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-lg transition"
-                            title="Edit"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          
-                          {confirmDeleteId === rec.id ? (
-                            <div className="flex items-center space-x-1.5 z-10 bg-slate-50 border p-1 rounded-md">
-                              <span className="text-[10px] font-bold text-red-500">Confirm?</span>
-                              <button 
-                                onClick={() => handleDeleteTransaction(rec.id)} 
-                                className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold"
-                              >
-                                Yes
-                              </button>
-                              <button 
-                                onClick={() => setConfirmDeleteId(null)} 
-                                className="px-1.5 py-0.5 bg-slate-300 text-slate-800 rounded text-[9px] font-bold"
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setConfirmDeleteId(rec.id)}
-                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table></div>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
   };
-
-  if (auth.currentUser?.email !== "gjyoshimanohar@gmail.com") {
-    return (
-      <div className="p-12 text-center bg-white border border-red-100 rounded-3xl max-w-xl mx-auto shadow-sm mt-8">
-        <div className="text-red-500 mb-4">
-          <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <h2 className="text-2xl text-red-600 font-bold mb-2">Access Restricted</h2>
-        <p className="text-slate-600">You do not have administrative clearance to access the Finance Tracker module.</p>
-      </div>
-    );
-  }
-
+  
   return (
-    <div className="space-y-8 text-left font-sans animate-fade-in">
-      
-      {/* Upper Title and Seeder / Exporter Toolbar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border pb-5">
-        <div className="flex items-start sm:items-center gap-4">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 -ml-2 mt-1 sm:mt-0 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors shrink-0 lg:hidden"
-            title="Toggle Sidebar"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          <div>
-            <h2 className="text-3xl font-bold text-primary tracking-tight">Monthly Finance Tracker</h2>
-            <p className="text-gray-500 font-medium mt-1">
-              Real-time corporate accounts audits, invoicing logs, income streams, and overhead trackers.
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer"
-            title="Download finances ledger as CSV"
-          >
-            <Download className="w-4 h-4 text-slate-600" />
-            <span>Export CSV</span>
-          </button>
+    <div className="w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer"
-            title="Download finance ledger formatted for MS Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-650" />
-            <span>Export Excel</span>
-          </button>
-
-          <button
-            onClick={handleExportPDF}
-            className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 cursor-pointer"
-            title="Generate professionally styled PDF financial ledger"
-          >
-            <FileText className="w-4 h-4 text-red-600" />
-            <span>Export PDF</span>
-          </button>
-
-          <button
-            onClick={() => handleOpenAddModal()}
-            className="flex items-center space-x-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-150 shadow-sm cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Transaction</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Pending Receivables Summary Bar */}
+    { /* Pending Receivables Summary Bar */ }
       {totalReceivables > 0 && (
         <div 
           onClick={() => {
@@ -2479,26 +2234,45 @@ export default function FinanceTracker() {
           </div>
         </div>
 
-        {/* Search Field */}
-        <div className="relative w-full sm:w-64 mt-2 sm:mt-0">
-          <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400" />
-          </span>
-          <input
-            type="text"
-            placeholder="Search descriptions/clients..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-accent border border-slate-200 rounded-lg py-2 pl-9 pr-4 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery("")}
-              className="absolute inset-y-0 right-0 flex items-center pr-3"
+        {/* Right side: Search and Actions */}
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto mt-2 lg:mt-0">
+          <div className="relative flex-grow sm:flex-grow-0 sm:w-64">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </span>
+            <input
+              type="text"
+              placeholder="Search descriptions/clients..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-accent border border-slate-200 rounded-lg py-2 pl-9 pr-4 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 flex items-center pr-3"
+              >
+                <X className="h-3 w-3 text-gray-400 hover:text-primary" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center justify-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-sm w-full sm:w-auto"
+              title="Export Reports"
             >
-              <X className="h-3 w-3 text-gray-400 hover:text-primary" />
+              <Download className="w-4 h-4 text-slate-600" />
+              <span>Export</span>
             </button>
-          )}
+            <button
+              onClick={() => handleOpenAddModal()}
+              className="flex items-center justify-center space-x-1.5 bg-primary hover:bg-primary/90 text-white px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-sm w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3909,9 +3683,151 @@ export default function FinanceTracker() {
         )}
       </AnimatePresence>
 
+            {/* Export Options Modal */}
+      <AnimatePresence>
+        {isExportModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center">
+                  <Download className="w-4 h-4 mr-2 text-primary" />
+                  Export Reports
+                </h3>
+                <button
+                  onClick={() => setIsExportModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-5">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Select Report
+                  </label>
+                  <CustomSelect
+                    value={exportReportType}
+                    onChange={(val) => setExportReportType(val as any)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 transition"
+                    options={[
+                      { value: "expenses", label: "Expenses" },
+                      { value: "income", label: "Income" },
+                      { value: "payable", label: "Payables" },
+                      { value: "receivables", label: "Receivables" },
+                    ]}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Period
+                  </label>
+                  <CustomSelect
+                    value={exportPeriod}
+                    onChange={(val) => setExportPeriod(val as any)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 transition"
+                    options={[
+                      { value: "all", label: "All Time" },
+                      { value: "this_month", label: "This Month" },
+                      { value: "last_month", label: "Last Month" },
+                      { value: "custom", label: "Custom Date Range" },
+                    ]}
+                  />
+                </div>
+
+                {exportPeriod === "custom" && (
+                  <div className="flex flex-col items-center bg-slate-50/50 border border-slate-200 rounded-xl p-4 overflow-hidden">
+                    <style>{ `
+                      .rdp {
+                        --rdp-cell-size: 32px;
+                        --rdp-accent-color: #0f172a;
+                        --rdp-background-color: #f1f5f9;
+                        margin: 0;
+                      }
+                      .rdp-day_selected {
+                        font-weight: bold;
+                      }
+                    ` }</style>
+                    <DayPicker
+                      mode="range"
+                      selected={{
+                        from: exportStartDate ? parseISO(exportStartDate) : undefined,
+                        to: exportEndDate ? parseISO(exportEndDate) : undefined,
+                      }}
+                      onSelect={(range: DateRange | undefined) => {
+                        setExportStartDate(range?.from ? format(range.from, "yyyy-MM-dd") : "");
+                        setExportEndDate(range?.to ? format(range.to, "yyyy-MM-dd") : "");
+                      }}
+                      className="p-0 border-0"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    Format
+                  </label>
+                  <div className="flex gap-4 mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="exportFormat"
+                        value="excel"
+                        checked={exportFormat === "excel"}
+                        onChange={() => setExportFormat("excel")}
+                        className="w-4 h-4 text-emerald-600 border-slate-300 focus:ring-emerald-500"
+                      />
+                      <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-900 transition flex items-center">
+                        <FileSpreadsheet className="w-4 h-4 mr-1 text-emerald-650" /> Excel
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="exportFormat"
+                        value="pdf"
+                        checked={exportFormat === "pdf"}
+                        onChange={() => setExportFormat("pdf")}
+                        className="w-4 h-4 text-red-600 border-slate-300 focus:ring-red-500"
+                      />
+                      <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-900 transition flex items-center">
+                        <FileText className="w-4 h-4 mr-1 text-red-600" /> PDF
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end space-x-3">
+                <button
+                  onClick={() => setIsExportModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider hover:bg-slate-200 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeExport}
+                  className="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition shadow-sm flex items-center"
+                >
+                  <Download className="w-4 h-4 mr-1.5" /> Generate Export
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Mark as Received Account Selection Modal */}
       <AnimatePresence>
-        {receiveModalOpen && (
+
+      {receiveModalOpen && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
             <motion.div 
               initial={{ opacity: 0 }} 
@@ -5015,3 +4931,4 @@ export default function FinanceTracker() {
     </div>
   );
 }
+

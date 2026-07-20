@@ -72,6 +72,7 @@ import {
   Users,
   Banknote,
   Wallet,
+  Copy,
 } from "lucide-react";
 import { Todo, Project, Folder as FolderType, TaskActivity } from "../types";
 import { auth, db } from "../lib/firebase";
@@ -1758,6 +1759,23 @@ export default function WorkspaceApp() {
     await todoService.updateTodo(todoId, { sectionName: targetSection });
   };
 
+  const handleDuplicateTodo = async (todoId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const todoToCopy = todos.find(t => t.id === todoId);
+    if (!todoToCopy || !auth.currentUser) return;
+    try {
+      const { id, createdAt, completed, completedAt, deletedAt, deleteReason, declineReason, activities, ...rest } = todoToCopy;
+      await todoService.createTodo({
+        ...rest,
+        userId: auth.currentUser.uid,
+        title: `${rest.title} (Copy)`,
+        completed: false,
+      });
+    } catch (error) {
+      console.error("Error duplicating task:", error);
+    }
+  };
+
   const handleDeleteTodo = (todoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setDeletingTodoState({ id: todoId, viewModeAtTime: viewMode });
@@ -2273,6 +2291,13 @@ export default function WorkspaceApp() {
               </button>
             )}
             <button
+  onClick={(e) => handleDuplicateTodo(todo.id, e)}
+  className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#1a2b58] rounded transition-opacity ml-1"
+  title="Duplicate task"
+>
+  <Copy className="w-3.5 h-3.5" />
+</button>
+<button
               onClick={(e) => handleDeleteTodo(todo.id, e)}
               className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
               title={viewMode === "trash" ? "Delete permanently" : "Trash task"}
@@ -4742,6 +4767,14 @@ export default function WorkspaceApp() {
 
                                                         {/* Clean delete option within hover actions */}
                                                         <button
+  type="button"
+  onClick={(e) => handleDuplicateTodo(todo.id, e)}
+  className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-[#1a2b58] rounded transition shrink-0 mr-1"
+  title="Duplicate task"
+>
+  <Copy className="w-3.5 h-3.5" />
+</button>
+<button
                                                           type="button"
                                                           onClick={(e) => {
                                                             e.stopPropagation();
@@ -4942,6 +4975,14 @@ export default function WorkspaceApp() {
                                                       </div>
 
                                                       <button
+  type="button"
+  onClick={(e) => handleDuplicateTodo(todo.id, e)}
+  className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-[#1a2b58] rounded transition shrink-0 mr-1"
+  title="Duplicate task"
+>
+  <Copy className="w-3 h-3" />
+</button>
+<button
                                                         type="button"
                                                         onClick={(e) => {
                                                           e.stopPropagation();
@@ -6132,6 +6173,13 @@ export default function WorkspaceApp() {
                                               "Today"}
                                           </span>
                                           <button
+  onClick={(e) => handleDuplicateTodo(todo.id, e)}
+  className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#1a2b58] rounded transition-opacity ml-1"
+  title="Duplicate task"
+>
+  <Copy className="w-3.5 h-3.5" />
+</button>
+<button
                                             onClick={(e) =>
                                               handleDeleteTodo(todo.id, e)
                                             }
@@ -6708,6 +6756,13 @@ export default function WorkspaceApp() {
                                                 "No date"}
                                             </span>
                                             <button
+  onClick={(e) => handleDuplicateTodo(todo.id, e)}
+  className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#1a2b58] rounded transition-opacity ml-1"
+  title="Duplicate task"
+>
+  <Copy className="w-3.5 h-3.5" />
+</button>
+<button
                                               onClick={(e) =>
                                                 handleDeleteTodo(todo.id, e)
                                               }

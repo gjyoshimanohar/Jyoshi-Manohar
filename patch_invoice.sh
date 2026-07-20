@@ -1,1 +1,0 @@
-sed -i 's|import { auth } from '\''../lib/firebase'\'';|import { auth } from '\''../lib/firebase'\'';\nimport { settingsService, InvoiceSettings } from '\''../services/settingsService'\'';\nimport { productService, Product } from '\''../services/productService'\'';|g' src/components/InvoiceManagement.tsx
