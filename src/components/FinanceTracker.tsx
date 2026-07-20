@@ -341,6 +341,7 @@ export default function FinanceTracker() {
   const [exportFormat, setExportFormat] = useState<"excel" | "pdf">("excel");
   const [exportStartDate, setExportStartDate] = useState("");
   const [exportEndDate, setExportEndDate] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(true);
   
   const [payCcPendingBillId, setPayCcPendingBillId] = useState<string | null>(null);
   const [addCcBillModalOpen, setAddCcBillModalOpen] = useState(false);
@@ -2112,11 +2113,27 @@ export default function FinanceTracker() {
         </aside>
 
         {/* Dynamic Content Area */}
-        <div className="flex-grow w-full min-w-0 space-y-6">
-
+        <div className="flex-grow w-full min-w-0 space-y-6 relative">
+          <div className="absolute -top-1 right-0 flex items-center gap-2 z-10 bg-white/80 backdrop-blur-sm pl-2 pb-1 rounded-bl-lg">
+            <button
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center justify-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-sm"
+              title="Export Reports"
+            >
+              <Download className="w-4 h-4 text-slate-600" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+            <button
+              onClick={() => handleOpenAddModal()}
+              className="flex items-center justify-center space-x-1.5 bg-primary hover:bg-primary/90 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add</span>
+            </button>
+          </div>
       {/* Finance Dimension Selector Tabs */}
-      <div className="border-b border-slate-100 pb-px">
-        <div className="flex space-x-6">
+      <div className="border-b border-slate-100 pb-px flex overflow-x-auto scrollbar-none pr-[100px] sm:pr-[180px]">
+        <div className="flex space-x-6 min-w-max">
           <button
             onClick={() => {
               setSelectedScope("business");
@@ -2255,25 +2272,7 @@ export default function FinanceTracker() {
                 <X className="h-3 w-3 text-gray-400 hover:text-primary" />
               </button>
             )}
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button
-              onClick={() => setIsExportModalOpen(true)}
-              className="flex items-center justify-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-sm w-full sm:w-auto"
-              title="Export Reports"
-            >
-              <Download className="w-4 h-4 text-slate-600" />
-              <span>Export</span>
-            </button>
-            <button
-              onClick={() => handleOpenAddModal()}
-              className="flex items-center justify-center space-x-1.5 bg-primary hover:bg-primary/90 text-white px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-sm w-full sm:w-auto"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add</span>
-            </button>
-          </div>
-        </div>
+          </div>        </div>
       </div>
 
       {/* Bento Grid Stats Panel */}
@@ -3691,7 +3690,7 @@ export default function FinanceTracker() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]"
             >
               <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center">
@@ -3706,7 +3705,7 @@ export default function FinanceTracker() {
                 </button>
               </div>
 
-              <div className="p-5 space-y-5">
+              <div className="p-5 space-y-5 overflow-y-auto">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Select Report
@@ -3730,7 +3729,7 @@ export default function FinanceTracker() {
                   </label>
                   <CustomSelect
                     value={exportPeriod}
-                    onChange={(val) => setExportPeriod(val as any)}
+                    onChange={(val) => { setExportPeriod(val as any); if (val === "custom") setShowDatePicker(true); }}
                     className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 transition"
                     options={[
                       { value: "all", label: "All Time" },
@@ -3742,30 +3741,53 @@ export default function FinanceTracker() {
                 </div>
 
                 {exportPeriod === "custom" && (
-                  <div className="flex flex-col items-center bg-slate-50/50 border border-slate-200 rounded-xl p-4 overflow-hidden">
-                    <style>{ `
-                      .rdp {
-                        --rdp-cell-size: 32px;
-                        --rdp-accent-color: #0f172a;
-                        --rdp-background-color: #f1f5f9;
-                        margin: 0;
-                      }
-                      .rdp-day_selected {
-                        font-weight: bold;
-                      }
-                    ` }</style>
-                    <DayPicker
-                      mode="range"
-                      selected={{
-                        from: exportStartDate ? parseISO(exportStartDate) : undefined,
-                        to: exportEndDate ? parseISO(exportEndDate) : undefined,
-                      }}
-                      onSelect={(range: DateRange | undefined) => {
-                        setExportStartDate(range?.from ? format(range.from, "yyyy-MM-dd") : "");
-                        setExportEndDate(range?.to ? format(range.to, "yyyy-MM-dd") : "");
-                      }}
-                      className="p-0 border-0"
-                    />
+                  <div className="flex flex-col bg-slate-50/50 border border-slate-200 rounded-xl p-4 overflow-y-auto max-h-[320px] custom-scrollbar">
+                    {exportStartDate && exportEndDate && !showDatePicker ? (
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium text-slate-700">
+                          {exportStartDate} to {exportEndDate}
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => setShowDatePicker(true)}
+                          className="text-xs text-primary font-bold uppercase tracking-wider hover:underline"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <style>{`
+                          .rdp {
+                            --rdp-cell-size: 32px;
+                            --rdp-accent-color: #0f172a;
+                            --rdp-background-color: #f1f5f9;
+                            margin: 0;
+                          }
+                          .rdp-day_selected {
+                            font-weight: bold;
+                          }
+                        `}</style>
+                        <DayPicker
+                          mode="range"
+                          min={1}
+                          selected={{
+                            from: exportStartDate ? parseISO(exportStartDate) : undefined,
+                            to: exportEndDate ? parseISO(exportEndDate) : undefined,
+                          }}
+                          onSelect={(range) => {
+                            const fromStr = range?.from ? format(range.from, "yyyy-MM-dd") : "";
+                            const toStr = range?.to ? format(range.to, "yyyy-MM-dd") : "";
+                            setExportStartDate(fromStr);
+                            setExportEndDate(toStr);
+                            if (fromStr && toStr) {
+                              setShowDatePicker(false);
+                            }
+                          }}
+                          className="p-0 border-0 self-center"
+                        />
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -4928,7 +4950,17 @@ export default function FinanceTracker() {
         </div>
       )}
 
+
+      {/* Floating Action Button */}
+      <button
+        onClick={() => handleOpenAddModal()}
+        className="fixed bottom-6 right-6 lg:bottom-10 lg:right-10 z-[100] p-4 bg-[#AD8D3E] hover:bg-primary text-white rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+        title="Add Transaction"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
     </div>
   );
 }
+
 
