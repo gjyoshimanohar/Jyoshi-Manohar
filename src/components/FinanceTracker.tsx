@@ -149,7 +149,7 @@ export default function FinanceTracker() {
   const [syncing, setSyncing] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth >= 1024;
+      return window.innerWidth >= 768;
     }
     return true;
   });
@@ -2403,7 +2403,7 @@ export default function FinanceTracker() {
         <div 
           onClick={() => {
             setActiveTab("receivables");
-            if (window.innerWidth < 1024) setIsSidebarOpen(false);
+            if (window.innerWidth < 768) setIsSidebarOpen(false);
           }}
           className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in cursor-pointer hover:bg-amber-100 transition-colors group"
         >
@@ -2430,7 +2430,7 @@ export default function FinanceTracker() {
         <div 
           onClick={() => {
             setActiveTab("payables");
-            if (window.innerWidth < 1024) setIsSidebarOpen(false);
+            if (window.innerWidth < 768) setIsSidebarOpen(false);
           }}
           className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in cursor-pointer hover:bg-rose-100 transition-colors group mt-4"
         >
@@ -2452,27 +2452,27 @@ export default function FinanceTracker() {
         </div>
       )}
 
-      {/* Mobile Sidebar Toggle & Status Bar */}
-      <div className="flex lg:hidden items-center justify-between w-full bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2">
+      {/* Mobile/Tablet Header Bar Toggle (screens < md) */}
+      <div className="flex md:hidden items-center justify-between w-full bg-slate-900 border border-slate-800 text-white rounded-xl p-3 mb-3 shadow-sm">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 transition shadow-xs active:scale-95"
+          className="flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-bold text-white transition shadow-xs active:scale-95"
         >
-          <Menu className="w-4 h-4 text-slate-500" />
-          <span>Open Menu / Filters</span>
+          <Menu className="w-4 h-4 text-amber-400" />
+          <span>Open Menu & Filters</span>
         </button>
-        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase bg-slate-200/50 border border-slate-300 px-2.5 py-1 rounded-lg">
-          <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 uppercase bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg">
+          <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
           <span>Tab: {activeTab}</span>
         </div>
       </div>
 
-      {/* Two-Column Sidebar Layout */}
-      <div className="flex flex-col lg:flex-row gap-8 items-start relative">
+      {/* Responsive Sidebar Layout */}
+      <div className="flex flex-col md:flex-row gap-6 lg:gap-8 items-start relative">
         
-        {/* Mobile Backdrop */}
+        {/* Mobile Backdrop Overlay (only < md) */}
         <div 
-          className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity lg:hidden ${
+          className={`fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 transition-opacity md:hidden ${
             isSidebarOpen ? "opacity-100 block" : "opacity-0 hidden"
           }`}
           onClick={() => setIsSidebarOpen(false)}
@@ -2484,25 +2484,27 @@ export default function FinanceTracker() {
         {/* Side Navigation Bar */}
         <aside 
           className={`
-            fixed top-20 bottom-0 left-0 z-50 bg-white border-r border-border shadow-2xl transition-all duration-300 ease-in-out flex flex-col gap-4 overflow-y-auto lg:sticky lg:top-6 lg:border lg:rounded-2xl lg:shadow-xs lg:z-auto lg:bottom-auto
-            ${isSidebarOpen ? "translate-x-0 w-72 lg:w-60 p-5 lg:p-4" : "-translate-x-full lg:translate-x-0 w-72 lg:w-[84px] p-5 lg:p-4"}
+            fixed top-16 bottom-0 left-0 z-50 bg-white border-r border-slate-200 shadow-2xl transition-all duration-300 ease-in-out flex flex-col gap-4 overflow-y-auto md:sticky md:top-6 md:border md:rounded-2xl md:shadow-xs md:z-auto md:bottom-auto shrink-0
+            ${isSidebarOpen ? "translate-x-0 w-72 md:w-64 lg:w-60 p-4" : "-translate-x-full md:translate-x-0 w-72 md:w-[80px] lg:w-[84px] p-4"}
           `}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <div className="border-b border-slate-100 flex items-center justify-between transition-all duration-300 pb-3 w-full lg:justify-start">
-            <span className="text-sm font-bold text-slate-800 lg:hidden">Menu & Filters</span>
+          <div className="border-b border-slate-100 flex items-center justify-between transition-all duration-300 pb-3 w-full">
+            <span className={`text-xs font-bold uppercase tracking-wider text-slate-800 ${!isSidebarOpen ? "md:hidden" : "block"}`}>
+              Menu & Navigation
+            </span>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
               title="Toggle Sidebar"
             >
               {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
 
-          <div className="flex flex-col gap-1.5 overflow-y-auto scrollbar-none pb-4 lg:pb-0">
+          <div className="flex flex-col gap-1.5 overflow-y-auto scrollbar-none pb-4 md:pb-0">
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, desc: "Overview & Analytics" },
               { id: "receivables", label: "Receivables", icon: AlertCircle, desc: "Pending Payments" },
@@ -2522,25 +2524,25 @@ export default function FinanceTracker() {
                   onClick={() => {
                     setActiveTab(tab.id as any);
                     setSelectedCategory("All");
-                    if (window.innerWidth < 1024) {
+                    if (window.innerWidth < 768) {
                       setIsSidebarOpen(false);
                     }
                   }}
-                  className={`group relative flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl transition-all font-semibold text-sm whitespace-nowrap shrink-0 border ${
+                  className={`group relative flex items-center gap-3 w-full text-left px-3.5 py-3 rounded-xl transition-all font-semibold text-sm whitespace-nowrap shrink-0 border ${
                     isActive
-                      ? "bg-primary border-primary text-white shadow-sm"
-                      : "bg-transparent border-transparent text-slate-600 hover:bg-slate-50 hover:text-primary"
-                  } ${!isSidebarOpen ? "lg:justify-center lg:px-0 lg:gap-0" : ""}`}
+                      ? "bg-slate-900 border-slate-900 text-white shadow-md"
+                      : "bg-transparent border-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                  } ${!isSidebarOpen ? "md:justify-center md:px-0 md:gap-0" : ""}`}
                 >
-                  <IconComp className={`w-4.5 h-4.5 shrink-0 ${isActive ? "text-[#AD8D3E]" : "text-slate-400"}`} />
-                  <div className={`flex flex-col text-left transition-all duration-300 ${isSidebarOpen ? "opacity-100" : "lg:opacity-0 lg:w-0 overflow-hidden"}`}>
-                    <span className="leading-tight">{tab.label}</span>
-                    <span className={`text-[11px] hidden lg:block font-medium mt-0.5 ${isActive ? "text-slate-300" : "text-slate-400"}`}>
+                  <IconComp className={`w-5 h-5 shrink-0 ${isActive ? "text-amber-400" : "text-slate-500 group-hover:text-slate-800"}`} />
+                  <div className={`flex flex-col text-left transition-all duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:w-0 overflow-hidden"}`}>
+                    <span className="leading-tight font-bold text-sm">{tab.label}</span>
+                    <span className={`text-[11px] font-medium mt-0.5 ${isActive ? "text-slate-300" : "text-slate-500"}`}>
                       {tab.desc}
                     </span>
                   </div>
                   {!isSidebarOpen && (
-                    <div className="hidden lg:block absolute left-full ml-3 px-2.5 py-1.5 bg-slate-800 text-white text-[12px] rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-md border border-slate-700 pointer-events-none">
+                    <div className="hidden md:block absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-[12px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-lg border border-slate-700 pointer-events-none">
                       {tab.label}
                     </div>
                   )}
@@ -2722,7 +2724,7 @@ export default function FinanceTracker() {
             <div 
               onClick={() => {
                 setActiveTab("incomes");
-                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
               className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-green-50/30 transition-colors"
             >
@@ -2762,7 +2764,7 @@ export default function FinanceTracker() {
             <div 
               onClick={() => {
                 setActiveTab("expenses");
-                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
               className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-red-50/30 transition-colors"
             >
@@ -2802,7 +2804,7 @@ export default function FinanceTracker() {
             <div 
               onClick={() => {
                 setActiveTab("account");
-                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
               className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-amber-50/30 transition-colors"
             >
@@ -2844,7 +2846,7 @@ export default function FinanceTracker() {
             <div 
               onClick={() => {
                 setActiveTab("receivables");
-                if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
               className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-blue-50/30 transition-colors"
             >
@@ -2947,22 +2949,22 @@ export default function FinanceTracker() {
                               </span>
                             </div>
                             
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <div className="flex items-center gap-1.5 opacity-100 transition-all">
                               {acc.id !== 'virtual_pending_reimbursements' && (
                                 <>
                                   <button
                                     onClick={() => handleOpenEditAccountModal(acc)}
-                                    className="text-slate-400 hover:text-slate-700 transition p-1"
+                                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                     title="Edit asset account"
                                   >
-                                    <Edit3 className="w-3.5 h-3.5" />
+                                    <Edit3 className="w-4 h-4" />
                                   </button>
                                   <button
                                     onClick={() => handleDeleteAccount(acc.id, acc.name)}
-                                    className="text-slate-400 hover:text-red-500 transition p-1"
+                                    className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                     title="Delete asset account"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
                                 </>
                               )}
@@ -3037,21 +3039,20 @@ export default function FinanceTracker() {
                               </span>
                             </div>
                             
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-
+                            <div className="flex items-center gap-1.5 opacity-100 transition-all">
                               <button
                                 onClick={() => handleOpenEditAccountModal(acc)}
-                                className="text-slate-400 hover:text-slate-700 transition p-1"
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                 title="Edit liability account"
                               >
-                                <Edit3 className="w-3.5 h-3.5" />
+                                <Edit3 className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteAccount(acc.id, acc.name)}
-                                className="text-slate-400 hover:text-red-500 transition p-1"
+                                className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                 title="Delete liability"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </div>

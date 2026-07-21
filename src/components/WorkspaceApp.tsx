@@ -821,9 +821,17 @@ export default function WorkspaceApp() {
   const [isPendingExpanded, setIsPendingExpanded] = useState(true);
   const [isOverdueExpanded, setIsOverdueExpanded] = useState(true);
   const [isTodayExpanded, setIsTodayExpanded] = useState(true);
-  const [sortOrder, setSortOrder] = useState<"priority" | "date">("priority");
+  const [sortOrder, setSortOrder] = useState<"smart" | "priority" | "date">("smart");
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [showSmartTips, setShowSmartTips] = useState(false);
+
+  // Task Context Menu State
+  const [taskContextMenu, setTaskContextMenu] = useState<{
+    x: number;
+    y: number;
+    todo: Todo;
+    activeTab?: "main" | "reschedule" | "folder" | "project" | "priority" | "color";
+  } | null>(null);
 
   // Kanban Board Custom Section Action States
   const [isAddingSection, setIsAddingSection] = useState(false);
@@ -1789,6 +1797,84 @@ export default function WorkspaceApp() {
     }
   };
 
+  const handleTaskContextMenu = (e: React.MouseEvent, todo: Todo) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const menuWidth = 240;
+    const menuHeight = 360;
+    let x = e.clientX;
+    let y = e.clientY;
+
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 12;
+    }
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 12;
+    }
+
+    setTaskContextMenu({
+      x: Math.max(12, x),
+      y: Math.max(12, y),
+      todo,
+      activeTab: "main",
+    });
+  };
+
+  const handleRescheduleTask = async (todoId: string, dueDate: number | null) => {
+    try {
+      await todoService.updateTodo(todoId, {
+        dueDate,
+        deadline: dueDate,
+      });
+      const formatted = dueDate ? format(new Date(dueDate), "MMM d, yyyy") : "No due date";
+      toast.success(`Rescheduled task to ${formatted}`);
+      setTaskContextMenu(null);
+    } catch (err) {
+      toast.error("Failed to reschedule task");
+    }
+  };
+
+  const handleMoveTaskToProject = async (todoId: string, projectId: string) => {
+    try {
+      await todoService.updateTodo(todoId, { projectId });
+      const proj = projects.find((p) => p.id === projectId);
+      const name = proj ? proj.name : "Inbox";
+      toast.success(`Moved task to ${name}`);
+      setTaskContextMenu(null);
+    } catch (err) {
+      toast.error("Failed to move task");
+    }
+  };
+
+  const handleMoveTaskToFolder = async (todoId: string, folderId: string) => {
+    try {
+      const folderObj = folders.find((f) => f.id === folderId);
+      if (!folderObj) return;
+
+      const folderProjects = projects.filter((p) => p.folderId === folderId);
+      let targetProjectId = folderProjects[0]?.id;
+
+      if (!targetProjectId) {
+        const createdProj = await todoService.createProject(
+          `${folderObj.name} General`,
+          folderObj.color || "#3b82f6",
+          auth.currentUser?.uid || "",
+        );
+        if (createdProj) {
+          await todoService.updateProject(createdProj.id, { folderId });
+          targetProjectId = createdProj.id;
+        }
+      }
+
+      await todoService.updateTodo(todoId, { projectId: targetProjectId });
+      toast.success(`Added task to folder "${folderObj.name}"`);
+      setTaskContextMenu(null);
+    } catch (err) {
+      toast.error("Failed to add task to folder");
+    }
+  };
+
   const handleDeleteTodo = (todoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setDeletingTodoState({ id: todoId, viewModeAtTime: viewMode });
@@ -1993,23 +2079,94 @@ export default function WorkspaceApp() {
     return Array.from(tagsSet).sort();
   }, [todos]);
 
-  const filteredTodos = getFilteredTodos();
+  // Smart Urgency Scoring Algorithm
+  // Combines priority level + due date/deadline closeness + actionability
+  const calculateSmartUrgencyScore = (
+    todo: Todo,
+    refTime: number = Date.now(),
+  ): number => {
+    if (todo.completed) return -10000000;
+    let score = 0;
+    if (todo.isPinned) score += 5000000;
 
-  // Sorting: High priority first, then date
-  filteredTodos.sort((a, b) => {
-    if ((a.priority || 4) !== (b.priority || 4))
-      return (a.priority || 4) - (b.priority || 4);
-    const dateA = a.deadline || a.dueDate;
-    const dateB = b.deadline || b.dueDate;
-    if (dateA && dateB) return dateA - dateB;
-    if (dateA) return -1;
-    if (dateB) return 1;
-    return 0;
-  });
+    // Priority component: P1 (High) = 400k, P2 = 300k, P3 = 200k, P4/None = 100k
+    const prio = todo.priority || 4;
+    const priorityScore = (5 - Math.min(4, Math.max(1, prio))) * 100000;
+    score += priorityScore;
 
-  const allActiveViewTodos = getFilteredTodos(true);
-  allActiveViewTodos.sort((a, b) => {
-    if (sortOrder === "priority") {
+    // Due date / Deadline urgency weight
+    const targetDate = todo.deadline || todo.dueDate;
+    if (targetDate) {
+      const diffMs = targetDate - refTime;
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      if (diffMs < 0) {
+        // OVERDUE: Maximum urgency booster!
+        const hoursOverdue = Math.abs(diffHours);
+        score += 500000 + Math.min(200000, hoursOverdue * 5000);
+      } else {
+        // Upcoming due dates
+        if (diffHours <= 2) {
+          score += 450000; // Due within 2 hours
+        } else if (diffHours <= 12) {
+          score += 380000; // Due within 12 hours
+        } else if (diffHours <= 24) {
+          score += 320000; // Due today
+        } else if (diffHours <= 48) {
+          score += 220000; // Due tomorrow
+        } else if (diffHours <= 168) {
+          // Within 7 days
+          const daysAway = diffHours / 24;
+          score += 150000 - daysAway * 12000;
+        } else {
+          const daysAway = diffHours / 24;
+          score += Math.max(10000, 50000 - daysAway * 1000);
+        }
+      }
+    }
+
+    // Actionability adjustments
+    if (todo.blockedBy && todo.blockedBy.length > 0) {
+      score -= 40000; // Blocked tasks lowered slightly
+    }
+
+    // Incomplete subtasks bonus
+    if (todo.subtasks && todo.subtasks.length > 0) {
+      const pendingSubtasks = todo.subtasks.filter((s) => !s.completed).length;
+      if (pendingSubtasks > 0) score += 5000;
+    }
+
+    return score;
+  };
+
+  const compareTodos = (
+    a: Todo,
+    b: Todo,
+    mode: "smart" | "priority" | "date",
+    refTime: number = Date.now(),
+  ) => {
+    // 1. Completion status (active before completed)
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+
+    // 2. Pinned status (pinned before unpinned)
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+
+    if (mode === "smart") {
+      const scoreA = calculateSmartUrgencyScore(a, refTime);
+      const scoreB = calculateSmartUrgencyScore(b, refTime);
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // Descending score: most urgent top!
+      }
+      // Tie-breakers
+      const dateA = a.deadline || a.dueDate || Infinity;
+      const dateB = b.deadline || b.dueDate || Infinity;
+      if (dateA !== dateB) return dateA - dateB;
+      if ((a.priority || 4) !== (b.priority || 4))
+        return (a.priority || 4) - (b.priority || 4);
+      return b.createdAt - a.createdAt;
+    }
+
+    if (mode === "priority") {
       if ((a.priority || 4) !== (b.priority || 4))
         return (a.priority || 4) - (b.priority || 4);
       const dateA = a.deadline || a.dueDate;
@@ -2017,19 +2174,26 @@ export default function WorkspaceApp() {
       if (dateA && dateB) return dateA - dateB;
       if (dateA) return -1;
       if (dateB) return 1;
-      return 0;
-    } else {
-      const dateA = a.deadline || a.dueDate;
-      const dateB = b.deadline || b.dueDate;
-      if (dateA && dateB) {
-        if (dateA !== dateB) return dateA - dateB;
-        return (a.priority || 4) - (b.priority || 4);
-      }
-      if (dateA) return -1;
-      if (dateB) return 1;
+      return b.createdAt - a.createdAt;
+    }
+
+    // mode === "date"
+    const dateA = a.deadline || a.dueDate;
+    const dateB = b.deadline || b.dueDate;
+    if (dateA && dateB) {
+      if (dateA !== dateB) return dateA - dateB;
       return (a.priority || 4) - (b.priority || 4);
     }
-  });
+    if (dateA) return -1;
+    if (dateB) return 1;
+    return (a.priority || 4) - (b.priority || 4);
+  };
+
+  const filteredTodos = getFilteredTodos();
+  filteredTodos.sort((a, b) => compareTodos(a, b, sortOrder));
+
+  const allActiveViewTodos = getFilteredTodos(true);
+  allActiveViewTodos.sort((a, b) => compareTodos(a, b, sortOrder));
 
   const currentViewType =
     viewMode === "project" && selectedProjectId
@@ -2175,6 +2339,7 @@ export default function WorkspaceApp() {
         exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.3, delay: (index ?? 0) * 0.05, ease: "easeOut" }}
+        onContextMenu={(e) => handleTaskContextMenu(e, todo)}
         className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
           todo.color && todo.color !== "none"
             ? todo.color === "red" ? "border-l-[4px] border-l-red-500 pl-3 bg-red-50/10 hover:bg-red-50/20" :
@@ -2337,13 +2502,20 @@ export default function WorkspaceApp() {
               </button>
             )}
             <button
-  onClick={(e) => handleDuplicateTodo(todo.id, e)}
-  className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#1a2b58] rounded transition-opacity ml-1"
-  title="Duplicate task"
->
-  <Copy className="w-3.5 h-3.5" />
-</button>
-<button
+              onClick={(e) => handleDuplicateTodo(todo.id, e)}
+              className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-[#1a2b58] rounded transition-opacity ml-1 cursor-pointer"
+              title="Duplicate task"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => handleTaskContextMenu(e, todo)}
+              className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-gray-700 rounded transition-opacity cursor-pointer"
+              title="Task actions menu (Right-click)"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5" />
+            </button>
+            <button
               onClick={(e) => handleDeleteTodo(todo.id, e)}
               className="p-1 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 rounded transition-opacity"
               title={viewMode === "trash" ? "Delete permanently" : "Trash task"}
@@ -3465,20 +3637,47 @@ export default function WorkspaceApp() {
             {/* Sorting config toggle */}
             <button
               onClick={() => {
-                setSortOrder((prev) =>
-                  prev === "priority" ? "date" : "priority",
-                );
-                setAutoProjectNotice(
-                  `Sorted active view by ${sortOrder === "priority" ? "due date" : "priority priority"}`,
-                );
+                setSortOrder((prev) => {
+                  if (prev === "smart") return "priority";
+                  if (prev === "priority") return "date";
+                  return "smart";
+                });
+                const nextSort =
+                  sortOrder === "smart"
+                    ? "priority"
+                    : sortOrder === "priority"
+                      ? "date"
+                      : "smart";
+                const labels = {
+                  smart: "⚡ Smart Sort (Priority & Due Date Urgency)",
+                  priority: "🔥 High Priority First",
+                  date: "📅 Due Date First",
+                };
+                setAutoProjectNotice(`Sorted by ${labels[nextSort]}`);
                 setTimeout(() => setAutoProjectNotice(null), 3000);
               }}
-              className={`p-1.5 border hover:bg-gray-50 text-gray-600 rounded-lg shadow-sm transition-all flex items-center ${sortOrder === "date" ? "bg-blue-50 border-blue-200 text-blue-600" : "border-gray-200 bg-white"}`}
-              title={`Sorting: ${sortOrder === "priority" ? "High Priorities First" : "Due Date First"}`}
+              className={`p-1.5 border hover:bg-gray-50 rounded-lg shadow-2xs transition-all flex items-center gap-1 cursor-pointer ${
+                sortOrder === "smart"
+                  ? "bg-amber-50 border-amber-300 text-amber-900 font-bold"
+                  : sortOrder === "date"
+                    ? "bg-blue-50 border-blue-200 text-blue-700 font-semibold"
+                    : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold"
+              }`}
+              title={`Current Sorting: ${
+                sortOrder === "smart"
+                  ? "Smart Sort (Urgency = Priority + Due Date)"
+                  : sortOrder === "priority"
+                    ? "Priority First"
+                    : "Due Date First"
+              }`}
             >
-              <ArrowUpDown className="w-4 h-4" />
-              <span className="text-xs font-medium ml-1 hidden sm:inline uppercase">
-                {sortOrder}
+              {sortOrder === "smart" ? (
+                <Zap className="w-4 h-4 text-amber-600 fill-amber-400" />
+              ) : (
+                <ArrowUpDown className="w-4 h-4 text-gray-500" />
+              )}
+              <span className="text-xs hidden sm:inline capitalize">
+                {sortOrder === "smart" ? "Smart Sort" : sortOrder}
               </span>
             </button>
 
@@ -3553,6 +3752,66 @@ export default function WorkspaceApp() {
                         >
                           <LayoutGrid className="w-3.5 h-3.5" />
                           <span>Kanban</span>
+                        </button>
+                      </div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-400 px-2 py-1 mb-1">
+                        Sort Strategy
+                      </div>
+                      <div className="flex flex-col gap-1 mx-1 mb-2">
+                        <button
+                          onClick={() => {
+                            setSortOrder("smart");
+                            setIsHeaderMenuOpen(false);
+                            setAutoProjectNotice("Sorted by ⚡ Smart Sort (Priority & Due Date Urgency)");
+                            setTimeout(() => setAutoProjectNotice(null), 3000);
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${
+                            sortOrder === "smart"
+                              ? "bg-amber-50 border border-amber-300 text-amber-900 shadow-xs"
+                              : "hover:bg-gray-50 text-gray-600"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-400" />
+                            Smart Sort
+                          </span>
+                          <span className="text-[9px] text-amber-700/80 font-normal">Urgency Score</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSortOrder("priority");
+                            setIsHeaderMenuOpen(false);
+                            setAutoProjectNotice("Sorted by 🔥 High Priority First");
+                            setTimeout(() => setAutoProjectNotice(null), 3000);
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${
+                            sortOrder === "priority"
+                              ? "bg-blue-50 border border-blue-200 text-blue-900 shadow-xs"
+                              : "hover:bg-gray-50 text-gray-600"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Flag className="w-3.5 h-3.5 text-blue-600" />
+                            Priority First
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSortOrder("date");
+                            setIsHeaderMenuOpen(false);
+                            setAutoProjectNotice("Sorted by 📅 Due Date First");
+                            setTimeout(() => setAutoProjectNotice(null), 3000);
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-md text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${
+                            sortOrder === "date"
+                              ? "bg-blue-50 border border-blue-200 text-blue-900 shadow-xs"
+                              : "hover:bg-gray-50 text-gray-600"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                            Due Date First
+                          </span>
                         </button>
                       </div>
                       <div className="border-b border-gray-100 mx-1 mb-2"></div>
@@ -4666,6 +4925,7 @@ export default function WorkspaceApp() {
                                                       key={todo.id}
                                                       layoutId={todo.id}
                                                       draggable
+                                                      onContextMenu={(e) => handleTaskContextMenu(e, todo)}
                                                       onDragStart={(e: any) => {
                                                         e.dataTransfer.setData(
                                                           "text/plain",
@@ -4844,16 +5104,24 @@ export default function WorkspaceApp() {
                                                             )}
                                                         </div>
 
-                                                        {/* Clean delete option within hover actions */}
+                                                        {/* Clean action buttons within hover actions */}
                                                         <button
-  type="button"
-  onClick={(e) => handleDuplicateTodo(todo.id, e)}
-  className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-[#1a2b58] rounded transition shrink-0 mr-1"
-  title="Duplicate task"
->
-  <Copy className="w-3.5 h-3.5" />
-</button>
-<button
+                                                          type="button"
+                                                          onClick={(e) => handleDuplicateTodo(todo.id, e)}
+                                                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-[#1a2b58] rounded transition shrink-0 mr-0.5 cursor-pointer"
+                                                          title="Duplicate task"
+                                                        >
+                                                          <Copy className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                          type="button"
+                                                          onClick={(e) => handleTaskContextMenu(e, todo)}
+                                                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-gray-700 rounded transition shrink-0 mr-0.5 cursor-pointer"
+                                                          title="Task actions menu (Right-click)"
+                                                        >
+                                                          <MoreHorizontal className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
                                                           type="button"
                                                           onClick={(e) => {
                                                             e.stopPropagation();
@@ -4862,7 +5130,7 @@ export default function WorkspaceApp() {
                                                               e,
                                                             );
                                                           }}
-                                                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 rounded transition shrink-0"
+                                                          className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-500 rounded transition shrink-0 cursor-pointer"
                                                           title="Delete task"
                                                         >
                                                           <Trash2 className="w-3.5 h-3.5" />
@@ -9836,6 +10104,411 @@ export default function WorkspaceApp() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Task Context Menu (Right Click & More Actions) */}
+      <AnimatePresence>
+        {taskContextMenu && (
+          <div
+            className="fixed inset-0 z-[200] pointer-events-auto select-none"
+            onClick={() => setTaskContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setTaskContextMenu(null);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -4 }}
+              transition={{ duration: 0.12, ease: "easeOut" }}
+              style={{
+                position: "fixed",
+                left: `${taskContextMenu.x}px`,
+                top: `${taskContextMenu.y}px`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-64 bg-white/95 backdrop-blur-md border border-gray-200 shadow-2xl rounded-2xl overflow-hidden p-1.5 text-xs text-gray-700 z-[210] divide-y divide-gray-100 font-sans"
+            >
+              {/* Header Task Title */}
+              <div className="px-2.5 py-2 flex items-center justify-between bg-slate-50/90 rounded-xl mb-1 border border-slate-100">
+                <div className="min-w-0 flex-1 pr-2">
+                  <p className="font-bold text-gray-900 truncate text-[11px] leading-tight">
+                    {taskContextMenu.todo.title}
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-medium truncate mt-0.5">
+                    {taskContextMenu.todo.projectId
+                      ? projects.find((p) => p.id === taskContextMenu.todo.projectId)?.name || "Inbox"
+                      : "Inbox"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setTaskContextMenu(null)}
+                  className="p-1 hover:bg-gray-200/60 rounded-md text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Main Actions */}
+              <div className="py-1 space-y-0.5">
+                {/* Duplicate */}
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await handleDuplicateTodo(taskContextMenu.todo.id, e);
+                    toast.success("Task duplicated");
+                    setTaskContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-blue-50/70 hover:text-blue-700 font-semibold text-gray-700 transition cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="flex-1 text-left">Duplicate Task</span>
+                  <span className="text-[9px] bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.2 rounded font-mono font-normal">
+                    Copy
+                  </span>
+                </button>
+
+                {/* Reschedule */}
+                <button
+                  onClick={() =>
+                    setTaskContextMenu((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            activeTab:
+                              prev.activeTab === "reschedule" ? "main" : "reschedule",
+                          }
+                        : null
+                    )
+                  }
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    taskContextMenu.activeTab === "reschedule"
+                      ? "bg-amber-50 text-amber-900"
+                      : "hover:bg-amber-50/60 hover:text-amber-900 text-gray-700"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <CalendarIcon className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Reschedule</span>
+                  </span>
+                  <ChevronRight
+                    className={`w-3.5 h-3.5 text-gray-400 transition-transform ${
+                      taskContextMenu.activeTab === "reschedule" ? "rotate-90 text-amber-700" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Reschedule Submenu */}
+                {taskContextMenu.activeTab === "reschedule" && (
+                  <div className="bg-amber-50/40 border border-amber-200/60 rounded-xl p-1.5 my-1 space-y-1">
+                    <button
+                      onClick={() =>
+                        handleRescheduleTask(
+                          taskContextMenu.todo.id,
+                          startOfDay(new Date()).getTime()
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] font-semibold text-amber-950 hover:bg-amber-100/80 transition cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        ☀️ Today
+                      </span>
+                      <span className="text-[9px] text-amber-700 font-mono">
+                        {format(new Date(), "MMM d")}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleRescheduleTask(
+                          taskContextMenu.todo.id,
+                          startOfDay(addDays(new Date(), 1)).getTime()
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] font-semibold text-amber-950 hover:bg-amber-100/80 transition cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        🌅 Tomorrow
+                      </span>
+                      <span className="text-[9px] text-amber-700 font-mono">
+                        {format(addDays(new Date(), 1), "MMM d")}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleRescheduleTask(
+                          taskContextMenu.todo.id,
+                          startOfDay(addDays(new Date(), 7)).getTime()
+                        )
+                      }
+                      className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] font-semibold text-amber-950 hover:bg-amber-100/80 transition cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        📅 Next Week
+                      </span>
+                      <span className="text-[9px] text-amber-700 font-mono">
+                        {format(addDays(new Date(), 7), "MMM d")}
+                      </span>
+                    </button>
+                    <div className="pt-1 border-t border-amber-200/50">
+                      <p className="text-[9px] font-bold text-amber-800 uppercase tracking-wider mb-1 px-1">
+                        Pick Custom Date
+                      </p>
+                      <input
+                        type="date"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const selectedMs = startOfDay(
+                              new Date(e.target.value + "T00:00:00")
+                            ).getTime();
+                            handleRescheduleTask(taskContextMenu.todo.id, selectedMs);
+                          }
+                        }}
+                        className="w-full text-xs bg-white border border-amber-200 rounded-lg px-2 py-1 font-medium text-gray-800 outline-none focus:ring-1 focus:ring-amber-400 cursor-pointer"
+                      />
+                    </div>
+                    {taskContextMenu.todo.dueDate && (
+                      <button
+                        onClick={() => handleRescheduleTask(taskContextMenu.todo.id, null)}
+                        className="w-full text-left px-2 py-1 rounded-md text-[10px] font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      >
+                        🚫 Clear Due Date
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Add to Folder */}
+                <button
+                  onClick={() =>
+                    setTaskContextMenu((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            activeTab:
+                              prev.activeTab === "folder" ? "main" : "folder",
+                          }
+                        : null
+                    )
+                  }
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    taskContextMenu.activeTab === "folder"
+                      ? "bg-purple-50 text-purple-900"
+                      : "hover:bg-purple-50/60 hover:text-purple-900 text-gray-700"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Folder className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                    <span>Add to Folder</span>
+                  </span>
+                  <ChevronRight
+                    className={`w-3.5 h-3.5 text-gray-400 transition-transform ${
+                      taskContextMenu.activeTab === "folder" ? "rotate-90 text-purple-700" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Add to Folder Submenu */}
+                {taskContextMenu.activeTab === "folder" && (
+                  <div className="bg-purple-50/40 border border-purple-200/60 rounded-xl p-1.5 my-1 max-h-40 overflow-y-auto space-y-1">
+                    {folders.length === 0 ? (
+                      <p className="text-[11px] text-purple-800 italic p-1">
+                        No folders created yet.
+                      </p>
+                    ) : (
+                      folders.map((f) => {
+                        const projCount = projects.filter((p) => p.folderId === f.id).length;
+                        return (
+                          <button
+                            key={f.id}
+                            onClick={() => handleMoveTaskToFolder(taskContextMenu.todo.id, f.id)}
+                            className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] font-semibold text-purple-950 hover:bg-purple-100/80 transition cursor-pointer"
+                          >
+                            <span className="flex items-center gap-1.5 truncate">
+                              <FolderOpen className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span className="truncate">{f.name}</span>
+                            </span>
+                            <span className="text-[9px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold shrink-0">
+                              {projCount} {projCount === 1 ? "proj" : "projs"}
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* Move to Project */}
+                <button
+                  onClick={() =>
+                    setTaskContextMenu((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            activeTab:
+                              prev.activeTab === "project" ? "main" : "project",
+                          }
+                        : null
+                    )
+                  }
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    taskContextMenu.activeTab === "project"
+                      ? "bg-blue-50 text-blue-900"
+                      : "hover:bg-blue-50/60 hover:text-blue-900 text-gray-700"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Briefcase className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>Move to Project</span>
+                  </span>
+                  <ChevronRight
+                    className={`w-3.5 h-3.5 text-gray-400 transition-transform ${
+                      taskContextMenu.activeTab === "project" ? "rotate-90 text-blue-700" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Move to Project Submenu */}
+                {taskContextMenu.activeTab === "project" && (
+                  <div className="bg-blue-50/40 border border-blue-200/60 rounded-xl p-1.5 my-1 max-h-48 overflow-y-auto space-y-1">
+                    <button
+                      onClick={() => handleMoveTaskToProject(taskContextMenu.todo.id, "inbox")}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                        taskContextMenu.todo.projectId === "inbox" || !taskContextMenu.todo.projectId
+                          ? "bg-blue-100 text-blue-950 font-bold"
+                          : "text-blue-900 hover:bg-blue-100/70"
+                      }`}
+                    >
+                      <Inbox className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Inbox (No Project)</span>
+                    </button>
+                    {projects.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleMoveTaskToProject(taskContextMenu.todo.id, p.id)}
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition cursor-pointer ${
+                          taskContextMenu.todo.projectId === p.id
+                            ? "bg-blue-100 text-blue-950 font-bold"
+                            : "text-blue-900 hover:bg-blue-100/70"
+                        }`}
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: p.color || "#3b82f6" }}
+                        />
+                        <span className="truncate">{p.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Priority & Pinning */}
+              <div className="py-1 space-y-0.5">
+                <button
+                  onClick={() =>
+                    setTaskContextMenu((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            activeTab:
+                              prev.activeTab === "priority" ? "main" : "priority",
+                          }
+                        : null
+                    )
+                  }
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    taskContextMenu.activeTab === "priority"
+                      ? "bg-rose-50 text-rose-900"
+                      : "hover:bg-rose-50/60 hover:text-rose-900 text-gray-700"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Flag className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <span>Priority Level</span>
+                  </span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                    P{taskContextMenu.todo.priority || 4}
+                  </span>
+                </button>
+
+                {taskContextMenu.activeTab === "priority" && (
+                  <div className="grid grid-cols-4 gap-1 p-1.5 bg-rose-50/40 border border-rose-200/60 rounded-xl my-1">
+                    {[1, 2, 3, 4].map((level) => (
+                      <button
+                        key={level}
+                        onClick={async () => {
+                          await todoService.updateTodo(taskContextMenu.todo.id, { priority: level });
+                          toast.success(`Priority set to P${level}`);
+                          setTaskContextMenu(null);
+                        }}
+                        className={`flex flex-col items-center justify-center p-1.5 rounded-lg border font-bold transition cursor-pointer ${
+                          taskContextMenu.todo.priority === level
+                            ? "bg-white border-rose-400 shadow-xs text-rose-700"
+                            : "bg-white/60 border-transparent hover:bg-white text-gray-700"
+                        }`}
+                      >
+                        <Flag
+                          className={`w-3.5 h-3.5 ${
+                            level === 1
+                              ? "text-red-500 fill-red-500"
+                              : level === 2
+                              ? "text-orange-500 fill-orange-500"
+                              : level === 3
+                              ? "text-blue-500 fill-blue-500"
+                              : "text-gray-400"
+                          }`}
+                        />
+                        <span className="text-[9px] mt-0.5">P{level}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  onClick={async () => {
+                    const newPinned = !taskContextMenu.todo.isPinned;
+                    await todoService.updateTodo(taskContextMenu.todo.id, { isPinned: newPinned });
+                    toast.success(newPinned ? "Task pinned to top" : "Task unpinned");
+                    setTaskContextMenu(null);
+                  }}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-gray-100 font-semibold text-gray-700 transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <Star className={`w-3.5 h-3.5 ${taskContextMenu.todo.isPinned ? "text-amber-500 fill-amber-400" : "text-gray-400"}`} />
+                    <span>{taskContextMenu.todo.isPinned ? "Unpin Task" : "Pin to Top"}</span>
+                  </span>
+                </button>
+              </div>
+
+              {/* View Details & Trash */}
+              <div className="pt-1 space-y-0.5">
+                <button
+                  onClick={() => {
+                    setSelectedTodoId(taskContextMenu.todo.id);
+                    setTaskContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 font-semibold text-gray-700 transition cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                  <span>View Full Details</span>
+                </button>
+
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await handleDeleteTodo(taskContextMenu.todo.id, e);
+                    setTaskContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 font-bold transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Trash Task</span>
+                </button>
               </div>
             </motion.div>
           </div>
