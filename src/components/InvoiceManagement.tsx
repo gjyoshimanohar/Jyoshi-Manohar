@@ -47,6 +47,95 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
+  // Unified Export Report Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'excel' | 'pdf'>('excel');
+  const [exportDatePreset, setExportDatePreset] = useState<string>('all');
+  const [exportStartDate, setExportStartDate] = useState<string>('');
+  const [exportEndDate, setExportEndDate] = useState<string>('');
+  const [exportDocType, setExportDocType] = useState<string>('all');
+  const [exportStatus, setExportStatus] = useState<string>('all');
+
+  const handleDatePresetChange = (preset: string) => {
+    setExportDatePreset(preset);
+    const now = new Date();
+    
+    if (preset === 'all') {
+      setExportStartDate('');
+      setExportEndDate('');
+    } else if (preset === 'today') {
+      const todayStr = format(now, 'yyyy-MM-dd');
+      setExportStartDate(todayStr);
+      setExportEndDate(todayStr);
+    } else if (preset === 'this_month') {
+      const startOfMonthStr = format(new Date(now.getFullYear(), now.getMonth(), 1), 'yyyy-MM-dd');
+      const endOfMonthStr = format(new Date(now.getFullYear(), now.getMonth() + 1, 0), 'yyyy-MM-dd');
+      setExportStartDate(startOfMonthStr);
+      setExportEndDate(endOfMonthStr);
+    } else if (preset === 'last_month') {
+      const startOfLastMonth = format(new Date(now.getFullYear(), now.getMonth() - 1, 1), 'yyyy-MM-dd');
+      const endOfLastMonth = format(new Date(now.getFullYear(), now.getMonth(), 0), 'yyyy-MM-dd');
+      setExportStartDate(startOfLastMonth);
+      setExportEndDate(endOfLastMonth);
+    } else if (preset === 'this_quarter') {
+      const currentQuarter = Math.floor(now.getMonth() / 3);
+      const startOfQuarter = format(new Date(now.getFullYear(), currentQuarter * 3, 1), 'yyyy-MM-dd');
+      const todayStr = format(now, 'yyyy-MM-dd');
+      setExportStartDate(startOfQuarter);
+      setExportEndDate(todayStr);
+    } else if (preset === 'this_year') {
+      const startOfYear = format(new Date(now.getFullYear(), 0, 1), 'yyyy-MM-dd');
+      const todayStr = format(now, 'yyyy-MM-dd');
+      setExportStartDate(startOfYear);
+      setExportEndDate(todayStr);
+    }
+  };
+
+  const exportFilteredInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      // Document type filter
+      if (exportDocType !== 'all') {
+        const docType = inv.documentType || 'invoice';
+        if (docType !== exportDocType) return false;
+      }
+
+      // Status filter
+      if (exportStatus !== 'all') {
+        let resolvedStatus = inv.status;
+        if (resolvedStatus === 'sent' && isAfter(new Date(), parseISO(inv.dueDate))) {
+          resolvedStatus = 'overdue';
+        }
+        if (exportStatus === 'pending') {
+          if (resolvedStatus !== 'sent' && resolvedStatus !== 'partial') return false;
+        } else if (resolvedStatus !== exportStatus) {
+          return false;
+        }
+      }
+
+      // Custom Date Range filter on issueDate
+      if (exportStartDate && inv.issueDate < exportStartDate) return false;
+      if (exportEndDate && inv.issueDate > exportEndDate) return false;
+
+      return true;
+    });
+  }, [invoices, exportDocType, exportStatus, exportStartDate, exportEndDate]);
+
+  const executeExport = () => {
+    if (exportFilteredInvoices.length === 0) {
+      toast.error("No invoices found matching the selected report date range and criteria.");
+      return;
+    }
+
+    if (exportFormat === 'csv') {
+      handleExportCSV(exportFilteredInvoices);
+    } else if (exportFormat === 'excel') {
+      handleExportExcel(exportFilteredInvoices);
+    } else if (exportFormat === 'pdf') {
+      handleExportPDF(exportFilteredInvoices);
+    }
+    setIsExportModalOpen(false);
+  };
+  
   // Virtualization state
   const [scrollTop, setScrollTop] = useState(0);
 
@@ -317,8 +406,8 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   };
 
   // CSV Ledger Export function
-  const handleExportCSV = () => {
-    if (filteredInvoices.length === 0) {
+  const handleExportCSV = (targetInvoices: Invoice[] = filteredInvoices) => {
+    if (targetInvoices.length === 0) {
       toast.error("No invoices found to export.");
       return;
     }
@@ -340,7 +429,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
       "Is Recurring"
     ];
 
-    const rows = filteredInvoices.map(inv => [
+    const rows = targetInvoices.map(inv => [
       inv.invoiceNumber,
       inv.documentType || 'invoice',
       `"${inv.clientName.replace(/"/g, '""')}"`,
@@ -373,8 +462,8 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   };
 
   // Excel Ledger Export function (HTML-based XLS for rich formatting)
-  const handleExportExcel = () => {
-    if (filteredInvoices.length === 0) {
+  const handleExportExcel = (targetInvoices: Invoice[] = filteredInvoices) => {
+    if (targetInvoices.length === 0) {
       toast.error("No invoices found to export.");
       return;
     }
@@ -413,14 +502,14 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
     </style></head><body>`;
     
     html += `<div class="header-title">CA JYOSHI MANOHAR - CLIENT INVOICES LEDGER</div>`;
-    html += `<div class="header-meta">Generated on ${new Date().toLocaleDateString()} | Total Records: ${filteredInvoices.length}</div>`;
+    html += `<div class="header-meta">Generated on ${new Date().toLocaleDateString()} | Total Records: ${targetInvoices.length}</div>`;
     html += `<table><thead><tr>`;
     headers.forEach(h => {
       html += `<th>${h}</th>`;
     });
     html += `</tr></thead><tbody>`;
     
-    filteredInvoices.forEach(inv => {
+    targetInvoices.forEach(inv => {
       const statusClass = inv.status === 'paid' ? 'status-paid' : inv.status === 'sent' ? 'status-sent' : inv.status === 'overdue' ? 'status-overdue' : 'status-draft';
       html += `<tr>`;
       html += `<td class="text" style="font-weight: bold; color: #1d4ed8;">${inv.invoiceNumber}</td>`;
@@ -454,8 +543,8 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   };
 
   // PDF Ledger Export function
-  const handleExportPDF = () => {
-    if (filteredInvoices.length === 0) {
+  const handleExportPDF = (targetInvoices: Invoice[] = filteredInvoices) => {
+    if (targetInvoices.length === 0) {
       toast.error("No invoices found to export.");
       return;
     }
@@ -472,7 +561,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
     let grandTotal = 0;
     let grandPaid = 0;
 
-    filteredInvoices.forEach(inv => {
+    targetInvoices.forEach(inv => {
       grandSubtotal += inv.subtotal;
       grandTotal += inv.total;
       grandPaid += (inv.amountPaid || 0);
@@ -1243,7 +1332,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   };
 
   return (
-    <div id="invoice-management-system" className="w-[96%] mx-auto py-4 font-sans select-none pb-24">
+    <div id="invoice-management-system" className="w-full py-2 sm:py-4 font-sans select-none pb-24">
       {/* Printable Wrapper */}
       <style>{`
         @media print {
@@ -1270,58 +1359,58 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
       `}</style>
 
       {/* DASHBOARD SUMMARY BLOCKS */}
-      <div className="no-print grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer">
-          <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center border border-slate-100">
-            <FileText className="h-6 w-6" />
+      <div className="no-print grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 mb-6">
+        <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-3.5 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center border border-slate-100 shrink-0">
+            <FileText className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block truncate">
               {isAdmin ? "Total Invoiced" : "Total Billed"}
             </span>
-            <h4 className="text-xl font-bold text-slate-900 tracking-tight mt-0.5">
+            <h4 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 tracking-tight mt-0.5 truncate">
               ₹{totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer">
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
-            <CheckCircle className="h-6 w-6" />
+        <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-3.5 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100 shrink-0">
+            <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block truncate">
               {isAdmin ? "Received Payments" : "Payments Made"}
             </span>
-            <h4 className="text-xl font-bold text-emerald-600 tracking-tight mt-0.5">
+            <h4 className="text-base sm:text-lg lg:text-xl font-bold text-emerald-600 tracking-tight mt-0.5 truncate">
               ₹{paidInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100">
-            <Clock className="h-6 w-6" />
+        <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-3.5 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100 shrink-0">
+            <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block truncate">
               Outstanding Balances
             </span>
-            <h4 className="text-xl font-bold text-blue-600 tracking-tight mt-0.5">
+            <h4 className="text-base sm:text-lg lg:text-xl font-bold text-blue-600 tracking-tight mt-0.5 truncate">
               ₹{outstandingInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer">
-          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center border border-rose-100">
-            <ShieldAlert className="h-6 w-6" />
+        <div className="bg-white p-4 sm:p-5 lg:p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-3.5 hover:shadow-md hover:border-slate-200 transition-all hover:-translate-y-0.5 cursor-pointer min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center border border-rose-100 shrink-0">
+            <ShieldAlert className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block truncate">
               Overdue Balances
             </span>
-            <h4 className="text-xl font-bold text-rose-600 tracking-tight mt-0.5">
+            <h4 className="text-base sm:text-lg lg:text-xl font-bold text-rose-600 tracking-tight mt-0.5 truncate">
               ₹{overdueInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
@@ -1601,12 +1690,12 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
           </button>
 
           {isLedgerExpanded && (
-          <div className="p-6 border-t border-slate-100">
+          <div className="p-4 sm:p-6 border-t border-slate-100">
             {clientLedgerSummary.length === 0 ? (
               <p className="text-sm text-slate-500 italic text-center py-6">No client invoice activity recorded to construct ledger statements.</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-100">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="w-full min-w-[780px] text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
                       <th className="px-5 py-3">Client Account</th>
@@ -1671,10 +1760,10 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
       )}
 
       {/* ACTION TOOLBAR & FILTERS */}
-      <div className="no-print bg-white rounded-2xl border border-slate-100 p-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <div className="flex flex-1 flex-col sm:flex-row gap-3">
+      <div className="no-print bg-white rounded-2xl border border-slate-100 p-4 mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="flex flex-1 flex-col sm:flex-row gap-3 w-full lg:w-auto">
           {/* Search */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
@@ -1705,47 +1794,22 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
         </div>
 
         {/* Action Triggers */}
-        <div className="flex gap-2 shrink-0 flex-wrap">
+        <div className="flex gap-2 shrink-0 flex-wrap w-full lg:w-auto justify-start lg:justify-end">
           <button 
-            onClick={handleExportCSV}
-            className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
-            title={isAdmin ? "Download invoice catalog spreadsheet for audits" : "Download your invoice history"}
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center justify-center gap-2 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100/80 text-emerald-800 font-semibold text-xs sm:text-sm px-3.5 sm:px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+            title="Generate custom invoice report with custom date range and export mode"
           >
-            <Download className="w-4 h-4 text-slate-500" /> Export CSV
-          </button>
-
-          <button 
-            onClick={handleExportExcel}
-            className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
-            title="Download invoice ledger formatted for MS Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-650" /> Export Excel
-          </button>
-
-          <button 
-            onClick={handleExportPDF}
-            className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
-            title="Generate professionally styled PDF invoice ledger"
-          >
-            <FileText className="w-4 h-4 text-red-600" /> Export PDF
+            <Download className="w-4 h-4 text-emerald-700" /> Export Report
           </button>
 
           <button 
             onClick={handleGenerateVirtualDemo}
-            className="flex items-center justify-center gap-2 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs sm:text-sm px-3.5 sm:px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
             title="Simulate 2,500 invoices to test virtual list performance"
           >
             <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" /> Virtualization Demo
           </button>
-
-          {isAdmin && (
-            <button 
-              onClick={() => { resetForm(); setIsFormOpen(true); }}
-              className="flex items-center justify-center gap-2 bg-[#1a2b58] hover:bg-[#121f40] text-white font-semibold text-sm px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
-            >
-              <Plus className="w-4 h-4" /> Generate Invoice
-            </button>
-          )}
         </div>
       </div>
 
@@ -1768,20 +1832,20 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
           </div>
         ) : (
           <div 
-            className="overflow-auto max-h-[500px]"
+            className="overflow-x-auto max-h-[500px]"
             onScroll={(e) => {
               setScrollTop(e.currentTarget.scrollTop);
             }}
           >
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[700px] text-left border-collapse">
               <thead className="sticky top-0 bg-white z-10 shadow-[0_1px_0_rgba(0,0,0,0.01)]">
                 <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs font-semibold uppercase tracking-wider">
-                  <th className="px-6 py-4">Invoice #</th>
-                  <th className="px-6 py-4">Client Detail</th>
-                  <th className="px-6 py-4">Dates (Issue / Due)</th>
-                  <th className="px-6 py-4">Total Price</th>
-                  <th className="px-6 py-4 text-center">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-4 sm:px-6 py-4">Invoice #</th>
+                  <th className="px-4 sm:px-6 py-4">Client Detail</th>
+                  <th className="px-4 sm:px-6 py-4">Dates (Issue / Due)</th>
+                  <th className="px-4 sm:px-6 py-4">Total Price</th>
+                  <th className="px-4 sm:px-6 py-4 text-center">Status</th>
+                  <th className="px-4 sm:px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
@@ -1899,11 +1963,11 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
 
       {/* VIEW INVOICE DETAILED PANEL MODAL */}
       {isViewOpen && selectedInvoice && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[999] overflow-y-auto">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-8">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-[999] overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-4 sm:my-8 max-h-[92vh]">
             {/* Header controls */}
-            <div className="no-print bg-slate-50 px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center justify-between sm:justify-start gap-4">
+            <div className="no-print bg-slate-50 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+              <div className="flex flex-wrap items-center justify-between md:justify-start gap-2.5 sm:gap-4">
                 <button 
                   onClick={() => setIsViewOpen(false)}
                   className="flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-[#1a2b58] cursor-pointer"
@@ -1911,7 +1975,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                   <ArrowLeft className="w-4 h-4" /> Back to List
                 </button>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Zoho Style:</span>
                   <CustomSelect
                     value={viewTemplateId}
@@ -1939,7 +2003,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-start md:justify-end gap-2 flex-wrap">
                 {/* Print Trigger */}
                 <button 
                   onClick={triggerPrint}
@@ -2696,8 +2760,8 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                   </div>
                 </div>
 
-                <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                  <table className="w-full text-left border-collapse text-xs">
+                <div className="border border-slate-200 rounded-2xl overflow-x-auto">
+                  <table className="w-full min-w-[500px] text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
                         <th className="p-3">Description *</th>
@@ -4103,6 +4167,248 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
 
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COMBINED EXPORT REPORT MODAL */}
+      {isExportModalOpen && (
+        <div id="export-report-modal" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-[999] overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-4">
+            {/* Modal Header */}
+            <div className="bg-slate-900 text-white p-5 sm:p-6 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">Export Invoice Report</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Filter by date range, document scope, and choose export format</p>
+                </div>
+              </div>
+              <button
+                id="close-export-modal-btn"
+                onClick={() => setIsExportModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 sm:p-6 space-y-5 text-xs text-slate-700 max-h-[75vh] overflow-y-auto">
+              
+              {/* 1. REPORT MODE / FORMAT SELECTION */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
+                  1. Select Mode of Report (Export Format)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    id="export-format-excel-btn"
+                    onClick={() => setExportFormat('excel')}
+                    className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-center ${
+                      exportFormat === 'excel'
+                        ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900 shadow-xs font-bold'
+                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    <FileSpreadsheet className={`w-6 h-6 mb-1.5 ${exportFormat === 'excel' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                    <span className="font-bold text-xs">Excel Sheet</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">Rich .xls Format</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="export-format-csv-btn"
+                    onClick={() => setExportFormat('csv')}
+                    className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-center ${
+                      exportFormat === 'csv'
+                        ? 'border-blue-600 bg-blue-50/50 text-blue-900 shadow-xs font-bold'
+                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    <Download className={`w-6 h-6 mb-1.5 ${exportFormat === 'csv' ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <span className="font-bold text-xs">CSV Data</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">Raw .csv Ledger</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    id="export-format-pdf-btn"
+                    onClick={() => setExportFormat('pdf')}
+                    className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-center ${
+                      exportFormat === 'pdf'
+                        ? 'border-red-600 bg-red-50/50 text-red-900 shadow-xs font-bold'
+                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                    }`}
+                  >
+                    <FileText className={`w-6 h-6 mb-1.5 ${exportFormat === 'pdf' ? 'text-red-600' : 'text-slate-400'}`} />
+                    <span className="font-bold text-xs">PDF Document</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">Printable Report</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. CUSTOM DATE RANGE & PRESETS */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
+                  2. Custom Date Range Selection
+                </label>
+                
+                {/* Preset buttons */}
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {[
+                    { id: 'all', label: 'All Time' },
+                    { id: 'today', label: 'Today' },
+                    { id: 'this_month', label: 'This Month' },
+                    { id: 'last_month', label: 'Last Month' },
+                    { id: 'this_quarter', label: 'This Quarter' },
+                    { id: 'this_year', label: 'This Year' },
+                    { id: 'custom', label: 'Custom Range' },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      id={`export-preset-${p.id}-btn`}
+                      onClick={() => handleDatePresetChange(p.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                        exportDatePreset === p.id
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Date Pickers */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" /> Start Date
+                    </label>
+                    <input
+                      type="date"
+                      id="export-start-date-input"
+                      value={exportStartDate}
+                      onChange={(e) => {
+                        setExportStartDate(e.target.value);
+                        setExportDatePreset('custom');
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" /> End Date
+                    </label>
+                    <input
+                      type="date"
+                      id="export-end-date-input"
+                      value={exportEndDate}
+                      onChange={(e) => {
+                        setExportEndDate(e.target.value);
+                        setExportDatePreset('custom');
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. ADDITIONAL SCOPE FILTERS */}
+              <div className="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Document Scope
+                  </label>
+                  <CustomSelect
+                    value={exportDocType}
+                    onChange={(val) => setExportDocType(val)}
+                    options={[
+                      { value: 'all', label: 'All Documents (Invoices & Estimates)' },
+                      { value: 'invoice', label: 'Invoices Only' },
+                      { value: 'estimate', label: 'Estimates Only' },
+                    ]}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Status Filter
+                  </label>
+                  <CustomSelect
+                    value={exportStatus}
+                    onChange={(val) => setExportStatus(val)}
+                    options={[
+                      { value: 'all', label: 'All Statuses' },
+                      { value: 'paid', label: 'Paid Only' },
+                      { value: 'pending', label: 'Pending / Sent' },
+                      { value: 'overdue', label: 'Overdue Only' },
+                      { value: 'draft', label: 'Drafts Only' },
+                    ]}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700"
+                  />
+                </div>
+              </div>
+
+              {/* SUMMARY REPORT PREVIEW CARD */}
+              <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                    Report Preview
+                  </span>
+                  <div className="text-sm font-extrabold text-emerald-950 mt-0.5">
+                    {exportFilteredInvoices.length} {exportFilteredInvoices.length === 1 ? 'Record' : 'Records'} Selected
+                  </div>
+                  <div className="text-[11px] text-emerald-700 mt-0.5">
+                    {exportStartDate && exportEndDate ? (
+                      <span>{exportStartDate} to {exportEndDate}</span>
+                    ) : exportStartDate ? (
+                      <span>From {exportStartDate}</span>
+                    ) : exportEndDate ? (
+                      <span>Up to {exportEndDate}</span>
+                    ) : (
+                      <span>Full Lifetime History</span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                    Total Value
+                  </span>
+                  <span className="text-base font-extrabold text-emerald-900 font-mono">
+                    ₹{exportFilteredInvoices.reduce((s, i) => s + i.total, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="bg-slate-50 p-4 sm:p-5 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                id="export-modal-cancel-btn"
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="export-modal-submit-btn"
+                onClick={executeExport}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md transition cursor-pointer active:scale-95"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>Export {exportFormat.toUpperCase()} Report</span>
+              </button>
             </div>
           </div>
         </div>

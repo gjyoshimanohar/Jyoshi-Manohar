@@ -7693,22 +7693,35 @@ Stewardship, Accuracy, Legacy.
 
               {/* INVOICES AND BILLING PORTAL VIEW */}
               {activeTab === "invoices" && (
-                <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100/60 shadow-sm text-left">
-                  <div className="mb-6 flex items-center gap-3">
-                    <div className="bg-primary/5 p-3 rounded-xl border border-primary/10">
-                      <FileText className="h-6 w-6 text-primary" />
+                <div className="bg-white p-4 sm:p-6 md:p-6 lg:p-8 rounded-3xl border border-slate-100/60 shadow-sm text-left overflow-hidden">
+                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 shrink-0">
+                        <FileText className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold text-primary tracking-tight">
+                          Invoices &amp; Billing Panel
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {isAdmin 
+                            ? "Review consulting fee distributions, publish invoice drafts, and track client balance metrics."
+                            : "Track consulting and statutory compliance fees, view payment receipts, and settle dues online."
+                          }
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-primary tracking-tight">
-                        Invoices &amp; Billing Panel
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {isAdmin 
-                          ? "Review consulting fee distributions, publish invoice drafts, and track client balance metrics."
-                          : "Track consulting and statutory compliance fees, view payment receipts, and settle dues online."
-                        }
-                      </p>
-                    </div>
+                    {isAdmin && (
+                      <button
+                        id="top-right-generate-invoice-btn"
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('OPEN_CREATE_INVOICE'));
+                        }}
+                        className="flex items-center justify-center gap-2 bg-[#1a2b58] hover:bg-[#121f40] text-white font-bold text-xs sm:text-sm px-4 sm:px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all active:scale-[0.98] shrink-0 self-start sm:self-auto"
+                      >
+                        <Plus className="w-4 h-4 text-emerald-400" /> Generate Invoice
+                      </button>
+                    )}
                   </div>
                   <InvoiceManagement isAdmin={isAdmin} clients={clients} />
                 </div>
