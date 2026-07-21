@@ -49,7 +49,8 @@ import {
   Wallet,
   LayoutDashboard,
   Menu,
-  Settings
+  Settings,
+  Printer
 } from "lucide-react";
 import { 
   ResponsiveContainer,
@@ -323,6 +324,8 @@ export default function FinanceTracker() {
   const [receiveModalOpen, setReceiveModalOpen] = useState(false);
   const [receiveModalRecords, setReceiveModalRecords] = useState<FinanceRecord[]>([]);
   const [receiveModalAccountId, setReceiveModalAccountId] = useState("");
+  const [deleteConfirmModalOpen, setDeleteConfirmModalOpen] = useState(false);
+  const [recordsToDelete, setRecordsToDelete] = useState<FinanceRecord[]>([]);
 
   const [payCcModalOpen, setPayCcModalOpen] = useState(false);
   const [payCcAccount, setPayCcAccount] = useState<PaymentAccount | null>(null);
@@ -911,15 +914,29 @@ export default function FinanceTracker() {
     }
   };
 
-  // Delete Transaction
-  const handleDeleteTransaction = async (id: string) => {
+  // Open Delete Confirmation Modal for single transaction
+  const handleDeleteTransaction = (id: string) => {
+    const rec = records.find(r => r.id === id);
+    if (rec) {
+      setRecordsToDelete([rec]);
+      setDeleteConfirmModalOpen(true);
+    }
+  };
+
+  // Bulk Delete Transactions
+  const handleBulkDeleteTransactions = async () => {
     try {
       setSyncing(true);
-      await financeService.deleteRecord(id);
-      setConfirmDeleteId(null);
+      await Promise.all(recordsToDelete.map(r => financeService.deleteRecord(r.id)));
+      
+      const deletedIds = new Set(recordsToDelete.map(r => r.id));
+      setSelectedRecordIds(prev => prev.filter(id => !deletedIds.has(id)));
+      toast.success(`${recordsToDelete.length} transaction(s) deleted successfully!`);
+      setDeleteConfirmModalOpen(false);
+      setRecordsToDelete([]);
     } catch (err) {
-      console.error("Failed to delete transaction", err);
-      toast.error("Failed to delete. Access restricted.");
+      console.error("Failed to delete transactions in bulk", err);
+      toast.error("Failed to delete some transactions.");
     } finally {
       setSyncing(false);
     }
@@ -1898,18 +1915,355 @@ export default function FinanceTracker() {
     toast.success("PDF transaction statement generated successfully!");
   };
 
+  // Generate and Print Invoice Summary of selected payables
+  const handlePrintInvoice = (recordsToPrint: FinanceRecord[]) => {
+    if (recordsToPrint.length === 0) {
+      toast.error("No transactions selected for invoice printing.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Popup blocker prevented invoice generation. Please allow popups for this portal.");
+      return;
+    }
+
+    const symbol = "₹";
+    let rowsHtml = "";
+    let grandTotal = 0;
+
+    recordsToPrint.forEach((rec, idx) => {
+      grandTotal += Number(rec.amount);
+      const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "Not Specified";
+      const statusColor = rec.status === 'paid' ? '#10b981' : rec.status === 'pending' ? '#f59e0b' : '#ef4444';
+      
+      rowsHtml += `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>
+            <strong>${rec.description || rec.clientName || "General Payable"}</strong>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px;">ID: ${rec.id}</div>
+          </td>
+          <td>${rec.category}</td>
+          <td>${new Date(rec.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+          <td><span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background-color: ${statusColor}15; color: ${statusColor};">${rec.status}</span></td>
+          <td>${sourceAcc}</td>
+          <td style="text-align: right; font-weight: 700; color: #1e293b;">${symbol}${Number(rec.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+        </tr>
+      `;
+    });
+
+    const isMultiple = recordsToPrint.length > 1;
+    const documentTitle = isMultiple ? "CONSOLIDATED PAYMENT SUMMARY" : "PAYMENT INVOICE & ADVICE";
+    const documentNo = isMultiple ? `CS-${Date.now().toString().substring(6)}` : `INV-${recordsToPrint[0].id.substring(0, 8).toUpperCase()}`;
+    const invoiceDate = isMultiple ? new Date().toLocaleDateString('en-IN') : new Date(recordsToPrint[0].date).toLocaleDateString('en-IN');
+    
+    // Vendor/Payee details
+    const payeeName = isMultiple ? "Various Vendors / Creditors" : (recordsToPrint[0].clientName || "External Service Provider");
+    const payeeCategory = isMultiple ? "Multiple Categories" : recordsToPrint[0].category;
+    
+    const htmlContent = `
+      <html>
+        <head>
+          <title>${documentTitle} - ${documentNo}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+            body { 
+              font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+              padding: 50px; 
+              color: #1e293b; 
+              background: white; 
+              line-height: 1.5;
+            }
+            .invoice-card {
+              max-width: 850px;
+              margin: 0 auto;
+              border: 1px solid #e2e8f0;
+              border-radius: 16px;
+              padding: 40px;
+              box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02);
+            }
+            .header-container { 
+              display: flex; 
+              justify-content: space-between; 
+              border-bottom: 2px solid #1a2b58; 
+              padding-bottom: 25px; 
+              margin-bottom: 30px; 
+            }
+            .company-details h1 { 
+              font-size: 24px; 
+              font-weight: 800; 
+              color: #1a2b58; 
+              margin: 0;
+              letter-spacing: -0.5px; 
+            }
+            .company-details p { 
+              font-size: 12px; 
+              color: #64748b; 
+              margin: 4px 0 0 0;
+              font-weight: 500;
+            }
+            .doc-meta { 
+              text-align: right; 
+            }
+            .doc-meta h2 {
+              font-size: 18px;
+              font-weight: 800;
+              color: #AD8D3E;
+              margin: 0 0 8px 0;
+              letter-spacing: -0.3px;
+            }
+            .doc-meta p {
+              font-size: 12px;
+              color: #475569;
+              margin: 2px 0;
+            }
+            .billing-info {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 40px;
+              margin-bottom: 40px;
+            }
+            .info-block h3 {
+              font-size: 10px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              color: #94a3b8;
+              margin-top: 0;
+              margin-bottom: 10px;
+              border-bottom: 1px solid #f1f5f9;
+              padding-bottom: 6px;
+            }
+            .info-block p {
+              font-size: 13px;
+              color: #334155;
+              margin: 4px 0;
+            }
+            .info-block .name {
+              font-size: 15px;
+              font-weight: 700;
+              color: #1a2b58;
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin-bottom: 40px; 
+            }
+            th { 
+              background-color: #f8fafc; 
+              border-bottom: 2px solid #e2e8f0; 
+              color: #475569; 
+              font-weight: 700; 
+              font-size: 10px; 
+              text-transform: uppercase; 
+              letter-spacing: 0.5px; 
+              padding: 14px 12px; 
+              text-align: left; 
+            }
+            td { 
+              border-bottom: 1px solid #f1f5f9; 
+              padding: 14px 12px; 
+              font-size: 12px; 
+              color: #334155; 
+              vertical-align: middle;
+            }
+            .totals-container { 
+              display: flex;
+              flex-direction: column;
+              align-items: flex-end;
+              margin-top: 20px; 
+            }
+            .total-table {
+              width: 320px;
+              margin-bottom: 0;
+            }
+            .total-table td {
+              padding: 8px 12px;
+              border: none;
+            }
+            .grand-total-row {
+              font-size: 16px;
+              font-weight: 800;
+              background-color: #1a2b58;
+              color: white !important;
+              border-radius: 8px;
+            }
+            .grand-total-row td {
+              color: white !important;
+              padding: 12px !important;
+            }
+            .terms-block {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 1px dashed #cbd5e1;
+            }
+            .terms-block h4 {
+              font-size: 11px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              color: #475569;
+              margin: 0 0 8px 0;
+            }
+            .terms-block p {
+              font-size: 11px;
+              color: #64748b;
+              margin: 0;
+              line-height: 1.6;
+            }
+            .footer { 
+              margin-top: 50px;
+              font-size: 10px; 
+              color: #94a3b8; 
+              text-align: center; 
+              border-top: 1px solid #f1f5f9; 
+              padding-top: 15px; 
+            }
+            @media print {
+              body { padding: 0; }
+              .invoice-card {
+                border: none;
+                box-shadow: none;
+                padding: 0;
+              }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-card">
+            <div class="header-container">
+              <div class="company-details">
+                <h1>CA JYOSHI MANOHAR & CO.</h1>
+                <p>Chartered Accountants & Business Tax Advisors</p>
+                <p style="font-size: 11px; color: #94a3b8; font-weight: normal; margin-top: 2px;">
+                  102, Premium Chambers, ICAI Lane, Mumbai - 400001
+                </p>
+              </div>
+              <div class="doc-meta">
+                <h2>${documentTitle}</h2>
+                <p><strong>Doc Ref:</strong> ${documentNo}</p>
+                <p><strong>Date:</strong> ${invoiceDate}</p>
+                <p><strong>Currency:</strong> INR (₹)</p>
+              </div>
+            </div>
+
+            <div class="billing-info">
+              <div class="info-block">
+                <h3>Issued To (Filer / Client)</h3>
+                <p class="name">CA Jyoshi Manohar Offices</p>
+                <p>Corporate Finance & Operations Division</p>
+                <p>Email: gjyoshimanohar@gmail.com</p>
+              </div>
+              <div class="info-block">
+                <h3>Creditor / Payee Details</h3>
+                <p class="name">${payeeName}</p>
+                <p>Category: <strong>${payeeCategory}</strong></p>
+                <p>Payment Reference: Expense Log Summary</p>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 40px;">#</th>
+                  <th>Item / Description</th>
+                  <th>Category</th>
+                  <th>Due/Tx Date</th>
+                  <th>Status</th>
+                  <th>Paid Account</th>
+                  <th style="text-align: right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+
+            <div class="totals-container">
+              <table class="total-table">
+                <tr>
+                  <td style="color: #64748b; font-weight: 500;">Subtotal:</td>
+                  <td style="text-align: right; font-weight: 600;">${symbol}${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; font-weight: 500;">Taxes / Fees:</td>
+                  <td style="text-align: right; font-weight: 600;">${symbol}0.00</td>
+                </tr>
+                <tr class="grand-total-row">
+                  <td>Total Payable:</td>
+                  <td style="text-align: right;">${symbol}${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="terms-block">
+              <h4>Authorized Signatory & Stamp</h4>
+              <p>This is a computer-generated billing statement and payment advice record compiled directly from the office finance book of CA Jyoshi Manohar. It serves as an official proof of payable liabilities or expense drawdowns.</p>
+            </div>
+
+            <div class="footer">
+              CA Jyoshi Manohar Offices • Confidential Billing Document • Generated on ${new Date().toLocaleString()}
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 700);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    toast.success("Payment Invoice PDF generated successfully!");
+  };
+
   const renderLedgerLogsTable = (title: string, subtitle: string, defaultFormTypeToAdd?: "income" | "expense" | "transfer") => {
+    const selectedInTable = filteredRecords.filter(rec => selectedRecordIds.includes(rec.id));
+    const allSelected = filteredRecords.length > 0 && filteredRecords.every(r => selectedRecordIds.includes(r.id));
+
     return (
       <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm mt-6 mb-6">
-        {selectedRecordIds.length > 0 ? (
+        {selectedInTable.length > 0 ? (
           <div className="px-6 py-4 border-b border-border bg-indigo-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <span className="text-indigo-700 font-bold text-sm">{selectedRecordIds.length} record(s) selected</span>
-            <div className="flex gap-2">
+            <span className="text-indigo-700 font-bold text-sm">{selectedInTable.length} record(s) selected</span>
+            <div className="flex flex-wrap gap-2">
               <button 
-                onClick={handleBulkMarkAsPaid}
+                onClick={() => {
+                  setReceiveModalRecords(selectedInTable);
+                  setReceiveModalAccountId("");
+                  setReceiveModalOpen(true);
+                }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition"
               >
                 Mark as Paid / Received
+              </button>
+              {activeTab === "payables" && (
+                <button 
+                  onClick={() => handlePrintInvoice(selectedInTable)}
+                  className="bg-primary hover:bg-primary/95 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print Invoice
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setRecordsToDelete(selectedInTable);
+                  setDeleteConfirmModalOpen(true);
+                }}
+                className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedRecordIds(prev => prev.filter(id => !filteredRecords.some(r => r.id === id)))}
+                className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg text-xs font-semibold transition"
+              >
+                Clear Selection
               </button>
             </div>
           </div>
@@ -1943,17 +2297,49 @@ export default function FinanceTracker() {
           <table className="w-full whitespace-nowrap text-left text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
+                <th className="py-3 px-4 w-12 text-center">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                    checked={allSelected}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const newIds = new Set(selectedRecordIds);
+                        filteredRecords.forEach(r => newIds.add(r.id));
+                        setSelectedRecordIds(Array.from(newIds));
+                      } else {
+                        const idsToRemove = new Set(filteredRecords.map(r => r.id));
+                        setSelectedRecordIds(prev => prev.filter(id => !idsToRemove.has(id)));
+                      }
+                    }}
+                  />
+                </th>
                 <th className="px-6 py-3 font-semibold">Date</th>
                 <th className="px-6 py-3 font-semibold">Description</th>
                 <th className="px-6 py-3 font-semibold">Category</th>
                 <th className="px-6 py-3 font-semibold">Type</th>
                 <th className="px-6 py-3 font-semibold text-right">Amount</th>
                 <th className="px-6 py-3 font-semibold text-center">Status</th>
+                <th className="px-6 py-3 font-semibold text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredRecords.map(record => (
-                <tr key={record.id} className="hover:bg-slate-50/50 transition">
+                <tr key={record.id} className={`hover:bg-slate-50/50 transition ${selectedRecordIds.includes(record.id) ? 'bg-indigo-50/30' : ''}`}>
+                  <td className="py-4 px-4 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                      checked={selectedRecordIds.includes(record.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedRecordIds(prev => [...prev, record.id]);
+                        } else {
+                          setSelectedRecordIds(prev => prev.filter(id => id !== record.id));
+                        }
+                      }}
+                    />
+                  </td>
                   <td className="px-6 py-4">{new Date(record.date).toLocaleDateString()}</td>
                   <td className="px-6 py-4 font-medium text-slate-900">{record.description || record.clientName || "-"}</td>
                   <td className="px-6 py-4">{record.category}</td>
@@ -1963,6 +2349,42 @@ export default function FinanceTracker() {
                     <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${record.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : record.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
                       {record.status}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex justify-center items-center gap-2">
+                      {activeTab === "payables" && (
+                        <button
+                          onClick={() => handlePrintInvoice([record])}
+                          className="p-1 text-slate-500 hover:text-primary rounded hover:bg-slate-100 transition"
+                          title="Print Invoice"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      )}
+                      {((record.status === "pending" || record.status === "overdue") || (record.type === "expense" && record.isReceivableFromClient)) && (
+                        <button
+                          onClick={() => handleMarkAsPaid(record)}
+                          className="p-1 text-emerald-600 hover:text-emerald-700 rounded hover:bg-slate-100 transition"
+                          title={record.type === "expense" && !record.isReceivableFromClient ? "Mark as Paid" : "Mark as Received"}
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleOpenEditModal(record)}
+                        className="p-1 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-100 transition"
+                        title="Edit"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTransaction(record.id)}
+                        className="p-1 text-slate-500 hover:text-rose-600 rounded hover:bg-slate-100 transition"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -2030,6 +2452,21 @@ export default function FinanceTracker() {
         </div>
       )}
 
+      {/* Mobile Sidebar Toggle & Status Bar */}
+      <div className="flex lg:hidden items-center justify-between w-full bg-slate-50 border border-slate-200 rounded-xl p-3 mb-2">
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 transition shadow-xs active:scale-95"
+        >
+          <Menu className="w-4 h-4 text-slate-500" />
+          <span>Open Menu / Filters</span>
+        </button>
+        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase bg-slate-200/50 border border-slate-300 px-2.5 py-1 rounded-lg">
+          <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+          <span>Tab: {activeTab}</span>
+        </div>
+      </div>
+
       {/* Two-Column Sidebar Layout */}
       <div className="flex flex-col lg:flex-row gap-8 items-start relative">
         
@@ -2054,13 +2491,14 @@ export default function FinanceTracker() {
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <div className={`border-b border-slate-100 flex items-center transition-all duration-300 pb-3 lg:justify-start`}>
+          <div className="border-b border-slate-100 flex items-center justify-between transition-all duration-300 pb-3 w-full lg:justify-start">
+            <span className="text-sm font-bold text-slate-800 lg:hidden">Menu & Filters</span>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1.5 -ml-1 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors shrink-0 hidden lg:block"
+              className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors shrink-0"
               title="Toggle Sidebar"
             >
-              <Menu className="w-5 h-5" />
+              {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
 
@@ -3923,6 +4361,82 @@ export default function FinanceTracker() {
                   className="px-5 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
                 >
                   {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {syncing ? "Updating..." : "Confirm"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Batch / Single Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmModalOpen && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setDeleteConfirmModalOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 overflow-visible flex flex-col max-h-full border border-slate-100 text-left"
+            >
+              {syncing && (
+                <div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl">
+                  <RefreshCw className="w-10 h-10 text-rose-600 animate-spin mb-4" />
+                  <p className="text-lg font-bold text-slate-800">Deleting transaction(s)...</p>
+                  <p className="text-sm text-slate-500 mt-1">Please wait a moment</p>
+                </div>
+              )}
+              <div className="px-6 py-5 border-b border-rose-100 bg-rose-50/50 flex items-center justify-between sticky top-0 z-10 rounded-t-2xl">
+                <h3 className="text-lg font-bold text-rose-950 tracking-tight flex items-center gap-2">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                  Delete Transaction(s)
+                </h3>
+                <button 
+                  onClick={() => setDeleteConfirmModalOpen(false)}
+                  className="p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 rounded-full transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[300px] custom-scrollbar">
+                <p className="text-sm text-slate-600 mb-4 font-medium">
+                  Are you sure you want to permanently delete the following <span className="font-bold text-rose-700">{recordsToDelete.length} record(s)</span>? This action cannot be undone.
+                </p>
+                <div className="space-y-2 border border-slate-100 rounded-xl p-3 bg-slate-50/50">
+                  {recordsToDelete.map((rec) => (
+                    <div key={rec.id} className="flex justify-between items-center text-xs text-slate-700 font-semibold bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
+                      <div className="truncate max-w-[240px]">
+                        <span className="font-bold text-[#1a2b58] mr-1.5 font-mono">
+                          [{rec.type.toUpperCase()}]
+                        </span>
+                        <span>{rec.description || rec.clientName || "General Log"}</span>
+                      </div>
+                      <span className="font-extrabold text-rose-600 shrink-0">
+                        ₹{rec.amount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-4 border-t border-border bg-slate-50 flex justify-end gap-3 shrink-0 rounded-b-2xl">
+                <button
+                  onClick={() => setDeleteConfirmModalOpen(false)}
+                  className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDeleteTransactions}
+                  disabled={syncing}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
+                >
+                  {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} {syncing ? "Deleting..." : "Permanently Delete"}
                 </button>
               </div>
             </motion.div>
