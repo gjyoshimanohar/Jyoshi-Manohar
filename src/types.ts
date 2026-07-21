@@ -78,6 +78,8 @@ export interface Todo {
 	blockedBy?: string[];
 	clientId?: string;
 	clientName?: string;
+	color?: string;
+	colorLabel?: string;
 	metadata?: {
 		deleteReason?: string;
 		declineReason?: string;

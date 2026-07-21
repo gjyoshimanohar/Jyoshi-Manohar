@@ -14,15 +14,10 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
-              if (id.includes('lucide-react')) return 'vendor-lucide';
               if (id.includes('suneditor')) return 'vendor-editor';
-              if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
               if (id.includes('firebase') || id.includes('@firebase')) return 'vendor-firebase';
-              if (id.includes('@google/genai')) return 'vendor-ai';
-              if (id.includes('@dnd-kit')) return 'vendor-dnd';
-              if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
-              if (id.includes('react-dom') || id.includes('react-router') || id.includes('react/')) return 'vendor-react';
-              return 'vendor';
+              if (id.includes('lucide-react')) return 'vendor-lucide';
+              if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
             }
           }
         }

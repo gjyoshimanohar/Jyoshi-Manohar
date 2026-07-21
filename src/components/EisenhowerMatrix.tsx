@@ -138,13 +138,48 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  draggable
  onDragStart={(e) => handleDragStart(e, item.id)}
  onClick={() => onSelectTodoId(item.id)}
- className="bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-200 cursor-grab active:cursor-grabbing flex flex-col justify-between"
+ className={`bg-white border border-gray-100 rounded-lg p-2.5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 duration-200 cursor-grab active:cursor-grabbing flex flex-col justify-between ${
+   item.color && item.color !== "none"
+     ? item.color === "red" ? "border-l-[4px] border-l-red-500 pl-3 bg-red-50/10" :
+       item.color === "orange" ? "border-l-[4px] border-l-orange-500 pl-3 bg-orange-50/10" :
+       item.color === "amber" ? "border-l-[4px] border-l-amber-500 pl-3 bg-amber-50/10" :
+       item.color === "emerald" ? "border-l-[4px] border-l-emerald-500 pl-3 bg-emerald-50/10" :
+       item.color === "blue" ? "border-l-[4px] border-l-blue-500 pl-3 bg-blue-50/10" :
+       item.color === "indigo" ? "border-l-[4px] border-l-indigo-500 pl-3 bg-indigo-50/10" :
+       item.color === "purple" ? "border-l-[4px] border-l-purple-500 pl-3 bg-purple-50/10" :
+       "border-l-[4px] border-l-pink-500 pl-3 bg-pink-50/10"
+     : ""
+ }`}
  >
  <div className="flex items-start justify-between">
- <span className="text-sm font-bold text-gray-800 tracking-tight truncate flex-1 leading-normal pr-2 flex items-center gap-1">
+ <span className="text-sm font-bold text-gray-800 tracking-tight truncate flex-1 leading-normal pr-2 flex items-center gap-1 flex-wrap">
  {item.repeatInterval && <RefreshCw className="inline-block w-3 h-3 text-primary flex-shrink-0" />}
  {(item.blockedBy?.length || 0) > 0 && <Lock className="inline-block w-3 h-3 text-rose-500 flex-shrink-0" />}
- {item.title}
+ <span>{item.title}</span>
+ {item.color && item.color !== "none" && (
+   <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-bold border select-none leading-none ${
+     item.color === "red" ? "bg-red-50 text-red-600 border-red-200" :
+     item.color === "orange" ? "bg-orange-50 text-orange-600 border-orange-200" :
+     item.color === "amber" ? "bg-amber-50 text-amber-600 border-amber-200" :
+     item.color === "emerald" ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
+     item.color === "blue" ? "bg-blue-50 text-blue-600 border-blue-200" :
+     item.color === "indigo" ? "bg-indigo-50 text-indigo-600 border-indigo-200" :
+     item.color === "purple" ? "bg-purple-50 text-purple-600 border-purple-200" :
+     "bg-pink-50 text-pink-600 border-pink-200"
+   }`}>
+     <span className={`w-1 h-1 rounded-full ${
+       item.color === "red" ? "bg-red-500" :
+       item.color === "orange" ? "bg-orange-500" :
+       item.color === "amber" ? "bg-amber-500" :
+       item.color === "emerald" ? "bg-emerald-500" :
+       item.color === "blue" ? "bg-blue-500" :
+       item.color === "indigo" ? "bg-indigo-500" :
+       item.color === "purple" ? "bg-purple-500" :
+       "bg-pink-500"
+     }`} />
+     {item.colorLabel || (item.color.charAt(0).toUpperCase() + item.color.slice(1))}
+   </span>
+ )}
  </span>
  <span className="text-xs text-gray-400 select-none">⋮⋮</span>
  </div>

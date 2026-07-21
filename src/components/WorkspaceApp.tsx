@@ -147,6 +147,18 @@ const FOLDER_COLORS = [
   "#d946ef", // fuchsia
 ];
 
+const TASK_COLORS = [
+  { id: "none", name: "Default (None)", bg: "bg-gray-100", border: "border-gray-200", text: "text-gray-600", dot: "bg-gray-400" },
+  { id: "red", name: "Red / Urgent", bg: "bg-red-50", border: "border-red-200", text: "text-red-600", dot: "bg-red-500" },
+  { id: "orange", name: "Orange / Important", bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-600", dot: "bg-orange-500" },
+  { id: "amber", name: "Yellow / Warning", bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-600", dot: "bg-amber-500" },
+  { id: "emerald", name: "Green / Growth", bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-600", dot: "bg-emerald-500" },
+  { id: "blue", name: "Blue / Client", bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-600", dot: "bg-blue-500" },
+  { id: "indigo", name: "Indigo / Strategy", bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-600", dot: "bg-indigo-500" },
+  { id: "purple", name: "Purple / Feature", bg: "bg-purple-50", border: "border-purple-200", text: "text-purple-600", dot: "bg-purple-500" },
+  { id: "pink", name: "Pink / Idea", bg: "bg-pink-50", border: "border-pink-200", text: "text-pink-600", dot: "bg-pink-500" },
+];
+
 const renderIcon = (
   name: string | undefined | null,
   defaultColor: string = "#6b7280",
@@ -794,6 +806,7 @@ export default function WorkspaceApp() {
   const [showDetailBlockingPicker, setShowDetailBlockingPicker] =
     useState(false);
   const [showDetailClientPicker, setShowDetailClientPicker] = useState(false);
+  const [showDetailColorPicker, setShowDetailColorPicker] = useState(false);
   const [clients, setClients] = useState<
     { uid: string; email: string; displayName?: string }[]
   >([]);
@@ -2163,15 +2176,24 @@ export default function WorkspaceApp() {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.3, delay: (index ?? 0) * 0.05, ease: "easeOut" }}
         className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
-          hasPriority
-            ? todo.priority === 1
-              ? isOverdue
-                ? ""
-                : "border-l-[3px] border-red-300 pl-3"
-              : todo.priority === 2
-                ? "border-l-[3px] border-orange-300 pl-3"
-                : "border-l-[3px] border-blue-300 pl-3"
-            : ""
+          todo.color && todo.color !== "none"
+            ? todo.color === "red" ? "border-l-[4px] border-l-red-500 pl-3 bg-red-50/10 hover:bg-red-50/20" :
+              todo.color === "orange" ? "border-l-[4px] border-l-orange-500 pl-3 bg-orange-50/10 hover:bg-orange-50/20" :
+              todo.color === "amber" ? "border-l-[4px] border-l-amber-500 pl-3 bg-amber-50/10 hover:bg-amber-50/20" :
+              todo.color === "emerald" ? "border-l-[4px] border-l-emerald-500 pl-3 bg-emerald-50/10 hover:bg-emerald-50/20" :
+              todo.color === "blue" ? "border-l-[4px] border-l-blue-500 pl-3 bg-blue-50/10 hover:bg-blue-50/20" :
+              todo.color === "indigo" ? "border-l-[4px] border-l-indigo-500 pl-3 bg-indigo-50/10 hover:bg-indigo-50/20" :
+              todo.color === "purple" ? "border-l-[4px] border-l-purple-500 pl-3 bg-purple-50/10 hover:bg-purple-50/20" :
+              "border-l-[4px] border-l-pink-500 pl-3 bg-pink-50/10 hover:bg-pink-50/20"
+            : hasPriority
+              ? todo.priority === 1
+                ? isOverdue
+                  ? ""
+                  : "border-l-[3px] border-red-300 pl-3"
+                : todo.priority === 2
+                  ? "border-l-[3px] border-orange-300 pl-3"
+                  : "border-l-[3px] border-blue-300 pl-3"
+              : ""
         }`}
       >
         <div className="flex items-center min-w-0 flex-1">
@@ -2228,6 +2250,30 @@ export default function WorkspaceApp() {
                   }}
                 >
                   {todo.title}
+                </span>
+              )}
+              {todo.color && todo.color !== "none" && (
+                <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border select-none ${
+                  todo.color === "red" ? "bg-red-50 text-red-600 border-red-200" :
+                  todo.color === "orange" ? "bg-orange-50 text-orange-600 border-orange-200" :
+                  todo.color === "amber" ? "bg-amber-50 text-amber-600 border-amber-200" :
+                  todo.color === "emerald" ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
+                  todo.color === "blue" ? "bg-blue-50 text-blue-600 border-blue-200" :
+                  todo.color === "indigo" ? "bg-indigo-50 text-indigo-600 border-indigo-200" :
+                  todo.color === "purple" ? "bg-purple-50 text-purple-600 border-purple-200" :
+                  "bg-pink-50 text-pink-600 border-pink-200"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    todo.color === "red" ? "bg-red-500" :
+                    todo.color === "orange" ? "bg-orange-500" :
+                    todo.color === "amber" ? "bg-amber-500" :
+                    todo.color === "emerald" ? "bg-emerald-500" :
+                    todo.color === "blue" ? "bg-blue-500" :
+                    todo.color === "indigo" ? "bg-indigo-500" :
+                    todo.color === "purple" ? "bg-purple-500" :
+                    "bg-pink-500"
+                  }`} />
+                  {todo.colorLabel || (todo.color.charAt(0).toUpperCase() + todo.color.slice(1))}
                 </span>
               )}
             </span>
@@ -4627,15 +4673,24 @@ export default function WorkspaceApp() {
                                                         );
                                                       }}
                                                       className={`bg-white rounded-2xl border border-gray-100 p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 cursor-grab active:cursor-grabbing text-left flex flex-col gap-1.5 group select-none relative duration-100 ${
-                                                        todo.priority === 1 &&
-                                                        !isOverdue
-                                                          ? "border-l-2 border-l-red-300 pl-3"
-                                                          : todo.priority === 2
-                                                            ? "border-l-2 border-l-orange-300 pl-3"
-                                                            : todo.priority ===
-                                                                3
-                                                              ? "border-l-2 border-l-blue-300 pl-3"
-                                                              : ""
+                                                        todo.color && todo.color !== "none"
+                                                          ? todo.color === "red" ? "border-l-[4px] border-l-red-500 pl-3 bg-red-50/10" :
+                                                            todo.color === "orange" ? "border-l-[4px] border-l-orange-500 pl-3 bg-orange-50/10" :
+                                                            todo.color === "amber" ? "border-l-[4px] border-l-amber-500 pl-3 bg-amber-50/10" :
+                                                            todo.color === "emerald" ? "border-l-[4px] border-l-emerald-500 pl-3 bg-emerald-50/10" :
+                                                            todo.color === "blue" ? "border-l-[4px] border-l-blue-500 pl-3 bg-blue-50/10" :
+                                                            todo.color === "indigo" ? "border-l-[4px] border-l-indigo-500 pl-3 bg-indigo-50/10" :
+                                                            todo.color === "purple" ? "border-l-[4px] border-l-purple-500 pl-3 bg-purple-50/10" :
+                                                            "border-l-[4px] border-l-pink-500 pl-3 bg-pink-50/10"
+                                                          : todo.priority === 1 &&
+                                                          !isOverdue
+                                                            ? "border-l-2 border-l-red-300 pl-3"
+                                                            : todo.priority === 2
+                                                              ? "border-l-2 border-l-orange-300 pl-3"
+                                                              : todo.priority ===
+                                                                  3
+                                                                ? "border-l-2 border-l-blue-300 pl-3"
+                                                                : ""
                                                       }`}
                                                       onClick={() =>
                                                         setSelectedTodoId(
@@ -4728,6 +4783,30 @@ export default function WorkspaceApp() {
                                                                 }}
                                                               >
                                                                 {todo.title}
+                                                              </span>
+                                                            )}
+                                                            {todo.color && todo.color !== "none" && (
+                                                              <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border select-none ${
+                                                                todo.color === "red" ? "bg-red-50 text-red-600 border-red-200" :
+                                                                todo.color === "orange" ? "bg-orange-50 text-orange-600 border-orange-200" :
+                                                                todo.color === "amber" ? "bg-amber-50 text-amber-600 border-amber-200" :
+                                                                todo.color === "emerald" ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
+                                                                todo.color === "blue" ? "bg-blue-50 text-blue-600 border-blue-200" :
+                                                                todo.color === "indigo" ? "bg-indigo-50 text-indigo-600 border-indigo-200" :
+                                                                todo.color === "purple" ? "bg-purple-50 text-purple-600 border-purple-200" :
+                                                                "bg-pink-50 text-pink-600 border-pink-200"
+                                                              }`}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${
+                                                                  todo.color === "red" ? "bg-red-500" :
+                                                                  todo.color === "orange" ? "bg-orange-500" :
+                                                                  todo.color === "amber" ? "bg-amber-500" :
+                                                                  todo.color === "emerald" ? "bg-emerald-500" :
+                                                                  todo.color === "blue" ? "bg-blue-500" :
+                                                                  todo.color === "indigo" ? "bg-indigo-500" :
+                                                                  todo.color === "purple" ? "bg-purple-500" :
+                                                                  "bg-pink-500"
+                                                                }`} />
+                                                                {todo.colorLabel || (todo.color.charAt(0).toUpperCase() + todo.color.slice(1))}
                                                               </span>
                                                             )}
                                                           </span>
@@ -8347,6 +8426,153 @@ export default function WorkspaceApp() {
                                         </button>
                                       );
                                     })
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        {/* Task Custom Color & Category Label Picker */}
+                        <div className="relative mt-4">
+                          <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">
+                            Task Color & Type Category
+                          </label>
+                          <div className="flex gap-2 items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowDetailColorPicker(!showDetailColorPicker);
+                                setShowDetailDatePicker(false);
+                                setShowDetailPaymentDatePicker(false);
+                                setShowDetailPriorityPicker(false);
+                                setShowDetailRepeatPicker(false);
+                                setShowDetailBlockingPicker(false);
+                                setShowDetailClientPicker(false);
+                              }}
+                              className={`flex-1 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${
+                                showDetailColorPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700 bg-white border border-gray-150"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                <span
+                                  className={`w-3.5 h-3.5 rounded-full shrink-0 ${
+                                    TASK_COLORS.find((c) => c.id === (todo.color || "none"))?.dot || "bg-gray-400"
+                                  }`}
+                                />
+                                <span className="truncate text-gray-800">
+                                  {todo.colorLabel ||
+                                    TASK_COLORS.find((c) => c.id === (todo.color || "none"))?.name ||
+                                    "Default / None"}
+                                </span>
+                              </span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${
+                                  showDetailColorPicker ? "rotate-180" : ""
+                                }`}
+                              />
+                            </button>
+                            {todo.color && todo.color !== "none" && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setTodos((prev) =>
+                                    prev.map((t) =>
+                                      t.id === todo.id
+                                        ? { ...t, color: undefined, colorLabel: undefined }
+                                        : t
+                                    )
+                                  );
+                                  await todoService.updateTodo(todo.id, {
+                                    color: null as any,
+                                    colorLabel: null as any,
+                                  });
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition cursor-pointer shrink-0"
+                                title="Clear Task Color"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+
+                          <AnimatePresence>
+                            {showDetailColorPicker && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-150 rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-3.5 w-72"
+                              >
+                                <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2.5">
+                                  Select Color Preset
+                                </span>
+                                <div className="grid grid-cols-5 gap-2 mb-3.5">
+                                  {TASK_COLORS.map((preset) => {
+                                    const isSelected = (todo.color || "none") === preset.id;
+                                    return (
+                                      <button
+                                        key={preset.id}
+                                        type="button"
+                                        onClick={async () => {
+                                          setTodos((prev) =>
+                                            prev.map((t) =>
+                                              t.id === todo.id
+                                                ? {
+                                                    ...t,
+                                                    color: preset.id === "none" ? undefined : preset.id,
+                                                    colorLabel: preset.id === "none" ? undefined : (t.colorLabel || preset.name.split(" / ")[1]),
+                                                  }
+                                                : t
+                                            )
+                                          );
+                                          await todoService.updateTodo(todo.id, {
+                                            color: preset.id === "none" ? null as any : preset.id,
+                                            colorLabel: preset.id === "none" ? null as any : (todo.colorLabel || preset.name.split(" / ")[1]),
+                                          });
+                                        }}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
+                                          preset.dot
+                                        } relative border border-gray-150/50 cursor-pointer ${
+                                          isSelected
+                                            ? "ring-2 ring-offset-2 ring-[#1a2b58]"
+                                            : "hover:scale-110"
+                                        }`}
+                                        title={preset.name}
+                                      >
+                                        {isSelected && (
+                                          <Check className="w-4 h-4 text-white drop-shadow-sm font-bold" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                {todo.color && todo.color !== "none" && (
+                                  <div className="pt-3 border-t border-gray-100">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                                      Custom Label / Type Name
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Urgent, Client A, Review"
+                                      value={todo.colorLabel || ""}
+                                      onChange={async (e) => {
+                                        const labelVal = e.target.value;
+                                        setTodos((prev) =>
+                                          prev.map((t) =>
+                                            t.id === todo.id
+                                              ? { ...t, colorLabel: labelVal }
+                                              : t
+                                          )
+                                        );
+                                        await todoService.updateTodo(todo.id, {
+                                          colorLabel: labelVal,
+                                        });
+                                      }}
+                                      className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-primary/50 text-gray-750 bg-gray-50/50"
+                                    />
+                                  </div>
                                 )}
                               </motion.div>
                             )}
