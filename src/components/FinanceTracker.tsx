@@ -86,7 +86,8 @@ const DEFAULT_CATEGORIES = {
     "Marketing & Website",
     "Office Supplies",
     "Travel & Conveyance",
-    "Miscellaneous"
+    "Miscellaneous",
+    "Payment from Advance"
   ],
   personalIncome: [
     "Salary / Drawings",
@@ -279,6 +280,9 @@ export default function FinanceTracker() {
         let parsed = JSON.parse(saved);
         if (parsed.businessIncome && !parsed.businessIncome.includes("Advance Received")) {
             parsed.businessIncome.push("Advance Received");
+        }
+        if (parsed.businessExpense && !parsed.businessExpense.includes("Payment from Advance")) {
+            parsed.businessExpense.push("Payment from Advance");
         }
         return parsed;
       }
@@ -1333,11 +1337,30 @@ export default function FinanceTracker() {
 
   const totalPayables = pendingPayablesBalance;
 
+  // Compute Client Advances
+  const { totalAdvancesReceived, totalPaymentsFromAdvances, pendingAdvancesBalance } = useMemo(() => {
+    let advances = 0;
+    let payments = 0;
+    records.forEach(rec => {
+      if (rec.type === 'income' && rec.category === 'Advance Received') {
+        advances += rec.amount;
+      } else if (rec.type === 'expense' && rec.category === 'Payment from Advance') {
+        payments += rec.amount;
+      }
+    });
+    return {
+      totalAdvancesReceived: advances,
+      totalPaymentsFromAdvances: payments,
+      pendingAdvancesBalance: advances - payments
+    };
+  }, [records]);
+
 
   // Compute Assets, Liabilities, and Net Worth
   const balanceSheetMetrics = useMemo(() => {
     let assetsSum = pendingReimbursementsBalance;
-    let liabilitiesSum = 0;
+    let liabilitiesSum = pendingAdvancesBalance > 0 ? pendingAdvancesBalance : 0;
+    if (pendingAdvancesBalance < 0) assetsSum += Math.abs(pendingAdvancesBalance);
 
     paymentAccounts.forEach(acc => {
       const b = accountBalances[acc.id] || { income: 0, expense: 0, current: (!getAccountTypeInfo(acc.type).isAsset && acc.openingBalance > 0) ? -acc.openingBalance : acc.openingBalance };
@@ -1380,8 +1403,27 @@ export default function FinanceTracker() {
       });
     }
 
+
+    // Add virtual liability for Pending Client Advances
+    if (pendingAdvancesBalance > 0) {
+      liabList.push({
+        id: 'virtual_pending_advances',
+        name: 'Client Advances (Unspent)',
+        type: 'credit_card', // using credit_card just to put it in liabilities
+        openingBalance: pendingAdvancesBalance,
+        createdAt: 0
+      });
+    } else if (pendingAdvancesBalance < 0) {
+       assList.push({
+        id: 'virtual_overspent_advances',
+        name: 'Overspent Client Advances',
+        type: 'other_asset',
+        openingBalance: Math.abs(pendingAdvancesBalance),
+        createdAt: 0
+      });
+    }
     return { assets: assList, liabilities: liabList };
-  }, [paymentAccounts, pendingReimbursementsBalance]);
+  }, [paymentAccounts, pendingReimbursementsBalance, pendingAdvancesBalance]);
 
   // Auto-generate EMI bills
   useEffect(() => {
@@ -1520,7 +1562,7 @@ export default function FinanceTracker() {
             }
           }
         } else if (rec.type === "expense") {
-          if (!rec.isReceivableFromClient && !rec.isReimbursed) {
+          if (!rec.isReceivableFromClient && !rec.isReimbursed && rec.category !== "Payment from Advance") {
             totalExpense += rec.amount;
           }
         }
@@ -1593,7 +1635,7 @@ export default function FinanceTracker() {
             }
           }
           else if (rec.type === "expense") {
-            if (!rec.isReceivableFromClient && !rec.isReimbursed) {
+            if (!rec.isReceivableFromClient && !rec.isReimbursed && rec.category !== "Payment from Advance") {
               expense += rec.amount;
             }
             if (rec.isReceivableFromClient) {
@@ -1627,7 +1669,7 @@ export default function FinanceTracker() {
           incomeTotals[rec.category] = (incomeTotals[rec.category] || 0) + rec.amount;
         }
       } else if (rec.type === "expense") {
-        if (!rec.isReceivableFromClient && !rec.isReimbursed) {
+        if (!rec.isReceivableFromClient && !rec.isReimbursed && rec.category !== "Payment from Advance") {
           expenseTotals[rec.category] = (expenseTotals[rec.category] || 0) + rec.amount;
         }
       }
@@ -2455,6 +2497,33 @@ export default function FinanceTracker() {
                ₹{totalPayables.toLocaleString("en-IN")}
              </div>
              <ArrowLeftRight className="w-5 h-5 text-rose-600 opacity-50 group-hover:opacity-100 group-hover:-rotate-12 transition-all" />
+           </div>
+        </div>
+      )}
+
+      {/* Client Advances Summary Bar */}
+      {(totalAdvancesReceived > 0 || totalPaymentsFromAdvances > 0) && (
+        <div 
+          onClick={() => {
+            setActiveTab("dashboard");
+          }}
+          className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in cursor-default hover:bg-indigo-100 transition-colors group mt-4"
+        >
+           <div className="flex items-center gap-3">
+             <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition-colors">
+               <AlertCircle className="w-5 h-5 text-indigo-700" />
+             </div>
+             <div>
+               <h3 className="text-indigo-900 font-bold tracking-tight">Client Advances & Deposits</h3>
+               <p className="text-indigo-700/80 text-sm font-medium">₹{totalAdvancesReceived.toLocaleString("en-IN")} Received - ₹{totalPaymentsFromAdvances.toLocaleString("en-IN")} Spent</p>
+             </div>
+           </div>
+           <div className="flex flex-col items-end">
+             <div className="text-2xl font-extrabold text-indigo-900 tracking-tight group-hover:scale-105 transition-transform flex items-center gap-2">
+               ₹{Math.abs(pendingAdvancesBalance).toLocaleString("en-IN")}
+               <ArrowLeftRight className="w-5 h-5 text-indigo-600 opacity-50 group-hover:opacity-100 group-hover:-rotate-12 transition-all" />
+             </div>
+             <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">{pendingAdvancesBalance >= 0 ? "Unspent Liability" : "Overspent (Receivable)"}</span>
            </div>
         </div>
       )}
