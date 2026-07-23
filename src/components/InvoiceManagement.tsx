@@ -2775,15 +2775,12 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                       {items.map((item) => (
                         <tr key={item.id}>
                           <td className="p-2 relative flex flex-col gap-1">
-                            <select
+                            <CustomSelect
                               value={item.type || 'service'}
-                              onChange={(e) => handleItemChange(item.id, 'type', e.target.value)}
-                              className="w-full border-none bg-slate-50 hover:bg-slate-100 transition-colors text-slate-600 p-1 text-[10px] focus:outline-none rounded font-semibold uppercase cursor-pointer"
-                            >
-                              <option value="service">Service</option>
-                              <option value="time">Time</option>
-                              <option value="expense">Expense</option>
-                            </select>
+                              onChange={(val) => handleItemChange(item.id, 'type', val)}
+                              className="w-full border-none bg-slate-50 hover:bg-slate-100 transition-colors text-slate-600 p-1.5 text-[10px] focus:outline-none rounded font-semibold uppercase cursor-pointer"
+                              options={[{value: 'service', label: 'Service'}, {value: 'time', label: 'Time'}, {value: 'expense', label: 'Expense'}]}
+                            />
                             <input 
                               type="text"
                               required
@@ -2793,22 +2790,19 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                               className="w-full border border-slate-200 bg-transparent p-1.5 focus:outline-none focus:border-indigo-400 rounded"
                             />
                             {products.length > 0 && (
-                              <select
-                                className="w-full border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors p-1 text-[10px] focus:outline-none rounded text-slate-600 cursor-pointer"
-                                onChange={(e) => {
-                                  const selectedProd = products.find(p => p.id === e.target.value);
+                              <CustomSelect
+                                value=""
+                                placeholder="Or select from predefined products..."
+                                className="w-full border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors p-1.5 text-[10px] focus:outline-none rounded text-slate-600 cursor-pointer"
+                                onChange={(val) => {
+                                  const selectedProd = products.find(p => p.id === val);
                                   if (selectedProd) {
                                     handleItemChange(item.id, 'description', selectedProd.name + (selectedProd.description ? ' - ' + selectedProd.description : ''));
                                     handleItemChange(item.id, 'rate', selectedProd.price);
                                   }
-                                  e.target.value = "";
                                 }}
-                              >
-                                <option value="">Or select from predefined products...</option>
-                                {products.map(p => (
-                                  <option key={p.id} value={p.id}>{p.name} - {getCurrencySymbol(currency)}{p.price}</option>
-                                ))}
-                              </select>
+                                options={products.map(p => ({value: p.id, label: `${p.name} - ${getCurrencySymbol(currency)}${p.price}`}))}
+                              />
                             )}
                           </td>
                           <td className="p-2">
@@ -2975,14 +2969,12 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1">
                       <span className="text-slate-500 text-[11px] uppercase tracking-wider font-semibold">Discount</span>
-                      <select 
+                      <CustomSelect 
                         value={discountType}
-                        onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
-                        className="text-[10px] border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors rounded px-1 py-0.5 focus:outline-none cursor-pointer"
-                      >
-                        <option value="fixed">Fixed ({getCurrencySymbol(currency)})</option>
-                        <option value="percentage">Percent (%)</option>
-                      </select>
+                        onChange={(val) => setDiscountType(val as 'percentage' | 'fixed')}
+                        className="text-[10px] border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors rounded px-2 py-1 focus:outline-none cursor-pointer min-w-[100px]"
+                        options={[{value: 'fixed', label: `Fixed (${getCurrencySymbol(currency)})`}, {value: 'percentage', label: 'Percent (%)'}]}
+                      />
                     </div>
                     <input 
                       type="number"

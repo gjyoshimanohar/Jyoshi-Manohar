@@ -75,6 +75,7 @@ const DEFAULT_CATEGORIES = {
     "GST Filing",
     "Corporate Advisory",
     "Incorporate Services",
+    "Advance Received",
     "Other Services"
   ],
   businessExpense: [
@@ -274,7 +275,13 @@ export default function FinanceTracker() {
   const [customCategories, setCustomCategories] = useState<{ [key: string]: string[] }>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("finance_custom_categories");
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        let parsed = JSON.parse(saved);
+        if (parsed.businessIncome && !parsed.businessIncome.includes("Advance Received")) {
+            parsed.businessIncome.push("Advance Received");
+        }
+        return parsed;
+      }
     }
     return DEFAULT_CATEGORIES;
   });
@@ -1168,7 +1175,7 @@ export default function FinanceTracker() {
         if (rec.type !== "expense" || (rec.status !== "pending" && rec.status !== "overdue")) return false;
       }
       if (activeTab === "receivables") {
-        const isPendingInvoice = rec.type === "income" && rec.category !== "Reimbursement" && (rec.status === "pending" || rec.status === "overdue");
+        const isPendingInvoice = rec.type === "income" && rec.category !== "Reimbursement" && rec.category !== "Advance Received" && (rec.status === "pending" || rec.status === "overdue");
         const isPendingReimbursement = rec.type === "expense" && rec.isReceivableFromClient;
         if (!isPendingInvoice && !isPendingReimbursement) return false;
       }
@@ -1196,7 +1203,7 @@ export default function FinanceTracker() {
       // Type Filter (only relevant if we are on dashboard tab)
       if (activeTab === "dashboard") {
         if (selectedType !== "all" && rec.type !== selectedType) return false;
-        if (selectedType === "income" && rec.category === "Reimbursement") return false;
+        if (selectedType === "income" && (rec.category === "Reimbursement" || rec.category === "Advance Received")) return false;
       }
 
       // Category Filter
@@ -1506,7 +1513,7 @@ export default function FinanceTracker() {
 
       if (recYear === selectedYear && monthMatch) {
         if (rec.type === "income") {
-          if (rec.category !== "Reimbursement") {
+          if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
             totalIncome += rec.amount;
             if (rec.status === "pending" || rec.status === "overdue") {
               pendingInvoicesVal += rec.amount;
@@ -1578,7 +1585,7 @@ export default function FinanceTracker() {
         const recMonth = rec.date.split("-")[1];
         if (recYear === selectedYear && recMonth === monthStr) {
           if (rec.type === "income") {
-            if (rec.category !== "Reimbursement") {
+            if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
               income += rec.amount;
               if (rec.status === "pending" || rec.status === "overdue") {
                 pendingInvoices += rec.amount;
@@ -1616,7 +1623,7 @@ export default function FinanceTracker() {
     filteredRecords.forEach(rec => {
       if (rec.type === "transfer") return;
       if (rec.type === "income") {
-        if (rec.category !== "Reimbursement") {
+        if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
           incomeTotals[rec.category] = (incomeTotals[rec.category] || 0) + rec.amount;
         }
       } else if (rec.type === "expense") {
@@ -5427,15 +5434,12 @@ export default function FinanceTracker() {
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                           Due Date *
                         </label>
-                        <select
+                        <CustomSelect
                           value={accountEmiDueDate}
-                          onChange={(e) => setAccountEmiDueDate(e.target.value)}
+                          onChange={(val) => setAccountEmiDueDate(val)}
                           className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary transition"
-                        >
-                          {Array.from({length: 28}, (_, i) => i + 1).map(day => (
-                            <option key={day} value={day}>{day}</option>
-                          ))}
-                        </select>
+                          options={Array.from({length: 28}, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                        />
                       </div>
                     </div>
                   )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import CustomSelect from './CustomSelect';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Calculator, 
@@ -923,19 +924,20 @@ export default function InteractiveTools() {
 
                     {/* Service Selector */}
                     <div className="relative">
-                      <select
+                      <CustomSelect
                         value={selectedService}
-                        onChange={(e) => {
-                          setSelectedService(e.target.value);
+                        onChange={(val) => {
+                          setSelectedService(val);
                           setCompletedItems({});
                         }}
                         className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all outline-none"
-                      >
-                        <option value="gst_reg">GST Registration</option>
-                        <option value="itr_filing">Individual ITR Filing</option>
-                        <option value="llp_inc">LLP / Co Incorporation</option>
-                        <option value="audit_prep">Tax Audit Preparation</option>
-                      </select>
+                        options={[
+                          {value: "gst_reg", label: "GST Registration"},
+                          {value: "itr_filing", label: "Individual ITR Filing"},
+                          {value: "llp_inc", label: "LLP / Co Incorporation"},
+                          {value: "audit_prep", label: "Tax Audit Preparation"}
+                        ]}
+                      />
                     </div>
                   </div>
 

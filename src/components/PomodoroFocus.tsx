@@ -18,6 +18,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { isToday, isThisWeek, isThisMonth, format } from 'date-fns';
+import CustomSelect from './CustomSelect';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { timesheetService } from '../services/timesheetService';
@@ -515,35 +516,25 @@ export default function PomodoroFocus({ todos = [] }: { todos?: import("../types
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Select Task to Focus On
                 </label>
-                <select
+                <CustomSelect
                   value={selectedTaskId}
-                  onChange={(e) => setSelectedTaskId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#1a2b58] transition-colors"
-                >
-                  <option value="">-- Select a specific task (Optional) --</option>
-                  {todos && todos.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- Select a specific task (Optional) --"
+                  onChange={(val) => setSelectedTaskId(val)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/15 transition-colors"
+                  options={todos ? todos.map((t) => ({value: t.id, label: t.title})) : []}
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   <User className="w-3 h-3" /> Select Client Account
                 </label>
-                <select
+                <CustomSelect
                   value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#1a2b58] transition-colors"
-                >
-                  <option value="">-- Choose client --</option>
-                  {clients.map((c) => (
-                    <option key={c.uid} value={c.uid}>
-                      {c.displayName} ({c.email})
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- Choose client --"
+                  onChange={(val) => setSelectedClientId(val)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/15 transition-colors"
+                  options={clients.map((c) => ({value: c.uid, label: `${c.displayName} (${c.email})`}))}
+                />
               </div>
 
               <div>
