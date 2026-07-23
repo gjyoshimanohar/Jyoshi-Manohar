@@ -65,6 +65,7 @@ export interface Todo {
 	dueDate?: number | null;
 	deadline?: number | null;
 	priority?: number; // 1, 2, 3, 4
+	timeSpentSeconds?: number;
 	projectId?: string; // 'inbox' or custom ID
 	tags?: string[];
 	subtasks?: Subtask[];
@@ -238,4 +239,6 @@ export interface TimesheetLog {
   status: 'pending' | 'billed';
   invoiceId?: string;
   billingRate?: number;
+  taskId?: string;
+  taskTitle?: string;
 }

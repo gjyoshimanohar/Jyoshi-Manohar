@@ -73,6 +73,7 @@ import {
   Banknote,
   Wallet,
   Copy,
+  Square,
 } from "lucide-react";
 import { Todo, Project, Folder as FolderType, TaskActivity } from "../types";
 import { auth, db } from "../lib/firebase";
@@ -724,6 +725,12 @@ export default function WorkspaceApp() {
     null,
   );
   const [detailTab, setDetailTab] = useState<"details" | "activity">("details");
+  const [activeTimerTaskId, setActiveTimerTaskId] = useState<string | null>(() => localStorage.getItem("activeTimerTaskId"));
+  const [activeTimerStartTime, setActiveTimerStartTime] = useState<number | null>(() => {
+    const st = localStorage.getItem("activeTimerStartTime");
+    return st ? parseInt(st, 10) : null;
+  });
+  const [activeTimerElapsed, setActiveTimerElapsed] = useState<number>(0);
   const [initialTitle, setInitialTitle] = useState<string>("");
   const [inlineEditTaskId, setInlineEditTaskId] = useState<string | null>(null);
   const [inlineEditTitle, setInlineEditTitle] = useState<string>("");
@@ -739,6 +746,57 @@ export default function WorkspaceApp() {
     }
     setInlineEditTaskId(null);
     setInlineEditTitle("");
+  };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (activeTimerTaskId && activeTimerStartTime) {
+      interval = setInterval(() => {
+        setActiveTimerElapsed(Math.floor((Date.now() - activeTimerStartTime) / 1000));
+      }, 1000);
+    } else {
+      setActiveTimerElapsed(0);
+    }
+    return () => clearInterval(interval);
+  }, [activeTimerTaskId, activeTimerStartTime]);
+
+  const handleStartTimer = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (activeTimerTaskId) {
+      handleStopTimer();
+    }
+    setActiveTimerTaskId(taskId);
+    const now = Date.now();
+    setActiveTimerStartTime(now);
+    localStorage.setItem("activeTimerTaskId", taskId);
+    localStorage.setItem("activeTimerStartTime", now.toString());
+  };
+
+  const handleStopTimer = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (activeTimerTaskId && activeTimerStartTime) {
+      const elapsed = Math.floor((Date.now() - activeTimerStartTime) / 1000);
+      const todoToUpdate = todos.find((t) => t.id === activeTimerTaskId);
+      if (todoToUpdate) {
+        todoService.updateTodo(todoToUpdate.id, {
+          timeSpentSeconds: (todoToUpdate.timeSpentSeconds || 0) + elapsed
+        });
+      }
+    }
+    setActiveTimerTaskId(null);
+    setActiveTimerStartTime(null);
+    setActiveTimerElapsed(0);
+    localStorage.removeItem("activeTimerTaskId");
+    localStorage.removeItem("activeTimerStartTime");
+  };
+
+  const formatTimer = (totalSeconds: number) => {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
   };
 
   const handleInlineEditKeyDown = (e) => {
@@ -2491,6 +2549,31 @@ export default function WorkspaceApp() {
             </span>
           )}
 
+          {(todo.timeSpentSeconds || 0) > 0 || activeTimerTaskId === todo.id ? (
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold select-none transition-colors ${activeTimerTaskId === todo.id ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}>
+              {activeTimerTaskId === todo.id ? (
+                <>
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                  <span>{formatTimer((todo.timeSpentSeconds || 0) + activeTimerElapsed)}</span>
+                  <button onClick={(e) => handleStopTimer(e)} className="ml-1 hover:text-indigo-900 transition-colors" title="Stop Timer"><Square className="w-3 h-3 fill-current" /></button>
+                </>
+              ) : (
+                <>
+                  <Clock className="w-3 h-3 opacity-60" />
+                  <span>{formatTimer(todo.timeSpentSeconds || 0)}</span>
+                  <button onClick={(e) => handleStartTimer(todo.id, e)} className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-indigo-600" title="Start Timer"><Play className="w-3 h-3 fill-current" /></button>
+                </>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={(e) => handleStartTimer(todo.id, e)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+              title="Start Timer"
+            >
+              <Play className="w-3.5 h-3.5" />
+            </button>
+          )}
           <div className="flex items-center space-x-1">
             {viewMode === "trash" && (
               <button
@@ -2965,11 +3048,11 @@ export default function WorkspaceApp() {
           <button
             onClick={() => setActiveAppTab("focus")}
             className={`p-2.5 rounded-xl transition-all relative group ${activeAppTab === "focus" ? "bg-[#1a2b58]/10 text-[#1a2b58]" : "text-gray-500 hover:bg-gray-200"}`}
-            title="Focus Timer Space"
+            title="Time Tracker & Focus"
           >
             <Clock className="w-5 h-5" />
             <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
-              Timer Space
+              Time Tracker
             </span>
           </button>
 
@@ -7219,7 +7302,7 @@ export default function WorkspaceApp() {
           )}
 
           {/* 6. SECTOR: STANDALONE POMODORO FOCUS ROOM TAB */}
-          {activeAppTab === "focus" && <PomodoroFocus />}
+          {activeAppTab === "focus" && <PomodoroFocus todos={todos} />}
 
           {/* 7. SECTOR: STARRED P1 VALUES ONLY GOALBOARD TAB */}
           {activeAppTab === "starred" && (
@@ -7876,6 +7959,43 @@ export default function WorkspaceApp() {
                                 </motion.div>
                               )}
                             </AnimatePresence>
+                          </div>
+                        </div>
+
+                        
+                        {/* Time Tracker Block */}
+                        <div className="mt-4 mb-4 bg-slate-50 border border-slate-100 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Time Logged</p>
+                            <div className="flex items-end gap-2">
+                              <span className="text-2xl font-black text-slate-700 tracking-tight leading-none">
+                                {formatTimer((todo.timeSpentSeconds || 0) + (activeTimerTaskId === todo.id ? activeTimerElapsed : 0))}
+                              </span>
+                              {activeTimerTaskId === todo.id && (
+                                <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full mb-0.5 animate-pulse">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Active
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            {activeTimerTaskId === todo.id ? (
+                              <button
+                                onClick={handleStopTimer}
+                                className="flex items-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+                              >
+                                <Square className="w-4 h-4 fill-current" />
+                                Stop
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => handleStartTimer(todo.id, e)}
+                                className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+                              >
+                                <Play className="w-4 h-4 fill-current" />
+                                Start Timer
+                              </button>
+                            )}
                           </div>
                         </div>
 

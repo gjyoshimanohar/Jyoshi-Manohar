@@ -17,13 +17,14 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
+import { isToday, isThisWeek, isThisMonth, format } from 'date-fns';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { timesheetService } from '../services/timesheetService';
 import { invoiceService } from '../services/invoiceService';
 import { TimesheetLog } from '../types';
 
-export default function PomodoroFocus() {
+export default function PomodoroFocus({ todos = [] }: { todos?: import("../types").Todo[] }) {
   // Timer States
   const [timeRemaining, setTimeRemaining] = useState(25 * 60);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -35,10 +36,28 @@ export default function PomodoroFocus() {
   // Smart Retainer Billing States
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [description, setDescription] = useState('');
   const [hourlyRate, setHourlyRate] = useState<number>(2500); // Default flat rate ₹2,500/hr
   const [timesheets, setTimesheets] = useState<TimesheetLog[]>([]);
   const [convertingTimesheetId, setConvertingTimesheetId] = useState<string | null>(null);
+
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'timer' | 'reports'>('timer');
+  const [reportDateRange, setReportDateRange] = useState<'today' | 'week' | 'month' | 'all'>('today');
+
+  // When a task is selected, auto-fill description and try to match client
+  useEffect(() => {
+    if (selectedTaskId) {
+      const task = todos.find(t => t.id === selectedTaskId);
+      if (task) {
+        setDescription(`Working on: ${task.title}`);
+        if (task.clientId) {
+          setSelectedClientId(task.clientId);
+        }
+      }
+    }
+  }, [selectedTaskId, todos]);
 
   // Synthesizer States
   const [ambientSound, setAmbientSound] = useState<'none' | 'rain' | 'campfire'>('none');
@@ -89,18 +108,20 @@ export default function PomodoroFocus() {
         localStorage.setItem('ticktick_focus_minutes', String(logged));
 
         // Auto-log to selected client if configured
-        if (auth.currentUser && selectedClientId) {
+        if (auth.currentUser && (selectedClientId || selectedTaskId)) {
           const clientObj = clients.find(c => c.uid === selectedClientId);
           const clientName = clientObj?.displayName || "Retainer Account";
           
           timesheetService.createTimesheet({
             userId: auth.currentUser.uid,
-            clientId: selectedClientId,
-            clientName: clientName,
+            clientId: selectedClientId || 'internal',
+            clientName: clientName || 'Internal Task',
             durationMinutes: 25,
             description: description.trim() || "Deep Focus Pomodoro Session",
             status: 'pending',
-            billingRate: hourlyRate
+            billingRate: hourlyRate,
+            taskId: selectedTaskId || undefined,
+            taskTitle: selectedTaskId ? todos.find(t => t.id === selectedTaskId)?.title : undefined
           }).then(() => {
             alert(`Auto-logged 25m retainer focus session to client: ${clientName}!`);
           }).catch(err => {
@@ -246,12 +267,14 @@ export default function PomodoroFocus() {
     try {
       await timesheetService.createTimesheet({
         userId: auth.currentUser.uid,
-        clientId: selectedClientId,
-        clientName: clientName,
+        clientId: selectedClientId || 'internal',
+        clientName: clientName || 'Internal Task',
         durationMinutes: minutes,
         description: description.trim() || "Consulting & Retainer Services",
         status: 'pending',
-        billingRate: hourlyRate
+        billingRate: hourlyRate,
+        taskId: selectedTaskId || undefined,
+        taskTitle: selectedTaskId ? todos.find(t => t.id === selectedTaskId)?.title : undefined
       });
       
       setFocusMinutesLogged(prev => prev + minutes);
@@ -334,6 +357,22 @@ export default function PomodoroFocus() {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-6">
+      <div className="flex gap-4 mb-6 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('timer')}
+          className={`pb-3 px-4 text-sm font-bold transition-colors border-b-2 ${activeTab === 'timer' ? 'text-[#1a2b58] border-[#1a2b58]' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
+        >
+          Focus Timer & Logs
+        </button>
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`pb-3 px-4 text-sm font-bold transition-colors border-b-2 ${activeTab === 'reports' ? 'text-[#1a2b58] border-[#1a2b58]' : 'text-slate-500 border-transparent hover:text-slate-700'}`}
+        >
+          Timesheet Reports
+        </button>
+      </div>
+      
+      {activeTab === 'timer' ? (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* LEFT COLUMN: FOCUS ENVIRONMENT */}
@@ -472,6 +511,23 @@ export default function PomodoroFocus() {
 
             {/* Config Panel */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" /> Select Task to Focus On
+                </label>
+                <select
+                  value={selectedTaskId}
+                  onChange={(e) => setSelectedTaskId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#1a2b58] transition-colors"
+                >
+                  <option value="">-- Select a specific task (Optional) --</option>
+                  {todos && todos.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                   <User className="w-3 h-3" /> Select Client Account
@@ -537,28 +593,28 @@ export default function PomodoroFocus() {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => handleQuickLog(15)}
-                  disabled={!selectedClientId}
+                  disabled={!selectedClientId && !selectedTaskId}
                   className="px-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-slate-600 rounded-lg transition-colors flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> Log 15m
                 </button>
                 <button
                   onClick={() => handleQuickLog(30)}
-                  disabled={!selectedClientId}
+                  disabled={!selectedClientId && !selectedTaskId}
                   className="px-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-slate-600 rounded-lg transition-colors flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> Log 30m
                 </button>
                 <button
                   onClick={() => handleQuickLog(45)}
-                  disabled={!selectedClientId}
+                  disabled={!selectedClientId && !selectedTaskId}
                   className="px-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-slate-600 rounded-lg transition-colors flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> Log 45m
                 </button>
                 <button
                   onClick={() => handleQuickLog(60)}
-                  disabled={!selectedClientId}
+                  disabled={!selectedClientId && !selectedTaskId}
                   className="px-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-slate-600 rounded-lg transition-colors flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" /> Log 1h
@@ -675,6 +731,121 @@ export default function PomodoroFocus() {
         </div>
 
       </div>
+      ) : (
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 lg:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Timesheet Reports</h2>
+              <p className="text-xs text-slate-500">Track and analyze time spent on tasks</p>
+            </div>
+            
+            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+              <button 
+                onClick={() => setReportDateRange('today')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'today' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >Today</button>
+              <button 
+                onClick={() => setReportDateRange('week')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'week' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >This Week</button>
+              <button 
+                onClick={() => setReportDateRange('month')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'month' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >This Month</button>
+              <button 
+                onClick={() => setReportDateRange('all')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'all' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >All Time</button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="pb-3 px-2">Task / Description</th>
+                  <th className="pb-3 px-2">Client / Project</th>
+                  <th className="pb-3 px-2 text-right">Time Spent (Minutes)</th>
+                  <th className="pb-3 px-2 text-right">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {Object.entries(timesheets.filter(log => {
+                  const date = new Date(log.createdAt);
+                  if (reportDateRange === 'today') return isToday(date);
+                  if (reportDateRange === 'week') return isThisWeek(date);
+                  if (reportDateRange === 'month') return isThisMonth(date);
+                  return true;
+                }).reduce((acc, log) => {
+                  const key = log.taskTitle || log.description || 'General Work';
+                  if (!acc[key]) {
+                    acc[key] = {
+                      taskTitle: key,
+                      clientName: log.clientName,
+                      totalMinutes: 0,
+                      entries: []
+                    };
+                  }
+                  acc[key].totalMinutes += log.durationMinutes;
+                  acc[key].entries.push(log);
+                  return acc;
+                }, {} as Record<string, { taskTitle: string, clientName: string, totalMinutes: number, entries: TimesheetLog[] }>)).map(([key, group]) => (
+                  <React.Fragment key={key}>
+                    <tr className="hover:bg-slate-50/50 transition-colors bg-slate-50/20">
+                      <td className="py-4 px-2">
+                        <div className="font-bold text-slate-800 text-sm">{group.taskTitle}</div>
+                        <div className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{group.entries.length} log sessions</div>
+                      </td>
+                      <td className="py-4 px-2">
+                        <div className="text-xs text-slate-600 font-medium">
+                          {group.clientName === 'Internal Task' ? 'Internal' : group.clientName}
+                        </div>
+                      </td>
+                      <td className="py-4 px-2 text-right">
+                        <span className="inline-block px-3 py-1.5 bg-indigo-100 text-indigo-800 font-extrabold text-xs rounded-xl shadow-sm">
+                          {group.totalMinutes}m
+                        </span>
+                      </td>
+                      <td className="py-4 px-2 text-right text-xs text-slate-500">
+                        {/* Optionally show date range for group */}
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+                
+                {/* Aggregate Row */}
+                {timesheets.filter(log => {
+                  const date = new Date(log.createdAt);
+                  if (reportDateRange === 'today') return isToday(date);
+                  if (reportDateRange === 'week') return isThisWeek(date);
+                  if (reportDateRange === 'month') return isThisMonth(date);
+                  return true;
+                }).length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-12 text-center text-slate-400 text-sm">
+                      No timesheets found for this period.
+                    </td>
+                  </tr>
+                ) : (
+                  <tr className="bg-slate-50/80 font-bold border-t-2 border-slate-200">
+                    <td colSpan={2} className="py-4 px-2 text-right text-slate-700">Total Time Spent:</td>
+                    <td className="py-4 px-2 text-right text-indigo-700">
+                      {timesheets.filter(log => {
+                        const date = new Date(log.createdAt);
+                        if (reportDateRange === 'today') return isToday(date);
+                        if (reportDateRange === 'week') return isThisWeek(date);
+                        if (reportDateRange === 'month') return isThisMonth(date);
+                        return true;
+                      }).reduce((sum, log) => sum + log.durationMinutes, 0)}m
+                    </td>
+                    <td></td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
