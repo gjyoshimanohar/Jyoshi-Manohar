@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown } from 'lucide-react';
+import { useClickOutside } from '../hooks/useClickOutside';
 
 interface SelectOption { value: string; label: string; }
 export interface SelectGroup { label: string; options: (string | SelectOption)[]; }
@@ -13,13 +14,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
   const [openUp, setOpenUp] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) { setIsOpen(false); }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  useClickOutside(dropdownRef, () => setIsOpen(false), isOpen);
 
   useEffect(() => {
     if (isOpen && dropdownRef.current) {
@@ -56,11 +51,11 @@ export default function CustomSelect({ options, value, onChange, className = '',
       <AnimatePresence>
         {isOpen && (
           <motion.div 
-            initial={{ opacity: 0, y: openUp ? 5 : -5 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            exit={{ opacity: 0, scale: 0.95 }} 
-            transition={{ duration: 0.15 }} 
-            className={`absolute z-50 w-full min-w-max bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5 ${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+            initial={{ opacity: 0, y: openUp ? 6 : -6, scale: 0.96 }} 
+            animate={{ opacity: 1, y: 0, scale: 1 }} 
+            exit={{ opacity: 0, y: openUp ? 4 : -4, scale: 0.96 }} 
+            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }} 
+            className={`absolute z-50 w-full min-w-max bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)] border border-slate-100/80 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5 ${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
           >
             <div className="space-y-0.5">
               {options.map((option, index) => {
@@ -68,11 +63,11 @@ export default function CustomSelect({ options, value, onChange, className = '',
                   return (
                     <div key={'group-' + index} className="mb-1">
                       <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{option.label}</div>
-                      {option.options.map(subOpt => {
+                      {option.options.map((subOpt, subIndex) => {
                         const optValue = getValue(subOpt);
                         const optLabel = getLabel(subOpt);
                         return (
-                          <button key={optValue} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block ${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}`}>
+                          <button key={`${optValue}-${subIndex}`} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block ${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}`}>
                             {optLabel}
                           </button>
                         );
@@ -84,7 +79,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
                 const optValue = getValue(option as string | SelectOption);
                 const optLabel = getLabel(option as string | SelectOption);
                 return (
-                  <button key={optValue} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block ${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}`}>
+                  <button key={`${optValue}-${index}`} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block ${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}`}>
                     {optLabel}
                   </button>
                 );

@@ -1,6 +1,8 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import CustomSelect from "./CustomSelect";
+import CalendarSyncModal from "./CalendarSyncModal";
+import DailyStandupModal from "./DailyStandupModal";
 import Markdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
 import {  db, auth } from "../lib/firebase";
@@ -199,6 +201,8 @@ export default function FinanceTracker() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isCalendarSyncOpen, setIsCalendarSyncOpen] = useState(false);
+  const [isDailyStandupOpen, setIsDailyStandupOpen] = useState(false);
 
   // Budget Limits / Targets State
   const [budgetTargets, setBudgetTargets] = useState<{ [category: string]: number }>(() => {
@@ -2847,6 +2851,22 @@ export default function FinanceTracker() {
         {/* Dynamic Content Area */}
         <div className="flex-grow w-full min-w-0 space-y-6 relative">
           <div className="absolute -top-1 right-0 flex items-center gap-2 z-10 bg-white/80 backdrop-blur-sm pl-2 pb-1 rounded-bl-lg">
+            <button
+              onClick={() => setIsDailyStandupOpen(true)}
+              className="flex items-center justify-center space-x-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200/80 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-xs"
+              title="Generate AI Standup & Cash Flow Briefing"
+            >
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <span className="hidden sm:inline">AI Standup</span>
+            </button>
+            <button
+              onClick={() => setIsCalendarSyncOpen(true)}
+              className="flex items-center justify-center space-x-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-xs"
+              title="Sync Tax Dues, Statutory Filings & Invoices to Calendar"
+            >
+              <Calendar className="w-4 h-4 text-indigo-600" />
+              <span className="hidden sm:inline">Calendar Sync</span>
+            </button>
             <button
               onClick={() => setIsExportModalOpen(true)}
               className="flex items-center justify-center space-x-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-sm"
@@ -5763,6 +5783,34 @@ export default function FinanceTracker() {
       >
         <Plus className="w-6 h-6" />
       </button>
+
+      <CalendarSyncModal
+        isOpen={isCalendarSyncOpen}
+        onClose={() => setIsCalendarSyncOpen(false)}
+        customEvents={records
+          .filter((r) => r.status === 'pending' || r.status === 'overdue')
+          .map((r) => ({
+            id: r.id || `rec_${Math.random()}`,
+            title: `${r.type.toUpperCase()}: ${r.category} (${r.clientName || 'General'})`,
+            description: `${r.description || ''} - Amount: ₹${r.amount}`,
+            startDate: r.date ? new Date(r.date).getTime() : Date.now(),
+            category: r.type === 'income' ? 'invoice' : 'task',
+            status: r.status
+          }))}
+        title="Financial Ledger & Tax Dues Calendar Sync"
+      />
+
+      <DailyStandupModal
+        isOpen={isDailyStandupOpen}
+        onClose={() => setIsDailyStandupOpen(false)}
+        invoices={records.map((r) => ({
+          title: `${r.type.toUpperCase()}: ${r.category}`,
+          amount: r.amount,
+          status: r.status,
+          date: r.date,
+          type: r.type
+        }))}
+      />
     </div>
   );
 }

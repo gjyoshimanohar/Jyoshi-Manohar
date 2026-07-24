@@ -12,6 +12,8 @@ import CustomSelect from "../components/CustomSelect";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 import ProfileDropdown from "../components/ProfileDropdown";
 import UserProfileModal from "../components/UserProfileModal";
+import CalendarSyncModal from "../components/CalendarSyncModal";
+import DailyStandupModal from "../components/DailyStandupModal";
 import Breadcrumb from "../components/Breadcrumb";
 import InvoiceManagement from "../components/InvoiceManagement";
 import {
@@ -379,6 +381,8 @@ export default function ClientDashboard() {
   const [authLoading, setAuthLoading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isCalendarSyncOpen, setIsCalendarSyncOpen] = useState(false);
+  const [isDailyStandupOpen, setIsDailyStandupOpen] = useState(false);
 
   // Admin Check
   const isAdmin = user?.email === "gjyoshimanohar@gmail.com";
@@ -6222,14 +6226,30 @@ Stewardship, Accuracy, Legacy.
 
                   {/* Calendar compliance board */}
                   <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm">
-                    <h2 className="text-lg font-medium text-primary tracking-tight mb-6 border-b border-slate-100/60 pb-4 flex items-center justify-between">
+                    <h2 className="text-lg font-medium text-primary tracking-tight mb-6 border-b border-slate-100/60 pb-4 flex flex-wrap items-center justify-between gap-3">
                       <span>
                         Static Compliance Checklist & Timeline (Real-Time
                         Calendar)
                       </span>
-                      <span className="text-xs font-mono font-bold text-primary bg-primary/5 px-2.5 py-1 border border-primary/10 rounded-full">
-                        FY 2026-2027
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setIsDailyStandupOpen(true)}
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          AI Standup Briefing
+                        </button>
+                        <button
+                          onClick={() => setIsCalendarSyncOpen(true)}
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5"
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                          Sync to Calendar (Google / Outlook)
+                        </button>
+                        <span className="text-xs font-mono font-bold text-primary bg-primary/5 px-2.5 py-1 border border-primary/10 rounded-full">
+                          FY 2026-2027
+                        </span>
+                      </div>
                     </h2>
 
                     <div className={`overflow-x-auto md:overflow-visible ${isAdmin && complianceFilings.length > 0 ? 'min-h-[260px]' : ''}`}>
@@ -9107,6 +9127,26 @@ Stewardship, Accuracy, Legacy.
             </div>
           )}
         </AnimatePresence>
+
+        <CalendarSyncModal
+          isOpen={isCalendarSyncOpen}
+          onClose={() => setIsCalendarSyncOpen(false)}
+          customEvents={complianceFilings.map((f) => ({
+            id: f.id,
+            title: `${f.serviceType} (${f.period})`,
+            description: `Statutory Compliance Filing for ${f.userEmail || 'Client'} - Status: ${f.status}`,
+            startDate: f.dueDate,
+            category: 'gst',
+            status: f.status
+          }))}
+          title="Statutory Compliance Calendar Sync"
+        />
+
+        <DailyStandupModal
+          isOpen={isDailyStandupOpen}
+          onClose={() => setIsDailyStandupOpen(false)}
+          complianceEvents={complianceFilings}
+        />
       </main>
     </>
   );

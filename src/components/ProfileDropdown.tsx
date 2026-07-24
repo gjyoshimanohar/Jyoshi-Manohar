@@ -4,6 +4,7 @@ import { User, Key, LogOut, ChevronDown } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import { useClickOutside } from '../hooks/useClickOutside';
 
 interface ProfileDropdownProps {
   onViewProfile?: () => void;
@@ -39,15 +40,7 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
   const displayName = profileName || user?.displayName || user?.email?.split('@')[0] || 'User';
   const initial = displayName.charAt(0).toUpperCase();
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  useClickOutside(dropdownRef, () => setIsOpen(false), isOpen);
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
@@ -72,10 +65,10 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, y: 6, scale: 0.95 }}
+            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 p-1.5 z-50 origin-top-right"
           >
             <div className="p-3 mb-1 bg-slate-50 border border-slate-100 rounded-xl">

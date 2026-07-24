@@ -236,7 +236,7 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
                 <select
                   value={selectedTargetId}
                   onChange={(e) => setSelectedTargetId(e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="flex-1 bg-white border border-slate-200 rounded-xl pl-3 pr-8 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                 >
                   {folders.map((f) => (
                     <option key={f.id} value={f.id}>
@@ -253,7 +253,7 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
                 <select
                   value={selectedTargetId}
                   onChange={(e) => setSelectedTargetId(e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="flex-1 bg-white border border-slate-200 rounded-xl pl-3 pr-8 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                 >
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>

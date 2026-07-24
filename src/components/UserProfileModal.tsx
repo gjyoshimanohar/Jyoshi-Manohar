@@ -223,7 +223,7 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
                       <select
                         value={formData.timezone}
                         onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-black appearance-none pr-8 cursor-pointer font-medium"
+                        className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-800 appearance-none [background-image:none] cursor-pointer font-medium"
                       >
                         {TIMEZONE_OPTIONS.map((tz) => (
                           <option key={tz.value} value={tz.value}>

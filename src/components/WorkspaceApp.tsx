@@ -1,6 +1,9 @@
 import toast from "react-hot-toast";
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, Reorder } from "motion/react";
+import { useClickOutside } from "../hooks/useClickOutside";
+import CalendarSyncModal from "./CalendarSyncModal";
+import DailyStandupModal from "./DailyStandupModal";
 import {
   Check,
   Trash2,
@@ -35,10 +38,10 @@ import {
   Timer,
   Flame,
   HelpCircle,
+  Sparkles,
   RefreshCw,
   Bell,
   Award,
-  Sparkles,
   FolderOpen,
   Milestone,
   BookOpen,
@@ -846,6 +849,8 @@ export default function WorkspaceApp() {
 
   // Add Task State in tasks loop
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [isCalendarSyncOpen, setIsCalendarSyncOpen] = useState(false);
+  const [isDailyStandupOpen, setIsDailyStandupOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [newTaskSubtasks, setNewTaskSubtasks] = useState<string[]>([]);
@@ -920,6 +925,38 @@ export default function WorkspaceApp() {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
   const [newTodoCategory, setNewTodoCategory] = useState<string | undefined>(undefined);
   const [showDetailCategoryPicker, setShowDetailCategoryPicker] = useState(false);
+
+  const closeAllDetailPickers = () => {
+    setShowDetailDatePicker(false);
+    setShowDetailPaymentDatePicker(false);
+    setShowDetailPriorityPicker(false);
+    setShowDetailRepeatPicker(false);
+    setShowDetailBlockingPicker(false);
+    setShowDetailClientPicker(false);
+    setShowDetailColorPicker(false);
+    setShowDetailCategoryPicker(false);
+  };
+
+  const quickAddPickersRef = useRef<HTMLDivElement>(null);
+  const detailPickersRef = useRef<HTMLDivElement>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const templateDropdownRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(quickAddPickersRef, () => {
+    setShowDatePicker(false);
+    setShowPriorityPicker(false);
+    setShowRepeatPicker(false);
+    setShowClientPicker(false);
+  });
+
+  useClickOutside(detailPickersRef, () => {
+    closeAllDetailPickers();
+  });
+
+  useClickOutside(headerMenuRef, () => setIsHeaderMenuOpen(false), isHeaderMenuOpen);
+  useClickOutside(exportMenuRef, () => setIsExportMenuOpen(false), isExportMenuOpen);
+  useClickOutside(templateDropdownRef, () => setIsTemplateDropdownOpen(false), isTemplateDropdownOpen);
 
   // Task Context Menu State
   const [taskContextMenu, setTaskContextMenu] = useState<{
@@ -4658,6 +4695,24 @@ export default function WorkspaceApp() {
                               <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isTrendsLoading ? "animate-spin" : ""}`} />
                               <span>Sync</span>
                             </button>
+
+                            <button
+                              onClick={() => setIsCalendarSyncOpen(true)}
+                              className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                              title="Sync compliance due dates and task deadlines to Google & Outlook Calendar"
+                            >
+                              <CalendarIcon className="w-3.5 h-3.5" />
+                              <span>Calendar Sync</span>
+                            </button>
+
+                            <button
+                              onClick={() => setIsDailyStandupOpen(true)}
+                              className="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                              title="Generate AI Standup Briefing (Task completions, deadlines, overdue invoices)"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>AI Standup Briefing</span>
+                            </button>
                           </div>
                         </div>
 
@@ -6217,7 +6272,7 @@ export default function WorkspaceApp() {
 
                           {/* Tool Options Action Bar */}
                           <div className="flex flex-wrap items-center justify-between gap-2.5">
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div ref={quickAddPickersRef} className="flex flex-wrap items-center gap-1.5">
                               {/* 1. Due Date Selector */}
                               <div className="relative">
                                 <button
@@ -8744,7 +8799,7 @@ export default function WorkspaceApp() {
                         </div>
 
                         {/* Detail picking controls */}
-                        <div className={`grid gap-2.5 mt-5 border-b border-gray-150 pb-5 ${activeAppTab === "payables" ? "grid-cols-5" : "grid-cols-4"}`}>
+                        <div ref={detailPickersRef} className={`grid gap-2.5 mt-5 border-b border-gray-150 pb-5 ${activeAppTab === "payables" ? "grid-cols-5" : "grid-cols-4"}`}>
                           {/* Due Date */}
                           <div className="relative">
                             <label className="block text-xs text-gray-400 uppercase tracking-widest mb-1.5">
@@ -8752,11 +8807,9 @@ export default function WorkspaceApp() {
                             </label>
                             <button
                               onClick={() => {
-                                setShowDetailDatePicker(!showDetailDatePicker);
-                                setShowDetailPriorityPicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                                setShowDetailRepeatPicker(false);
-                                setShowDetailPaymentDatePicker(false);
+                                const nextState = !showDetailDatePicker;
+                                closeAllDetailPickers();
+                                setShowDetailDatePicker(nextState);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailDatePicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -8967,11 +9020,9 @@ export default function WorkspaceApp() {
                               </label>
                               <button
                                 onClick={() => {
-                                  setShowDetailPaymentDatePicker(!showDetailPaymentDatePicker);
-                                  setShowDetailDatePicker(false);
-                                  setShowDetailPriorityPicker(false);
-                                  setShowDetailRepeatPicker(false);
-                                  setShowDetailClientPicker(false);
+                                  const nextState = !showDetailPaymentDatePicker;
+                                  closeAllDetailPickers();
+                                  setShowDetailPaymentDatePicker(nextState);
                                 }}
                                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailPaymentDatePicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                               >
@@ -9136,13 +9187,9 @@ export default function WorkspaceApp() {
                             </label>
                             <button
                               onClick={() => {
-                                setShowDetailPriorityPicker(
-                                  !showDetailPriorityPicker,
-                                );
-                                setShowDetailDatePicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                                setShowDetailRepeatPicker(false);
-                                setShowDetailPaymentDatePicker(false);
+                                const nextState = !showDetailPriorityPicker;
+                                closeAllDetailPickers();
+                                setShowDetailPriorityPicker(nextState);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailPriorityPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -9241,13 +9288,9 @@ export default function WorkspaceApp() {
                             </label>
                             <button
                               onClick={() => {
-                                setShowDetailRepeatPicker(
-                                  !showDetailRepeatPicker,
-                                );
-                                setShowDetailDatePicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                                setShowDetailPriorityPicker(false);
-                                setShowDetailPaymentDatePicker(false);
+                                const nextState = !showDetailRepeatPicker;
+                                closeAllDetailPickers();
+                                setShowDetailRepeatPicker(nextState);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailRepeatPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -9331,15 +9374,9 @@ export default function WorkspaceApp() {
                             </label>
                             <button
                               onClick={() => {
-                                setShowDetailClientPicker(
-                                  !showDetailClientPicker,
-                                );
-                                setShowDetailDatePicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                                setShowDetailPriorityPicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                                setShowDetailRepeatPicker(false);
-                                setShowDetailPaymentDatePicker(false);
+                                const nextState = !showDetailClientPicker;
+                                closeAllDetailPickers();
+                                setShowDetailClientPicker(nextState);
                               }}
                               className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailClientPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                             >
@@ -9450,15 +9487,9 @@ export default function WorkspaceApp() {
                           </label>
                           <button
                             onClick={() => {
-                              setShowDetailBlockingPicker(
-                                !showDetailBlockingPicker,
-                              );
-                              setShowDetailDatePicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                              setShowDetailPriorityPicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                              setShowDetailRepeatPicker(false);
-                                setShowDetailPaymentDatePicker(false);
+                              const nextState = !showDetailBlockingPicker;
+                              closeAllDetailPickers();
+                              setShowDetailBlockingPicker(nextState);
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${showDetailBlockingPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700"}`}
                           >
@@ -9573,13 +9604,9 @@ export default function WorkspaceApp() {
                             <button
                               type="button"
                               onClick={() => {
-                                setShowDetailColorPicker(!showDetailColorPicker);
-                                setShowDetailDatePicker(false);
-                                setShowDetailPaymentDatePicker(false);
-                                setShowDetailPriorityPicker(false);
-                                setShowDetailRepeatPicker(false);
-                                setShowDetailBlockingPicker(false);
-                                setShowDetailClientPicker(false);
+                                const nextState = !showDetailColorPicker;
+                                closeAllDetailPickers();
+                                setShowDetailColorPicker(nextState);
                               }}
                               className={`flex-1 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${
                                 showDetailColorPicker ? "bg-primary/5 text-primary" : "hover:bg-gray-50/50 text-gray-700 bg-white border border-gray-150"
@@ -9730,7 +9757,11 @@ export default function WorkspaceApp() {
                           <div className="flex gap-2 items-center">
                             <button
                               type="button"
-                              onClick={() => setShowDetailCategoryPicker(!showDetailCategoryPicker)}
+                              onClick={() => {
+                                const nextState = !showDetailCategoryPicker;
+                                closeAllDetailPickers();
+                                setShowDetailCategoryPicker(nextState);
+                              }}
                               className={`flex-1 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition border ${
                                 showDetailCategoryPicker
                                   ? "bg-indigo-50 border-indigo-200 text-indigo-900"
@@ -11114,8 +11145,8 @@ export default function WorkspaceApp() {
               transition={{ duration: 0.12, ease: "easeOut" }}
               style={{
                 position: "fixed",
-                left: `${taskContextMenu.x}px`,
-                top: `${taskContextMenu.y}px`,
+                left: `${Math.max(12, Math.min(taskContextMenu.x, (typeof window !== "undefined" ? window.innerWidth : 1000) - 270))}px`,
+                top: `${Math.max(12, Math.min(taskContextMenu.y, (typeof window !== "undefined" ? window.innerHeight : 800) - 380))}px`,
               }}
               onClick={(e) => e.stopPropagation()}
               className="w-64 bg-white/95 backdrop-blur-md border border-gray-200 shadow-2xl rounded-2xl overflow-hidden p-1.5 text-xs text-gray-700 z-[210] divide-y divide-gray-100 font-sans"
@@ -11534,6 +11565,28 @@ export default function WorkspaceApp() {
         todos={todos}
         activeFolderId={selectedFolderId}
         activeProjectId={selectedProjectId}
+      />
+
+      <CalendarSyncModal
+        isOpen={isCalendarSyncOpen}
+        onClose={() => setIsCalendarSyncOpen(false)}
+        customEvents={todos
+          .filter((t) => t.dueDate || t.deadline)
+          .map((t) => ({
+            id: t.id,
+            title: t.title,
+            description: t.description || `Workspace Task - Priority: P${t.priority}`,
+            startDate: t.dueDate ? new Date(t.dueDate).getTime() : (t.deadline ? new Date(t.deadline).getTime() : Date.now()),
+            category: 'task',
+            status: t.completed ? 'Completed' : 'Pending'
+          }))}
+        title="Workspace Tasks & Compliance Calendar Sync"
+      />
+
+      <DailyStandupModal
+        isOpen={isDailyStandupOpen}
+        onClose={() => setIsDailyStandupOpen(false)}
+        tasks={todos}
       />
 
     </div>

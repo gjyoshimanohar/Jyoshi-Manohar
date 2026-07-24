@@ -861,7 +861,7 @@ export default function PomodoroFocus({
                 <select
                   value={reportClientId}
                   onChange={(e) => setReportClientId(e.target.value)}
-                  className="text-xs font-bold bg-transparent text-slate-700 focus:outline-none cursor-pointer pr-1"
+                  className="text-xs font-bold bg-transparent text-slate-700 focus:outline-none cursor-pointer pl-1 pr-7"
                 >
                   <option value="all">All Clients ({clientOptions.length})</option>
                   <option value="unassigned">Internal / No Client</option>
@@ -1208,7 +1208,7 @@ export default function PomodoroFocus({
                           <select
                             value={reportClientId}
                             onChange={(e) => setReportClientId(e.target.value)}
-                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl pl-2.5 pr-8 py-1.5 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                           >
                             <option value="all">All Clients ({clientOptions.length})</option>
                             <option value="unassigned">Internal / No Client</option>

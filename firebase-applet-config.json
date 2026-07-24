@@ -3,8 +3,9 @@
   "appId": "1:255732479780:web:454c6d540f0e552a12e5b1",
   "apiKey": "AIzaSyDU6bogpUM069m-o8I-bDwYKs1moeyaicY",
   "authDomain": "jyoshimanohar-com.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-2f7b1efd-6c38-4be9-9912-792e1614fe83",
   "storageBucket": "jyoshimanohar-com.firebasestorage.app",
   "messagingSenderId": "255732479780",
-  "measurementId": ""
+  "measurementId": "",
+  "oAuthClientId": "255732479780-7amkt28n0d0sbl1hbkpqvpb2r3gdl909.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }

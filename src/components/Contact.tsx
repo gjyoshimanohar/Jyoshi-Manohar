@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Mail, Phone, MapPin, Send, ChevronDown, Check, Loader2 } from "lucide-react";
 import { db, auth } from "../lib/firebase";
 import { collection, addDoc } from "firebase/firestore";
+import { useClickOutside } from "../hooks/useClickOutside";
 
 export default function Contact() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -26,18 +27,7 @@ export default function Contact() {
     "Compliance Services",
   ];
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  useClickOutside(dropdownRef, () => setIsDropdownOpen(false), isDropdownOpen);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,10 +296,10 @@ export default function Contact() {
             <AnimatePresence>
               {isDropdownOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                  transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                   className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden"
                 >
                   <div className="py-2">

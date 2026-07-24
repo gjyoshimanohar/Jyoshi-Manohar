@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import { Menu, X, ChevronDown, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { services } from '../data';
+import { useClickOutside } from '../hooks/useClickOutside';
+import CalendarSyncModal from './CalendarSyncModal';
+import DailyStandupModal from './DailyStandupModal';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(false);
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
+  const [isCalendarSyncOpen, setIsCalendarSyncOpen] = useState(false);
+  const [isDailyStandupOpen, setIsDailyStandupOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const servicesDropdownRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
+
+  useClickOutside(servicesDropdownRef, () => setServicesOpen(false), servicesOpen);
 
   React.useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -81,33 +90,72 @@ export default function Navbar() {
 
                 if (item.name === 'Services') {
                   return (
-                    <div key={item.name} className="relative group">
-                      <a href={item.path} className={cn(linkClasses, "flex items-center gap-1.5 py-4", active && "text-secondary")}>
+                    <div
+                      key={item.name}
+                      ref={servicesDropdownRef}
+                      className="relative"
+                      onMouseEnter={() => setServicesOpen(true)}
+                      onMouseLeave={() => setServicesOpen(false)}
+                    >
+                      <a
+                        href={item.path}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setServicesOpen(!servicesOpen);
+                        }}
+                        className={cn(linkClasses, "flex items-center gap-1.5 py-4 cursor-pointer", active && "text-secondary")}
+                      >
                         {item.name}
-                        <ChevronDown className="h-3 w-3 group-hover:rotate-180 transition-transform duration-300" style={{ color: active ? 'var(--color-secondary)' : 'inherit' }} />
+                        <ChevronDown className={`h-3 w-3 transition-transform duration-300 ${servicesOpen ? 'rotate-180' : ''}`} style={{ color: active ? 'var(--color-secondary)' : 'inherit' }} />
                       </a>
                       
-                      <div className="absolute top-12 left-0 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform origin-top-left scale-95 group-hover:scale-100 pt-2 z-50">
-                        <div className="bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] border border-slate-100/60 p-1.5 relative before:content-[''] before:absolute before:-top-4 before:left-0 before:w-full before:h-4 flex flex-col gap-0.5">
-                          {services.map((service) => (
-                            <Link 
-                              key={service.id} 
-                              to={`/services/${service.id}`} 
-                              className="block px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors rounded-lg"
-                            >
-                              {service.title}
-                            </Link>
-                          ))}
-                          <div className="border-t border-slate-100 my-1" />
-                          <Link 
-                            to="/toolkit" 
-                            className="block px-3 py-2 text-sm font-semibold text-secondary hover:bg-secondary/5 hover:text-primary transition-colors rounded-lg flex items-center justify-between"
+                      <AnimatePresence>
+                        {servicesOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                            className="absolute top-12 left-0 w-64 pt-2 z-50 origin-top-left"
                           >
-                            <span>Interactive Toolkit</span>
-                            <span className="text-[9px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">Smart Tools</span>
-                          </Link>
-                        </div>
-                      </div>
+                            <div className="bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)] border border-slate-100/80 p-1.5 flex flex-col gap-0.5">
+                              {services.map((service) => (
+                                <Link 
+                                  key={service.id} 
+                                  to={`/services/${service.id}`} 
+                                  onClick={() => setServicesOpen(false)}
+                                  className="block px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-primary transition-colors rounded-lg"
+                                >
+                                  {service.title}
+                                </Link>
+                              ))}
+                              <div className="border-t border-slate-100 my-1" />
+                              <Link 
+                                to="/toolkit" 
+                                onClick={() => setServicesOpen(false)}
+                                className="px-3 py-2 text-sm font-semibold text-secondary hover:bg-secondary/5 hover:text-primary transition-colors rounded-lg flex items-center justify-between"
+                              >
+                                <span>Interactive Toolkit</span>
+                                <span className="text-[9px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">Smart Tools</span>
+                              </Link>
+
+                              <button 
+                                onClick={() => {
+                                  setServicesOpen(false);
+                                  setIsCalendarSyncOpen(true);
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors rounded-lg flex items-center justify-between"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <CalendarIcon className="w-3.5 h-3.5 text-indigo-600" />
+                                  Compliance Calendar Sync
+                                </span>
+                                <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">Google / Outlook</span>
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   );
                 }
@@ -275,6 +323,16 @@ export default function Navbar() {
           )}
         </AnimatePresence>
       </nav>
+
+      <CalendarSyncModal
+        isOpen={isCalendarSyncOpen}
+        onClose={() => setIsCalendarSyncOpen(false)}
+      />
+
+      <DailyStandupModal
+        isOpen={isDailyStandupOpen}
+        onClose={() => setIsDailyStandupOpen(false)}
+      />
     </>
   );
 }
