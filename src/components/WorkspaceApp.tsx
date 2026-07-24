@@ -82,6 +82,7 @@ import {
 import { Todo, Project, Folder as FolderType, TaskActivity, TaskTemplate } from "../types";
 import TaskTemplatesModal from "./TaskTemplatesModal";
 import TrendsSkeletonLoader from "./TrendsSkeletonLoader";
+import { exportReportToPDF, exportReportToExcel } from "../utils/reportExport";
 import { auth, db } from "../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import {
@@ -92,6 +93,9 @@ import {
   isSameDay,
   startOfDay,
   subDays,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
   addHours,
   addDays,
   addWeeks,
@@ -895,6 +899,18 @@ export default function WorkspaceApp() {
   const [sourceTaskForTemplate, setSourceTaskForTemplate] = useState<Todo | null>(null);
   const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false);
   const [isTrendsLoading, setIsTrendsLoading] = useState(false);
+
+  // Custom Date Report & Export States
+  const [trendPreset, setTrendPreset] = useState<
+    "7d" | "14d" | "30d" | "90d" | "this_month" | "last_month" | "custom"
+  >("7d");
+  const [customStartDate, setCustomStartDate] = useState<string>(
+    format(subDays(new Date(), 6), "yyyy-MM-dd")
+  );
+  const [customEndDate, setCustomEndDate] = useState<string>(
+    format(new Date(), "yyyy-MM-dd")
+  );
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Task Context Menu State
   const [taskContextMenu, setTaskContextMenu] = useState<{
@@ -2042,28 +2058,94 @@ export default function WorkspaceApp() {
     return next;
   };
 
-  // Trends calculation
-  const getTrendsData = () => {
-    const data = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = subDays(new Date(), i);
+  // Dynamic Trends & Custom Date Range Calculation
+  const getTrendsDataAndReport = () => {
+    let start: Date;
+    let end: Date = startOfDay(new Date());
+    let dateRangeText = "";
+
+    const now = new Date();
+
+    if (trendPreset === "7d") {
+      start = startOfDay(subDays(now, 6));
+      dateRangeText = `Last 7 Days (${format(start, "MMM dd")} - ${format(now, "MMM dd, yyyy")})`;
+    } else if (trendPreset === "14d") {
+      start = startOfDay(subDays(now, 13));
+      dateRangeText = `Last 14 Days (${format(start, "MMM dd")} - ${format(now, "MMM dd, yyyy")})`;
+    } else if (trendPreset === "30d") {
+      start = startOfDay(subDays(now, 29));
+      dateRangeText = `Last 30 Days (${format(start, "MMM dd")} - ${format(now, "MMM dd, yyyy")})`;
+    } else if (trendPreset === "90d") {
+      start = startOfDay(subDays(now, 89));
+      dateRangeText = `Last 90 Days (${format(start, "MMM dd")} - ${format(now, "MMM dd, yyyy")})`;
+    } else if (trendPreset === "this_month") {
+      start = startOfMonth(now);
+      end = endOfMonth(now);
+      dateRangeText = `This Month (${format(start, "MMM dd")} - ${format(end, "MMM dd, yyyy")})`;
+    } else if (trendPreset === "last_month") {
+      const lm = subMonths(now, 1);
+      start = startOfMonth(lm);
+      end = endOfMonth(lm);
+      dateRangeText = `Last Month (${format(start, "MMM dd")} - ${format(end, "MMM dd, yyyy")})`;
+    } else {
+      // custom date range
+      const parseStart = customStartDate ? new Date(customStartDate) : subDays(now, 6);
+      const parseEnd = customEndDate ? new Date(customEndDate) : now;
+      start = startOfDay(isNaN(parseStart.getTime()) ? subDays(now, 6) : parseStart);
+      end = startOfDay(isNaN(parseEnd.getTime()) ? now : parseEnd);
+      dateRangeText = `Custom Period (${format(start, "MMM dd, yyyy")} - ${format(end, "MMM dd, yyyy")})`;
+    }
+
+    const startTime = start.getTime();
+    const endTime = end.getTime() + 24 * 60 * 60 * 1000 - 1;
+
+    // Filter todos within this date range
+    const tasksInPeriod = todos.filter((t) => {
+      if (activeAppTab === "payables" && t.metadata?.type !== "payable") return false;
+      if (activeAppTab === "tasks" && t.metadata?.type === "payable") return false;
+      const tTime = t.createdAt || 0;
+      return tTime >= startTime && tTime <= endTime;
+    });
+
+    // Calculate daily data points for the chart
+    const points = [];
+    const diffDays = Math.max(1, Math.min(120, Math.ceil((endTime - startTime) / (24 * 60 * 60 * 1000))));
+
+    for (let i = 0; i < diffDays; i++) {
+      const d = addDays(start, i);
       const dayStart = startOfDay(d).getTime();
       const dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1;
 
-      const createdThatDay = todos.filter(
-        (t) => t.createdAt >= dayStart && t.createdAt <= dayEnd,
+      const createdThatDay = tasksInPeriod.filter(
+        (t) => t.createdAt >= dayStart && t.createdAt <= dayEnd
       );
       const completedTasks = createdThatDay.filter((t) => t.completed).length;
       const pendingTasks = createdThatDay.filter((t) => !t.completed).length;
 
-      data.push({
-        name: format(d, "MMM dd"),
+      points.push({
+        name: format(d, diffDays > 31 ? "MM/dd" : "MMM dd"),
         completed: completedTasks,
         pending: pendingTasks,
         total: createdThatDay.length,
       });
     }
-    return data;
+
+    const totalCreated = tasksInPeriod.length;
+    const totalCompleted = tasksInPeriod.filter((t) => t.completed).length;
+    const totalPending = tasksInPeriod.filter((t) => !t.completed).length;
+    const completionRate = totalCreated > 0 ? Math.round((totalCompleted / totalCreated) * 100) : 0;
+
+    return {
+      points,
+      tasksInPeriod,
+      summaryMetrics: {
+        totalCreated,
+        totalCompleted,
+        totalPending,
+        completionRate,
+        dateRangeText,
+      },
+    };
   };
 
   // Filter Tasks
@@ -4217,47 +4299,221 @@ export default function WorkspaceApp() {
                 loading || isTrendsLoading ? (
                   <TrendsSkeletonLoader />
                 ) : (() => {
-                  const trendsData = getTrendsData();
-                  const totalCompleted7Days = trendsData.reduce((acc, curr) => acc + curr.completed, 0);
-                  const totalPending7Days = trendsData.reduce((acc, curr) => acc + curr.pending, 0);
-                  const totalCreated7Days = trendsData.reduce((acc, curr) => acc + curr.total, 0);
-                  const completionRate7Days = totalCreated7Days > 0 ? Math.round((totalCompleted7Days / totalCreated7Days) * 100) : 0;
-                  const peakDayObj = trendsData.slice().sort((a, b) => b.completed - a.completed)[0];
+                  const { points, tasksInPeriod, summaryMetrics } = getTrendsDataAndReport();
+                  const peakDayObj = points.slice().sort((a, b) => b.completed - a.completed)[0];
 
                   return (
                     <div className="w-full max-w-4xl mx-auto py-4 space-y-6 animate-in fade-in duration-300">
-                      {/* Top Header Card */}
-                      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
-                              <TrendingUp className="w-5 h-5" />
+                      {/* Top Header Card with Custom Date Selector & Export Actions */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
+                                <TrendingUp className="w-5 h-5" />
+                              </div>
+                              <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                                Trends & Analytics Dashboard
+                              </h2>
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Live Firestore Sync
+                              </span>
                             </div>
-                            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                              Trends & Analytics Dashboard
-                            </h2>
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              Live Firestore Sync
-                            </span>
+                            <p className="text-xs text-slate-500">
+                              {summaryMetrics.dateRangeText}
+                            </p>
                           </div>
-                          <p className="text-xs text-slate-500">
-                            Historical 7-day task creation, completion velocity, and pending load metrics.
-                          </p>
+
+                          <div className="flex items-center gap-2 flex-wrap shrink-0">
+                            {/* Export Dropdown Menu */}
+                            <div className="relative">
+                              <button
+                                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                <span>Export Report</span>
+                                <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+                              </button>
+
+                              {isExportMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-4 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <Download className="w-4 h-4 text-indigo-600" />
+                                      <span className="text-xs font-bold text-slate-800">Export Report Options</span>
+                                    </div>
+                                    <button
+                                      onClick={() => setIsExportMenuOpen(false)}
+                                      className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 rounded-md cursor-pointer"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+
+                                  {/* Date Filter Controls inside Export Menu */}
+                                  <div className="space-y-2">
+                                    <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                                      <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                                      Select Export Date Filter:
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl">
+                                      {[
+                                        { id: "7d", label: "7 Days" },
+                                        { id: "14d", label: "14 Days" },
+                                        { id: "30d", label: "30 Days" },
+                                        { id: "this_month", label: "This Month" },
+                                        { id: "last_month", label: "Last Month" },
+                                        { id: "custom", label: "Custom" },
+                                      ].map((p) => (
+                                        <button
+                                          key={p.id}
+                                          onClick={() => setTrendPreset(p.id as any)}
+                                          className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                                            trendPreset === p.id
+                                              ? "bg-indigo-600 text-white shadow-xs"
+                                              : "text-slate-600 hover:text-slate-900"
+                                          }`}
+                                        >
+                                          {p.label}
+                                        </button>
+                                      ))}
+                                    </div>
+
+                                    {trendPreset === "custom" && (
+                                      <div className="grid grid-cols-2 gap-2 pt-1">
+                                        <div>
+                                          <span className="text-[10px] font-bold text-slate-400 block mb-0.5">START DATE</span>
+                                          <input
+                                            type="date"
+                                            value={customStartDate}
+                                            onChange={(e) => setCustomStartDate(e.target.value)}
+                                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <span className="text-[10px] font-bold text-slate-400 block mb-0.5">END DATE</span>
+                                          <input
+                                            type="date"
+                                            value={customEndDate}
+                                            onChange={(e) => setCustomEndDate(e.target.value)}
+                                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Filter Summary Badge */}
+                                  <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-2.5 text-xs flex items-center justify-between">
+                                    <span className="text-slate-600 font-medium truncate max-w-[180px]">{summaryMetrics.dateRangeText}</span>
+                                    <span className="font-bold text-indigo-950 shrink-0">{tasksInPeriod.length} tasks</span>
+                                  </div>
+
+                                  {/* Format Export Actions */}
+                                  <div className="pt-1 grid grid-cols-2 gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setIsExportMenuOpen(false);
+                                        exportReportToPDF({
+                                          summary: summaryMetrics,
+                                          tasks: tasksInPeriod,
+                                          projects,
+                                        });
+                                        toast.success("PDF Report downloaded successfully!");
+                                      }}
+                                      className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                                    >
+                                      <FileText className="w-3.5 h-3.5 text-rose-400" />
+                                      <span>Export PDF</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setIsExportMenuOpen(false);
+                                        exportReportToExcel({
+                                          summary: summaryMetrics,
+                                          tasks: tasksInPeriod,
+                                          projects,
+                                        });
+                                        toast.success("Excel Spreadsheet downloaded successfully!");
+                                      }}
+                                      className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                                    >
+                                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+                                      <span>Export Excel</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setIsTrendsLoading(true);
+                                setTimeout(() => setIsTrendsLoading(false), 450);
+                              }}
+                              className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl shadow-2xs transition-all cursor-pointer"
+                              title="Re-calculate and sync metrics from Firebase"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isTrendsLoading ? "animate-spin" : ""}`} />
+                              <span>Sync</span>
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => {
-                              setIsTrendsLoading(true);
-                              setTimeout(() => setIsTrendsLoading(false), 450);
-                            }}
-                            className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xs transition-all cursor-pointer"
-                            title="Re-calculate and sync metrics from Firebase"
-                          >
-                            <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isTrendsLoading ? "animate-spin" : ""}`} />
-                            <span>Sync Trends</span>
-                          </button>
+                        {/* Date Preset Selector Toolbar */}
+                        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-indigo-500" /> Date Range:
+                            </span>
+                            {[
+                              { id: "7d", label: "Last 7 Days" },
+                              { id: "14d", label: "Last 14 Days" },
+                              { id: "30d", label: "Last 30 Days" },
+                              { id: "90d", label: "Last 90 Days" },
+                              { id: "this_month", label: "This Month" },
+                              { id: "last_month", label: "Last Month" },
+                              { id: "custom", label: "Custom Range" },
+                            ].map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => setTrendPreset(p.id as any)}
+                                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                                  trendPreset === p.id
+                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                }`}
+                              >
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Custom Date Pickers */}
+                          {trendPreset === "custom" && (
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 animate-in fade-in duration-200">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase px-1">From:</span>
+                                <input
+                                  type="date"
+                                  value={customStartDate}
+                                  onChange={(e) => setCustomStartDate(e.target.value)}
+                                  className="text-xs font-medium bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase px-1">To:</span>
+                                <input
+                                  type="date"
+                                  value={customEndDate}
+                                  onChange={(e) => setCustomEndDate(e.target.value)}
+                                  className="text-xs font-medium bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -4266,12 +4522,12 @@ export default function WorkspaceApp() {
                         {/* Completed */}
                         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:border-emerald-200 transition-all">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-bold text-slate-500">Completed (7D)</span>
+                            <span className="text-xs font-bold text-slate-500">Completed Tasks</span>
                             <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
                               <CheckCircle2 className="w-4 h-4" />
                             </div>
                           </div>
-                          <div className="text-2xl font-black text-slate-900">{totalCompleted7Days}</div>
+                          <div className="text-2xl font-black text-slate-900">{summaryMetrics.totalCompleted}</div>
                           <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-1">
                             ✓ Resolved
                           </span>
@@ -4285,7 +4541,7 @@ export default function WorkspaceApp() {
                               <Clock className="w-4 h-4" />
                             </div>
                           </div>
-                          <div className="text-2xl font-black text-slate-900">{totalPending7Days}</div>
+                          <div className="text-2xl font-black text-slate-900">{summaryMetrics.totalPending}</div>
                           <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-1">
                             In Progress
                           </span>
@@ -4299,9 +4555,9 @@ export default function WorkspaceApp() {
                               <BarChart2 className="w-4 h-4" />
                             </div>
                           </div>
-                          <div className="text-2xl font-black text-slate-900">{totalCreated7Days}</div>
+                          <div className="text-2xl font-black text-slate-900">{summaryMetrics.totalCreated}</div>
                           <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-1">
-                            Last 7 Days
+                            In Selected Period
                           </span>
                         </div>
 
@@ -4313,11 +4569,11 @@ export default function WorkspaceApp() {
                               <TrendingUp className="w-4 h-4" />
                             </div>
                           </div>
-                          <div className="text-2xl font-black text-slate-900">{completionRate7Days}%</div>
+                          <div className="text-2xl font-black text-slate-900">{summaryMetrics.completionRate}%</div>
                           <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
                             <div
                               className="bg-indigo-600 h-full rounded-full transition-all duration-500"
-                              style={{ width: `${completionRate7Days}%` }}
+                              style={{ width: `${summaryMetrics.completionRate}%` }}
                             />
                           </div>
                         </div>
@@ -4329,7 +4585,7 @@ export default function WorkspaceApp() {
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-slate-400" />
                             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                              7-Day Task Activity Breakdown
+                              Task Creation & Completion Activity ({points.length} Data Points)
                             </h3>
                           </div>
                           <div className="flex items-center gap-4 text-xs font-semibold">
@@ -4346,7 +4602,7 @@ export default function WorkspaceApp() {
 
                         <div className="h-64 w-full pt-2">
                           <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={trendsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <BarChart data={points} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} dy={10} />
                               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
@@ -4377,8 +4633,8 @@ export default function WorkspaceApp() {
                             <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Productivity Insight</h4>
                             <p className="text-xs text-indigo-800 font-medium mt-0.5">
                               {peakDayObj && peakDayObj.completed > 0
-                                ? `Peak performance achieved on ${peakDayObj.name} with ${peakDayObj.completed} tasks completed!`
-                                : "Keep creating and completing tasks to build your productivity momentum!"}
+                                ? `Peak completion output recorded on ${peakDayObj.name} with ${peakDayObj.completed} tasks resolved!`
+                                : "Keep tracking and finishing tasks to view detailed completion trends across periods."}
                             </p>
                           </div>
                         </div>

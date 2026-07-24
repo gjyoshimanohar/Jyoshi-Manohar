@@ -15,15 +15,21 @@ import {
   CheckCircle, 
   Trash2, 
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Download,
+  FileText,
+  FileSpreadsheet,
+  ChevronDown
 } from 'lucide-react';
-import { isToday, isThisWeek, isThisMonth, format } from 'date-fns';
+import { isToday, isThisWeek, isThisMonth, format, subDays, startOfDay } from 'date-fns';
 import CustomSelect from './CustomSelect';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { timesheetService } from '../services/timesheetService';
 import { invoiceService } from '../services/invoiceService';
 import { TimesheetLog } from '../types';
+import { exportTimesheetsToPDF, exportTimesheetsToExcel } from '../utils/reportExport';
+import toast from 'react-hot-toast';
 
 export default function PomodoroFocus({ 
   todos = [],
@@ -53,9 +59,12 @@ export default function PomodoroFocus({
   const [timesheets, setTimesheets] = useState<TimesheetLog[]>([]);
   const [convertingTimesheetId, setConvertingTimesheetId] = useState<string | null>(null);
 
-  // Tab State
+  // Tab & Report States
   const [activeTab, setActiveTab] = useState<'timer' | 'reports'>('timer');
-  const [reportDateRange, setReportDateRange] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [reportDateRange, setReportDateRange] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('today');
+  const [customStartDate, setCustomStartDate] = useState<string>(format(subDays(new Date(), 6), "yyyy-MM-dd"));
+  const [customEndDate, setCustomEndDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   const formatTimer = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -746,7 +755,7 @@ export default function PomodoroFocus({
       </div>
       ) : (
         <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 lg:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4 border-b border-slate-100 pb-5">
             <div>
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-indigo-600" />
@@ -756,29 +765,65 @@ export default function PomodoroFocus({
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                Unified report of active task timers and logged timesheets
+                Unified report of active task timers and logged timesheets with custom date filtering & export.
               </p>
             </div>
 
-            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shrink-0">
-              <button 
-                onClick={() => setReportDateRange('today')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'today' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >Today</button>
-              <button 
-                onClick={() => setReportDateRange('week')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'week' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >This Week</button>
-              <button 
-                onClick={() => setReportDateRange('month')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'month' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >This Month</button>
-              <button 
-                onClick={() => setReportDateRange('all')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'all' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >All Time</button>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Preset Buttons */}
+              <div className="flex flex-wrap gap-1 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                <button 
+                  onClick={() => setReportDateRange('today')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'today' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >Today</button>
+                <button 
+                  onClick={() => setReportDateRange('week')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'week' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >This Week</button>
+                <button 
+                  onClick={() => setReportDateRange('month')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'month' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >This Month</button>
+                <button 
+                  onClick={() => setReportDateRange('all')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'all' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >All Time</button>
+                <button 
+                  onClick={() => setReportDateRange('custom')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'custom' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >Custom Range</button>
+              </div>
             </div>
           </div>
+
+          {/* Custom Date Inputs Bar */}
+          {reportDateRange === 'custom' && (
+            <div className="mb-6 bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600" /> Filter Range:
+                </span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {(() => {
             // Build unified list of time tracking items
@@ -829,19 +874,37 @@ export default function PomodoroFocus({
               });
             };
 
+            // Custom Range boundaries
+            const customStartTs = customStartDate ? new Date(customStartDate).getTime() : 0;
+            const customEndTs = customEndDate ? new Date(customEndDate).getTime() + 86400000 - 1 : Infinity;
+
+            const checkMatchesFilter = (taskDate: Date) => {
+              if (reportDateRange === 'today') return isTodayIST(taskDate);
+              if (reportDateRange === 'week') return isThisWeekIST(taskDate);
+              if (reportDateRange === 'month') return isThisMonthIST(taskDate);
+              if (reportDateRange === 'custom') {
+                const t = taskDate.getTime();
+                return t >= customStartTs && t <= customEndTs;
+              }
+              return true; // 'all'
+            };
+
+            let rangeText = "All Time";
+            if (reportDateRange === 'today') rangeText = "Today";
+            else if (reportDateRange === 'week') rangeText = "This Week";
+            else if (reportDateRange === 'month') rangeText = "This Month";
+            else if (reportDateRange === 'custom') rangeText = `${customStartDate} to ${customEndDate}`;
+
             // 1. Task Timers
             todos.forEach(t => {
               const totalSec = (t.timeSpentSeconds || 0) + (t.id === activeTimerTaskId ? (activeTimerElapsed || 0) : 0);
               if (totalSec > 0 || t.id === activeTimerTaskId) {
-                // Use completion date first if task is completed, or updatedAt/createdAt
                 const rawTimestamp = t.completedAt || (t as any).updatedAt || t.createdAt || Date.now();
                 const taskDate = new Date(rawTimestamp);
                 let matchesFilter = true;
 
                 if (t.id !== activeTimerTaskId) {
-                  if (reportDateRange === 'today') matchesFilter = isTodayIST(taskDate);
-                  else if (reportDateRange === 'week') matchesFilter = isThisWeekIST(taskDate);
-                  else if (reportDateRange === 'month') matchesFilter = isThisMonthIST(taskDate);
+                  matchesFilter = checkMatchesFilter(taskDate);
                 }
 
                 if (matchesFilter) {
@@ -865,10 +928,7 @@ export default function PomodoroFocus({
             // 2. Timesheet Logs
             timesheets.forEach(log => {
               const logDate = new Date(log.createdAt);
-              let matchesFilter = true;
-              if (reportDateRange === 'today') matchesFilter = isTodayIST(logDate);
-              else if (reportDateRange === 'week') matchesFilter = isThisWeekIST(logDate);
-              else if (reportDateRange === 'month') matchesFilter = isThisMonthIST(logDate);
+              let matchesFilter = checkMatchesFilter(logDate);
 
               if (matchesFilter) {
                 unifiedItems.push({
@@ -903,36 +963,187 @@ export default function PomodoroFocus({
               return `${secs}s`;
             };
 
+            const handleExportPDF = () => {
+              const exportItems = unifiedItems.map(item => ({
+                id: item.id,
+                type: item.type === 'task_timer' ? 'Task Timer' : 'Timesheet Log',
+                title: item.title,
+                category: item.category,
+                durationFormatted: formatDuration(item.durationSeconds),
+                durationSeconds: item.durationSeconds,
+                dateStr: formatISTDate(item.date),
+                statusText: item.statusText,
+              }));
+
+              exportTimesheetsToPDF({
+                dateRangeText: rangeText,
+                totalDurationFormatted: formatDuration(totalDurationSeconds),
+                items: exportItems,
+              });
+              toast.success('Timesheet PDF Report downloaded!');
+              setIsExportMenuOpen(false);
+            };
+
+            const handleExportExcel = () => {
+              const exportItems = unifiedItems.map(item => ({
+                id: item.id,
+                type: item.type === 'task_timer' ? 'Task Timer' : 'Timesheet Log',
+                title: item.title,
+                category: item.category,
+                durationFormatted: formatDuration(item.durationSeconds),
+                durationSeconds: item.durationSeconds,
+                dateStr: formatISTDate(item.date),
+                statusText: item.statusText,
+              }));
+
+              exportTimesheetsToExcel({
+                dateRangeText: rangeText,
+                totalDurationFormatted: formatDuration(totalDurationSeconds),
+                items: exportItems,
+              });
+              toast.success('Timesheet Excel Report downloaded!');
+              setIsExportMenuOpen(false);
+            };
+
             return (
               <div className="space-y-6">
-                {/* Summary KPI Strip */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-slate-900 text-white rounded-xl p-4 shadow-sm relative overflow-hidden">
-                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Time Tracked</p>
-                    <p className="text-2xl font-black mt-1">{formatDuration(totalDurationSeconds)}</p>
-                    <p className="text-[11px] text-slate-400 mt-1">{unifiedItems.length} report items</p>
+                {/* Summary KPI Strip & Export Bar */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                    <div className="bg-slate-900 text-white rounded-xl p-4 shadow-sm relative overflow-hidden">
+                      <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Time Tracked</p>
+                      <p className="text-2xl font-black mt-1">{formatDuration(totalDurationSeconds)}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">{unifiedItems.length} report items</p>
+                    </div>
+
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                      <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider">Active Task Timers</p>
+                      <p className="text-2xl font-black text-indigo-900 mt-1">
+                        {formatDuration(unifiedItems.filter(i => i.type === 'task_timer').reduce((s, i) => s + i.durationSeconds, 0))}
+                      </p>
+                      <p className="text-[11px] text-indigo-600 font-medium mt-1">
+                        {unifiedItems.filter(i => i.type === 'task_timer').length} task timer items
+                      </p>
+                    </div>
+
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                      <p className="text-emerald-700 text-[10px] font-bold uppercase tracking-wider">Timesheet Logs</p>
+                      <p className="text-2xl font-black text-emerald-950 mt-1">
+                        {formatDuration(unifiedItems.filter(i => i.type === 'timesheet').reduce((s, i) => s + i.durationSeconds, 0))}
+                      </p>
+                      <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                        {unifiedItems.filter(i => i.type === 'timesheet').length} logged timesheets
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
-                    <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider">Active Task Timers</p>
-                    <p className="text-2xl font-black text-indigo-900 mt-1">
-                      {formatDuration(unifiedItems.filter(i => i.type === 'task_timer').reduce((s, i) => s + i.durationSeconds, 0))}
-                    </p>
-                    <p className="text-[11px] text-indigo-600 font-medium mt-1">
-                      {unifiedItems.filter(i => i.type === 'task_timer').length} task timer items
-                    </p>
-                  </div>
+                  {/* Export Action Menu */}
+                  <div className="relative shrink-0 self-end md:self-center">
+                    <button
+                      onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                      className="px-4 py-3 bg-[#1a2b58] text-white hover:bg-[#122044] rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-emerald-400" />
+                      <span>Export Timesheet</span>
+                      <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                    </button>
 
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-                    <p className="text-emerald-700 text-[10px] font-bold uppercase tracking-wider">Timesheet Logs</p>
-                    <p className="text-2xl font-black text-emerald-950 mt-1">
-                      {formatDuration(unifiedItems.filter(i => i.type === 'timesheet').reduce((s, i) => s + i.durationSeconds, 0))}
-                    </p>
-                    <p className="text-[11px] text-emerald-700 font-medium mt-1">
-                      {unifiedItems.filter(i => i.type === 'timesheet').length} logged timesheets
-                    </p>
+                    {isExportMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-4 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <Download className="w-4 h-4 text-indigo-600" />
+                            <span className="text-xs font-bold text-slate-800">Export Timesheets & Date Filter</span>
+                          </div>
+                          <button
+                            onClick={() => setIsExportMenuOpen(false)}
+                            className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 rounded-md cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        {/* Date Filter Selection */}
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                            Select Export Date Filter:
+                          </label>
+                          <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl">
+                            <button
+                              onClick={() => setReportDateRange('today')}
+                              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'today' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                            >Today</button>
+                            <button
+                              onClick={() => setReportDateRange('week')}
+                              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'week' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                            >This Week</button>
+                            <button
+                              onClick={() => setReportDateRange('month')}
+                              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'month' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                            >This Month</button>
+                            <button
+                              onClick={() => setReportDateRange('all')}
+                              className={`px-2 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'all' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                            >All Time</button>
+                            <button
+                              onClick={() => setReportDateRange('custom')}
+                              className={`col-span-2 px-2 py-1 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${reportDateRange === 'custom' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                            >Custom Range</button>
+                          </div>
+
+                          {reportDateRange === 'custom' && (
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 block mb-0.5">START DATE</span>
+                                <input
+                                  type="date"
+                                  value={customStartDate}
+                                  onChange={(e) => setCustomStartDate(e.target.value)}
+                                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-400 block mb-0.5">END DATE</span>
+                                <input
+                                  type="date"
+                                  value={customEndDate}
+                                  onChange={(e) => setCustomEndDate(e.target.value)}
+                                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Filter Summary Badge */}
+                        <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-2.5 text-xs flex items-center justify-between">
+                          <span className="text-slate-600 font-medium truncate max-w-[180px]">{rangeText}</span>
+                          <span className="font-bold text-indigo-950 shrink-0">{unifiedItems.length} records ({formatDuration(totalDurationSeconds)})</span>
+                        </div>
+
+                        {/* Export Actions */}
+                        <div className="pt-1 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={handleExportPDF}
+                            className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Export PDF</span>
+                          </button>
+                          <button
+                            onClick={handleExportExcel}
+                            className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+                            <span>Export Excel</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
+
 
                 {/* Unified Report Table */}
                 <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
