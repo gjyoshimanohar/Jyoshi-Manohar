@@ -79,9 +79,12 @@ import {
   Copy,
   Square,
 } from "lucide-react";
-import { Todo, Project, Folder as FolderType, TaskActivity, TaskTemplate } from "../types";
+import { Todo, Project, Folder as FolderType, TaskActivity, TaskTemplate, TaskCategory } from "../types";
 import TaskTemplatesModal from "./TaskTemplatesModal";
 import TrendsSkeletonLoader from "./TrendsSkeletonLoader";
+import { ManageCategoriesModal } from "./ManageCategoriesModal";
+import { TrendsCategoryAnalytics } from "./TrendsCategoryAnalytics";
+import { getAllCategoriesForScope, getCategoryDetails, getCategoryBadgeStyle } from "../utils/categoryUtils";
 import { exportReportToPDF, exportReportToExcel } from "../utils/reportExport";
 import { auth, db } from "../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -912,6 +915,12 @@ export default function WorkspaceApp() {
   );
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
+  // Task Category Sub-Types System State
+  const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
+  const [newTodoCategory, setNewTodoCategory] = useState<string | undefined>(undefined);
+  const [showDetailCategoryPicker, setShowDetailCategoryPicker] = useState(false);
+
   // Task Context Menu State
   const [taskContextMenu, setTaskContextMenu] = useState<{
     x: number;
@@ -945,6 +954,11 @@ export default function WorkspaceApp() {
   const [draggingOverSection, setDraggingOverSection] = useState<string | null>(
     null,
   );
+
+  // List view Drag-and-Drop state for task reordering and priority customization
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
+  const [dragDropPosition, setDragDropPosition] = useState<"above" | "below">("below");
 
   // Tags and Kanban placeholder variables to satisfy legacy types / bypassed conditional loops safely
   const [sidebarSelectedTag, setSidebarSelectedTag] = useState<string | null>(
@@ -1453,6 +1467,7 @@ export default function WorkspaceApp() {
       metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
       completed: false,
       projectId: targetProjectId,
+      category: newTodoCategory || undefined,
       priority: newTaskPriority,
       dueDate: newTaskDueDate ? newTaskDueDate.getTime() : null,
       deadline: newTaskDeadline ? newTaskDeadline.getTime() : null,
@@ -1470,6 +1485,7 @@ export default function WorkspaceApp() {
 
     setNewTaskTitle("");
     setNewTaskDesc("");
+    setNewTodoCategory(undefined);
     setNewTaskDeadline(undefined);
     setNewTaskClientId(null);
     setShowClientPicker(false);
@@ -2099,10 +2115,16 @@ export default function WorkspaceApp() {
     const startTime = start.getTime();
     const endTime = end.getTime() + 24 * 60 * 60 * 1000 - 1;
 
-    // Filter todos within this date range
+    // Filter todos within this date range and category filter
     const tasksInPeriod = todos.filter((t) => {
       if (activeAppTab === "payables" && t.metadata?.type !== "payable") return false;
       if (activeAppTab === "tasks" && t.metadata?.type === "payable") return false;
+      if (selectedCategoryFilter) {
+        const matchesCat =
+          t.category?.toLowerCase() === selectedCategoryFilter.toLowerCase() ||
+          getCategoryDetails(t.category)?.name.toLowerCase() === selectedCategoryFilter.toLowerCase();
+        if (!matchesCat) return false;
+      }
       const tTime = t.createdAt || 0;
       return tTime >= startTime && tTime <= endTime;
     });
@@ -2312,6 +2334,13 @@ export default function WorkspaceApp() {
     // 2. Pinned status (pinned before unpinned)
     if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
 
+    // 3. Custom Drag-and-Drop Order (if defined)
+    if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
+      return a.order - b.order;
+    }
+    if (a.order !== undefined && b.order === undefined) return -1;
+    if (a.order === undefined && b.order !== undefined) return 1;
+
     if (mode === "smart") {
       const scoreA = calculateSmartUrgencyScore(a, refTime);
       const scoreB = calculateSmartUrgencyScore(b, refTime);
@@ -2348,6 +2377,99 @@ export default function WorkspaceApp() {
     if (dateA) return -1;
     if (dateB) return 1;
     return (a.priority || 4) - (b.priority || 4);
+  };
+
+  const handleReorderTask = async (
+    sourceId: string,
+    targetId: string,
+    position: "above" | "below" = "below",
+  ) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+
+    setTodos((prevTodos) => {
+      const sourceTask = prevTodos.find((t) => t.id === sourceId);
+      const targetTask = prevTodos.find((t) => t.id === targetId);
+
+      if (!sourceTask || !targetTask) return prevTodos;
+
+      // Filter active non-deleted todos in the current view order
+      const activeTodosInView = getFilteredTodos(true);
+      activeTodosInView.sort((a, b) => compareTodos(a, b, sortOrder));
+
+      const sourceIdx = activeTodosInView.findIndex((t) => t.id === sourceId);
+      let targetIdx = activeTodosInView.findIndex((t) => t.id === targetId);
+
+      if (sourceIdx === -1 || targetIdx === -1) return prevTodos;
+
+      // Create reordered copy of activeTodosInView
+      const reorderedActive = [...activeTodosInView];
+      const [movedItem] = reorderedActive.splice(sourceIdx, 1);
+
+      // Recalculate target position after removing movedItem
+      targetIdx = reorderedActive.findIndex((t) => t.id === targetId);
+      if (targetIdx === -1) return prevTodos;
+
+      if (position === "below") {
+        targetIdx += 1;
+      }
+
+      // If moving above a task with higher priority, align priority if source priority is lower
+      let updatedPriority = movedItem.priority;
+      if (targetTask.priority && (!movedItem.priority || movedItem.priority > targetTask.priority)) {
+        if (position === "above") {
+          updatedPriority = targetTask.priority;
+        }
+      }
+
+      const itemWithUpdatedPriority = { ...movedItem, priority: updatedPriority };
+      reorderedActive.splice(targetIdx, 0, itemWithUpdatedPriority);
+
+      // Re-assign order indices (10, 20, 30...)
+      const orderMap: Record<string, { order: number; priority?: number }> = {};
+      reorderedActive.forEach((item, index) => {
+        orderMap[item.id] = {
+          order: index * 10,
+          priority: item.id === sourceId ? updatedPriority : item.priority,
+        };
+      });
+
+      // Map back onto prevTodos
+      const nextTodos = prevTodos.map((t) => {
+        const mapped = orderMap[t.id];
+        if (mapped) {
+          return {
+            ...t,
+            order: mapped.order,
+            priority: mapped.priority ?? t.priority,
+          };
+        }
+        return t;
+      });
+
+      // Save changes to Firestore
+      setTimeout(() => {
+        reorderedActive.forEach((item) => {
+          const mapped = orderMap[item.id];
+          if (mapped) {
+            const original = prevTodos.find((pt) => pt.id === item.id);
+            if (
+              !original ||
+              original.order !== mapped.order ||
+              original.priority !== mapped.priority
+            ) {
+              todoService
+                .updateTodo(item.id, {
+                  order: mapped.order,
+                  priority: mapped.priority,
+                })
+                .catch(console.error);
+            }
+          }
+        });
+      }, 0);
+
+      return nextTodos;
+    });
   };
 
   const filteredTodos = getFilteredTodos();
@@ -2492,16 +2614,68 @@ export default function WorkspaceApp() {
     const hasPriority = todo.priority && todo.priority < 4;
     const isOverdue =
       todo.dueDate && todo.dueDate < startOfDay(new Date()).getTime();
+
+    const isDragged = draggedTaskId === todo.id;
+    const isDragOver = dragOverTaskId === todo.id;
+
     return (
       <motion.div
         layout="position"
         key={todo.id}
+        draggable={currentViewType === "list" && viewMode !== "trash"}
+        onDragStart={(e: any) => {
+          e.dataTransfer.setData("text/plain", todo.id);
+          e.dataTransfer.effectAllowed = "move";
+          setDraggedTaskId(todo.id);
+        }}
+        onDragOver={(e: any) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (draggedTaskId === todo.id) return;
+          setDragOverTaskId(todo.id);
+
+          const rect = e.currentTarget.getBoundingClientRect();
+          const offsetY = e.clientY - rect.top;
+          if (offsetY < rect.height / 2) {
+            setDragDropPosition("above");
+          } else {
+            setDragDropPosition("below");
+          }
+        }}
+        onDragLeave={() => {
+          if (dragOverTaskId === todo.id) {
+            setDragOverTaskId(null);
+          }
+        }}
+        onDragEnd={() => {
+          setDraggedTaskId(null);
+          setDragOverTaskId(null);
+        }}
+        onDrop={(e: any) => {
+          e.preventDefault();
+          const sourceId = e.dataTransfer.getData("text/plain") || draggedTaskId;
+          setDraggedTaskId(null);
+          setDragOverTaskId(null);
+          if (sourceId && sourceId !== todo.id) {
+            handleReorderTask(sourceId, todo.id, dragDropPosition);
+          }
+        }}
         initial={{ opacity: 0, scale: 0.99, y: 10 }}
         exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.3, delay: (index ?? 0) * 0.05, ease: "easeOut" }}
         onContextMenu={(e) => handleTaskContextMenu(e, todo)}
-        className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-colors px-1 ${
+        className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-all px-1 select-none relative ${
+          isDragged
+            ? "opacity-40 bg-indigo-50/40 border-dashed border-indigo-300 scale-[0.99]"
+            : ""
+        } ${
+          isDragOver
+            ? dragDropPosition === "above"
+              ? "border-t-2 border-t-indigo-600 bg-indigo-50/50"
+              : "border-b-2 border-b-indigo-600 bg-indigo-50/50"
+            : ""
+        } ${
           todo.color && todo.color !== "none"
             ? todo.color === "red" ? "border-l-[4px] border-l-red-500 pl-3 bg-red-50/10 hover:bg-red-50/20" :
               todo.color === "orange" ? "border-l-[4px] border-l-orange-500 pl-3 bg-orange-50/10 hover:bg-orange-50/20" :
@@ -2523,6 +2697,14 @@ export default function WorkspaceApp() {
         }`}
       >
         <div className="flex items-center min-w-0 flex-1">
+          {currentViewType === "list" && viewMode !== "trash" && (
+            <div
+              className="mr-1 text-gray-300 group-hover:text-gray-500 hover:text-indigo-600 transition-colors cursor-grab active:cursor-grabbing p-0.5 rounded shrink-0 opacity-0 group-hover:opacity-100"
+              title="Drag to reorder task priority"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </div>
+          )}
           <button
             onClick={() => handleToggleTodo(todo)}
             className={`mr-3.5 w-[17px] h-[17px] flex shrink-0 items-center justify-center rounded-[5px] border-2 transition-all ${getPriorityCheckboxStyle(todo.priority, isOverdue)}`}
@@ -2600,6 +2782,23 @@ export default function WorkspaceApp() {
                     "bg-pink-500"
                   }`} />
                   {todo.colorLabel || (todo.color.charAt(0).toUpperCase() + todo.color.slice(1))}
+                </span>
+              )}
+              {todo.category && (
+                <span className="inline-flex items-center gap-1 shrink-0 ml-1">
+                  {(() => {
+                    const catDetails = getCategoryDetails(todo.category, getAllCategoriesForScope({ folders, projects }));
+                    if (catDetails) {
+                      const style = getCategoryBadgeStyle(catDetails.color);
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${style.bg} ${style.text} ${style.border}`}>
+                          <span>{catDetails.icon || "🏷️"}</span>
+                          <span>{catDetails.name}</span>
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </span>
               )}
             </span>
@@ -4623,6 +4822,17 @@ export default function WorkspaceApp() {
                         </div>
                       </div>
 
+                      {/* Granular Task Sub-Types Category Analytics Component */}
+                      <TrendsCategoryAnalytics
+                        tasksInPeriod={tasksInPeriod}
+                        allTodos={todos}
+                        folders={folders}
+                        projects={projects}
+                        selectedCategoryId={selectedCategoryFilter}
+                        onSelectCategoryFilter={(catId) => setSelectedCategoryFilter(catId)}
+                        onManageCategoriesClick={() => setIsManageCategoriesOpen(true)}
+                      />
+
                       {/* Productivity Insights Banner */}
                       <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -5549,6 +5759,23 @@ export default function WorkspaceApp() {
                                                               </span>
                                                             )}
                                                           </span>
+                                                          {todo.category && (
+                                                            <div className="mt-1">
+                                                              {(() => {
+                                                                const catDetails = getCategoryDetails(todo.category, getAllCategoriesForScope({ folders, projects }));
+                                                                if (catDetails) {
+                                                                  const style = getCategoryBadgeStyle(catDetails.color);
+                                                                  return (
+                                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${style.bg} ${style.text} ${style.border}`}>
+                                                                      <span>{catDetails.icon || "🏷️"}</span>
+                                                                      <span>{catDetails.name}</span>
+                                                                    </span>
+                                                                  );
+                                                                }
+                                                                return null;
+                                                              })()}
+                                                            </div>
+                                                          )}
                                                           {todo.description && (
                                                             <p className="text-xs text-gray-500 font-medium leading-relaxed mt-0.5 line-clamp-2">
                                                               {todo.description}
@@ -7792,7 +8019,21 @@ export default function WorkspaceApp() {
           )}
 
           {/* 6. SECTOR: STANDALONE POMODORO FOCUS ROOM TAB */}
-          {activeAppTab === "focus" && <PomodoroFocus todos={todos} projects={projects} activeTimerTaskId={activeTimerTaskId} activeTimerElapsed={activeTimerElapsed} />}
+          {activeAppTab === "focus" && (
+            <PomodoroFocus
+              todos={todos}
+              projects={projects}
+              activeTimerTaskId={activeTimerTaskId}
+              activeTimerElapsed={activeTimerElapsed}
+              clients={clients}
+              onRefreshData={async () => {
+                if (auth.currentUser) {
+                  const freshTodos = await todoService.getTodosOnce(auth.currentUser.uid);
+                  if (freshTodos) setTodos(freshTodos);
+                }
+              }}
+            />
+          )}
 
           {/* 7. SECTOR: STARRED P1 VALUES ONLY GOALBOARD TAB */}
           {activeAppTab === "starred" && (
@@ -9465,6 +9706,128 @@ export default function WorkspaceApp() {
                                     />
                                   </div>
                                 )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        {/* Sub-Type Task Category Picker */}
+                        <div className="relative mt-4">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              Folder / Sub-Type Category
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setIsManageCategoriesOpen(true)}
+                              className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Tag className="w-3 h-3" />
+                              <span>Manage Sub-Types</span>
+                            </button>
+                          </div>
+
+                          <div className="flex gap-2 items-center">
+                            <button
+                              type="button"
+                              onClick={() => setShowDetailCategoryPicker(!showDetailCategoryPicker)}
+                              className={`flex-1 flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition border ${
+                                showDetailCategoryPicker
+                                  ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+                                  : "bg-white border-slate-200 hover:bg-slate-50 text-slate-800"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                {(() => {
+                                  const details = getCategoryDetails(
+                                    todo.category,
+                                    getAllCategoriesForScope({ folders, projects })
+                                  );
+                                  if (details) {
+                                    const style = getCategoryBadgeStyle(details.color);
+                                    return (
+                                      <span
+                                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold border ${style.bg} ${style.text} ${style.border}`}
+                                      >
+                                        <span>{details.icon || "🏷️"}</span>
+                                        <span>{details.name}</span>
+                                      </span>
+                                    );
+                                  }
+                                  return <span className="text-slate-400 font-medium">None / Uncategorized</span>;
+                                })()}
+                              </span>
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200 ${
+                                  showDetailCategoryPicker ? "rotate-180" : ""
+                                }`}
+                              />
+                            </button>
+
+                            {todo.category && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setTodos((prev) =>
+                                    prev.map((t) => (t.id === todo.id ? { ...t, category: undefined } : t))
+                                  );
+                                  await todoService.updateTodo(todo.id, { category: null as any });
+                                }}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer shrink-0"
+                                title="Clear Sub-Type Category"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+
+                          <AnimatePresence>
+                            {showDetailCategoryPicker && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute top-full left-0 mt-2 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-3 w-72 space-y-2 max-h-64 overflow-y-auto"
+                              >
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                                  Available Sub-Type Categories
+                                </div>
+                                {getAllCategoriesForScope({ folders, projects }).map((cat) => {
+                                  const style = getCategoryBadgeStyle(cat.color);
+                                  const isSelected =
+                                    todo.category?.toLowerCase() === cat.id.toLowerCase() ||
+                                    todo.category?.toLowerCase() === cat.name.toLowerCase();
+
+                                  return (
+                                    <button
+                                      key={cat.id}
+                                      type="button"
+                                      onClick={async () => {
+                                        setTodos((prev) =>
+                                          prev.map((t) =>
+                                            t.id === todo.id ? { ...t, category: cat.id } : t
+                                          )
+                                        );
+                                        await todoService.updateTodo(todo.id, { category: cat.id });
+                                        setShowDetailCategoryPicker(false);
+                                      }}
+                                      className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                                        isSelected
+                                          ? "bg-indigo-50/80 border border-indigo-200 text-indigo-900"
+                                          : "hover:bg-slate-50 text-slate-700"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs border ${style.bg} ${style.text} ${style.border}`}
+                                      >
+                                        <span>{cat.icon || "🏷️"}</span>
+                                        <span>{cat.name}</span>
+                                      </span>
+                                      {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
+                                    </button>
+                                  );
+                                })}
                               </motion.div>
                             )}
                           </AnimatePresence>
@@ -11160,6 +11523,17 @@ export default function WorkspaceApp() {
         templates={taskTemplates}
         projects={projects}
         sourceTask={sourceTaskForTemplate}
+      />
+
+      {/* Manage Task Categories & Sub-Types Modal */}
+      <ManageCategoriesModal
+        isOpen={isManageCategoriesOpen}
+        onClose={() => setIsManageCategoriesOpen(false)}
+        folders={folders}
+        projects={projects}
+        todos={todos}
+        activeFolderId={selectedFolderId}
+        activeProjectId={selectedProjectId}
       />
 
     </div>

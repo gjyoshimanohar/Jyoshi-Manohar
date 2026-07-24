@@ -52,6 +52,17 @@ export interface TaskComment {
   replies?: TaskCommentReply[];
 }
 
+export interface TaskCategory {
+  id: string;
+  name: string;
+  color: string;
+  icon?: string;
+  description?: string;
+  folderId?: string | null;
+  projectId?: string | null;
+  createdAt?: number;
+}
+
 export interface Todo {
 	id: string;
 	userId: string;
@@ -67,6 +78,7 @@ export interface Todo {
 	priority?: number; // 1, 2, 3, 4
 	timeSpentSeconds?: number;
 	projectId?: string; // 'inbox' or custom ID
+	category?: string; // Sub-type category ID or name (e.g. 'feature', 'bug', 'design')
 	tags?: string[];
 	subtasks?: Subtask[];
 	comments?: TaskComment[];
@@ -95,6 +107,7 @@ export interface TaskTemplate {
   title: string; // Pre-filled task title
   description?: string;
   projectId?: string;
+  category?: string;
   priority?: number; // 1 (urgent), 2 (high), 3 (medium), 4 (low)
   subtasks?: { title: string }[];
   tags?: string[];
@@ -109,6 +122,7 @@ export interface Folder {
   order?: number;
  color?: string;
  createdAt: number;
+ categories?: TaskCategory[];
 }
 
 export interface Project {
@@ -123,6 +137,7 @@ export interface Project {
   createdAt: number;
   isPinned?: boolean;
   order?: number;
+  categories?: TaskCategory[];
 }
 
 export interface PaymentAccount {

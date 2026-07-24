@@ -109,15 +109,62 @@ export function exportReportToPDF({
   doc.setTextColor(79, 70, 229); // Indigo
   doc.text(`${summary.completionRate}%`, 158, 62);
 
+  // Sub-Type Category Summary Section
+  const categoryMap = new Map<string, { total: number; completed: number; pending: number }>();
+  tasks.forEach((t) => {
+    const cat = t.category || "Uncategorized";
+    const existing = categoryMap.get(cat) || { total: 0, completed: 0, pending: 0 };
+    existing.total += 1;
+    if (t.completed) existing.completed += 1;
+    else existing.pending += 1;
+    categoryMap.set(cat, existing);
+  });
+
+  const categoryRows = Array.from(categoryMap.entries()).map(([catName, stats], idx) => [
+    idx + 1,
+    catName,
+    stats.total,
+    stats.completed,
+    stats.pending,
+    stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}%` : "0%",
+  ]);
+
+  // Render Sub-Type Category Summary Table First
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text("SUB-TYPE CATEGORY GRANULAR SUMMARY", 14, 76);
+
+  autoTable(doc, {
+    startY: 80,
+    head: [["#", "Sub-Type Category", "Total Tasks", "Completed", "Pending", "Completion Rate"]],
+    body: categoryRows.length > 0 ? categoryRows : [["-", "No Categorized Tasks", 0, 0, 0, "0%"]],
+    theme: "grid",
+    headStyles: {
+      fillColor: [30, 41, 59], // Slate 800
+      textColor: 255,
+      fontStyle: "bold",
+      fontSize: 8.5,
+    },
+    bodyStyles: {
+      fontSize: 8,
+      textColor: [51, 65, 85],
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 10 : 120;
+
   // Tasks Detail Section
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text("DETAILED TASK BREAKDOWN", 14, 78);
+  doc.text("DETAILED TASK BREAKDOWN", 14, finalY);
 
   const tableRows = tasks.map((t, idx) => [
     idx + 1,
     t.title,
+    t.category || "General",
     getProjectName(t.projectId),
     formatPriorityLabel(t.priority),
     t.completed ? "Completed" : "Pending",
@@ -126,31 +173,32 @@ export function exportReportToPDF({
   ]);
 
   autoTable(doc, {
-    startY: 82,
-    head: [["#", "Task Title", "Project", "Priority", "Status", "Created Date", "Due Date"]],
+    startY: finalY + 4,
+    head: [["#", "Task Title", "Category Sub-Type", "Project", "Priority", "Status", "Created Date", "Due Date"]],
     body: tableRows,
     theme: "striped",
     headStyles: {
       fillColor: [79, 70, 229], // Indigo 600
       textColor: 255,
       fontStyle: "bold",
-      fontSize: 9,
+      fontSize: 8.5,
     },
     bodyStyles: {
-      fontSize: 8.5,
+      fontSize: 8,
       textColor: [51, 65, 85],
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { cellWidth: 10 },
-      1: { cellWidth: 60 },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 22 },
-      5: { cellWidth: 23 },
-      6: { cellWidth: 23 },
+      0: { cellWidth: 8 },
+      1: { cellWidth: 50 },
+      2: { cellWidth: 30 },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 18 },
+      5: { cellWidth: 20 },
+      6: { cellWidth: 20 },
+      7: { cellWidth: 20 },
     },
     margin: { left: 14, right: 14 },
   });
@@ -191,11 +239,45 @@ export function exportReportToExcel({
   const summarySheet = XLSX.utils.json_to_sheet(summaryData);
   summarySheet["!cols"] = [{ wch: 25 }, { wch: 40 }];
 
-  // Sheet 2: Task Records
+  // Sheet 2: Sub-Type Category Granular Breakdown
+  const categoryMap = new Map<string, { total: number; completed: number; pending: number; timeSpentSeconds: number }>();
+  tasks.forEach((t) => {
+    const cat = t.category || "Uncategorized";
+    const existing = categoryMap.get(cat) || { total: 0, completed: 0, pending: 0, timeSpentSeconds: 0 };
+    existing.total += 1;
+    if (t.completed) existing.completed += 1;
+    else existing.pending += 1;
+    existing.timeSpentSeconds += t.timeSpentSeconds || 0;
+    categoryMap.set(cat, existing);
+  });
+
+  const categoryRecords = Array.from(categoryMap.entries()).map(([catName, stats], idx) => ({
+    "No.": idx + 1,
+    "Sub-Type Category": catName,
+    "Total Tasks": stats.total,
+    "Completed Tasks": stats.completed,
+    "Pending Tasks": stats.pending,
+    "Completion Rate": stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}%` : "0%",
+    "Time Logged (Mins)": Math.round(stats.timeSpentSeconds / 60),
+  }));
+
+  const categorySheet = XLSX.utils.json_to_sheet(categoryRecords);
+  categorySheet["!cols"] = [
+    { wch: 6 },
+    { wch: 25 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 20 },
+  ];
+
+  // Sheet 3: Task Records
   const taskRecords = tasks.map((t, idx) => ({
     "No.": idx + 1,
     "Task ID": t.id,
     "Title": t.title,
+    "Category Sub-Type": t.category || "General",
     "Project": getProjectName(t.projectId),
     "Priority": formatPriorityLabel(t.priority),
     "Status": t.completed ? "Completed" : "Pending",
@@ -211,6 +293,7 @@ export function exportReportToExcel({
     { wch: 20 },
     { wch: 40 },
     { wch: 20 },
+    { wch: 20 },
     { wch: 12 },
     { wch: 14 },
     { wch: 18 },
@@ -221,6 +304,7 @@ export function exportReportToExcel({
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary KPI");
+  XLSX.utils.book_append_sheet(workbook, categorySheet, "Sub-Type Categories");
   XLSX.utils.book_append_sheet(workbook, tasksSheet, "Task Breakdown");
 
   const fileName = `Trends_Report_${summary.dateRangeText.replace(/[^a-zA-Z0-9]/g, "_")}.xlsx`;

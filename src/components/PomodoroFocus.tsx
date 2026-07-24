@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Play, 
   Pause, 
@@ -19,13 +19,16 @@ import {
   Download,
   FileText,
   FileSpreadsheet,
-  ChevronDown
+  ChevronDown,
+  RefreshCw,
+  Building2
 } from 'lucide-react';
 import { isToday, isThisWeek, isThisMonth, format, subDays, startOfDay } from 'date-fns';
 import CustomSelect from './CustomSelect';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { timesheetService } from '../services/timesheetService';
+import { todoService } from '../services/todoService';
 import { invoiceService } from '../services/invoiceService';
 import { TimesheetLog } from '../types';
 import { exportTimesheetsToPDF, exportTimesheetsToExcel } from '../utils/reportExport';
@@ -35,13 +38,25 @@ export default function PomodoroFocus({
   todos = [],
   projects = [],
   activeTimerTaskId = null,
-  activeTimerElapsed = 0
+  activeTimerElapsed = 0,
+  onRefreshData,
+  clients: propClients
 }: { 
   todos?: import("../types").Todo[];
   projects?: import("../types").Project[];
   activeTimerTaskId?: string | null;
   activeTimerElapsed?: number;
+  onRefreshData?: () => Promise<void> | void;
+  clients?: { uid: string; displayName?: string; email?: string }[];
 }) {
+  // Local synced todos override state
+  const [syncedTodos, setSyncedTodos] = useState<import("../types").Todo[]>(todos);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    setSyncedTodos(todos);
+  }, [todos]);
+
   // Timer States
   const [timeRemaining, setTimeRemaining] = useState(25 * 60);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -64,7 +79,66 @@ export default function PomodoroFocus({
   const [reportDateRange, setReportDateRange] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('today');
   const [customStartDate, setCustomStartDate] = useState<string>(format(subDays(new Date(), 6), "yyyy-MM-dd"));
   const [customEndDate, setCustomEndDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+  const [reportClientId, setReportClientId] = useState<string>('all');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+  // Compute available client options for Timesheet Reports filter
+  const clientOptions = useMemo(() => {
+    const map = new Map<string, string>(); // clientId/name -> display label
+    const activeClients = (clients && clients.length > 0) ? clients : (propClients || []);
+    activeClients.forEach(c => {
+      map.set(c.uid, c.displayName || c.email || c.uid);
+    });
+    
+    timesheets.forEach(ts => {
+      if (ts.clientId) {
+        if (!map.has(ts.clientId)) map.set(ts.clientId, ts.clientName || ts.clientId);
+      } else if (ts.clientName && ts.clientName !== 'Internal Task' && ts.clientName !== 'General') {
+        if (!map.has(ts.clientName)) map.set(ts.clientName, ts.clientName);
+      }
+    });
+
+    const effectiveTodos = syncedTodos.length > 0 ? syncedTodos : todos;
+    effectiveTodos.forEach(t => {
+      if (t.clientId) {
+        if (!map.has(t.clientId)) map.set(t.clientId, t.clientName || t.clientId);
+      } else if (t.clientName) {
+        if (!map.has(t.clientName)) map.set(t.clientName, t.clientName);
+      }
+    });
+
+    return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
+  }, [clients, propClients, timesheets, syncedTodos, todos]);
+
+  const reportClientLabel = useMemo(() => {
+    if (reportClientId === 'all') return 'All Clients';
+    if (reportClientId === 'unassigned') return 'Internal / No Client';
+    const match = clientOptions.find(c => c.id === reportClientId);
+    return match ? match.label : reportClientId;
+  }, [reportClientId, clientOptions]);
+
+  // Manual Sync function to force refetch latest task and timesheet data from Firestore
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      if (auth.currentUser) {
+        // Refetch latest todos
+        const latest = await todoService.getTodosOnce(auth.currentUser.uid);
+        if (latest) {
+          setSyncedTodos(latest);
+        }
+      }
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+      toast.success("Latest task & timesheet data synced from Firestore!");
+    } catch (err) {
+      console.error("Sync error:", err);
+      toast.error("Failed to sync latest task data.");
+    } finally {
+      setTimeout(() => setIsSyncing(false), 400);
+    }
+  };
 
   const formatTimer = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -770,6 +844,39 @@ export default function PomodoroFocus({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Manual Sync Button */}
+              <button
+                onClick={handleManualSync}
+                disabled={isSyncing}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 border border-slate-200 shadow-2xs"
+                title="Force refetch latest task data from Firestore"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+              </button>
+
+              {/* Client Filter Dropdown */}
+              <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                <Building2 className="w-3.5 h-3.5 text-indigo-600 ml-1 shrink-0" />
+                <select
+                  value={reportClientId}
+                  onChange={(e) => setReportClientId(e.target.value)}
+                  className="text-xs font-bold bg-transparent text-slate-700 focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="all">All Clients ({clientOptions.length})</option>
+                  <option value="unassigned">Internal / No Client</option>
+                  {clientOptions.length > 0 && (
+                    <optgroup label="Associated Clients">
+                      {clientOptions.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
               {/* Preset Buttons */}
               <div className="flex flex-wrap gap-1 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
                 <button 
@@ -889,14 +996,39 @@ export default function PomodoroFocus({
               return true; // 'all'
             };
 
+            const activeClientsList = (clients && clients.length > 0) ? clients : (propClients || []);
+
+            const checkMatchesClient = (itemClientId?: string, itemClientName?: string) => {
+              if (reportClientId === 'all') return true;
+              if (reportClientId === 'unassigned') {
+                return !itemClientId && (!itemClientName || itemClientName === 'Internal Task' || itemClientName === 'General');
+              }
+              if (itemClientId && itemClientId === reportClientId) return true;
+              if (itemClientName && itemClientName === reportClientId) return true;
+              if (itemClientName && itemClientName === reportClientLabel) return true;
+              
+              const targetClient = activeClientsList.find(c => c.uid === reportClientId);
+              if (targetClient && itemClientName) {
+                if (itemClientName === targetClient.displayName || itemClientName === targetClient.email) {
+                  return true;
+                }
+              }
+              return false;
+            };
+
             let rangeText = "All Time";
             if (reportDateRange === 'today') rangeText = "Today";
             else if (reportDateRange === 'week') rangeText = "This Week";
             else if (reportDateRange === 'month') rangeText = "This Month";
             else if (reportDateRange === 'custom') rangeText = `${customStartDate} to ${customEndDate}`;
 
+            const exportDateRangeText = reportClientId !== 'all'
+              ? `${rangeText} (Client: ${reportClientLabel})`
+              : rangeText;
+
             // 1. Task Timers
-            todos.forEach(t => {
+            const effectiveTodos = syncedTodos.length > 0 ? syncedTodos : todos;
+            effectiveTodos.forEach(t => {
               const totalSec = (t.timeSpentSeconds || 0) + (t.id === activeTimerTaskId ? (activeTimerElapsed || 0) : 0);
               if (totalSec > 0 || t.id === activeTimerTaskId) {
                 const rawTimestamp = t.completedAt || (t as any).updatedAt || t.createdAt || Date.now();
@@ -907,13 +1039,17 @@ export default function PomodoroFocus({
                   matchesFilter = checkMatchesFilter(taskDate);
                 }
 
-                if (matchesFilter) {
+                const taskClientId = t.clientId;
+                const taskClientName = t.clientName || (t.clientId ? activeClientsList.find(c => c.uid === t.clientId)?.displayName : undefined);
+
+                if (matchesFilter && checkMatchesClient(taskClientId, taskClientName)) {
                   const projName = t.projectId ? (projects.find(p => p.id === t.projectId)?.name || 'Inbox') : 'Inbox';
+                  const clientDisplay = taskClientName ? ` (${taskClientName})` : '';
                   unifiedItems.push({
                     id: `task-${t.id}`,
                     type: 'task_timer',
                     title: t.title,
-                    category: projName,
+                    category: `${projName}${clientDisplay}`,
                     durationSeconds: totalSec,
                     date: taskDate,
                     isActiveNow: t.id === activeTimerTaskId,
@@ -930,7 +1066,7 @@ export default function PomodoroFocus({
               const logDate = new Date(log.createdAt);
               let matchesFilter = checkMatchesFilter(logDate);
 
-              if (matchesFilter) {
+              if (matchesFilter && checkMatchesClient(log.clientId, log.clientName)) {
                 unifiedItems.push({
                   id: `timesheet-${log.id}`,
                   type: 'timesheet',
@@ -976,7 +1112,7 @@ export default function PomodoroFocus({
               }));
 
               exportTimesheetsToPDF({
-                dateRangeText: rangeText,
+                dateRangeText: exportDateRangeText,
                 totalDurationFormatted: formatDuration(totalDurationSeconds),
                 items: exportItems,
               });
@@ -997,7 +1133,7 @@ export default function PomodoroFocus({
               }));
 
               exportTimesheetsToExcel({
-                dateRangeText: rangeText,
+                dateRangeText: exportDateRangeText,
                 totalDurationFormatted: formatDuration(totalDurationSeconds),
                 items: exportItems,
               });
@@ -1053,7 +1189,7 @@ export default function PomodoroFocus({
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                           <div className="flex items-center gap-1.5">
                             <Download className="w-4 h-4 text-indigo-600" />
-                            <span className="text-xs font-bold text-slate-800">Export Timesheets & Date Filter</span>
+                            <span className="text-xs font-bold text-slate-800">Export Options & Filters</span>
                           </div>
                           <button
                             onClick={() => setIsExportMenuOpen(false)}
@@ -1061,6 +1197,31 @@ export default function PomodoroFocus({
                           >
                             ✕
                           </button>
+                        </div>
+
+                        {/* Client Filter Selection inside Export Menu */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                            <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                            Filter by Client:
+                          </label>
+                          <select
+                            value={reportClientId}
+                            onChange={(e) => setReportClientId(e.target.value)}
+                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                          >
+                            <option value="all">All Clients ({clientOptions.length})</option>
+                            <option value="unassigned">Internal / No Client</option>
+                            {clientOptions.length > 0 && (
+                              <optgroup label="Clients">
+                                {clientOptions.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </select>
                         </div>
 
                         {/* Date Filter Selection */}
@@ -1117,9 +1278,18 @@ export default function PomodoroFocus({
                         </div>
 
                         {/* Filter Summary Badge */}
-                        <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-2.5 text-xs flex items-center justify-between">
-                          <span className="text-slate-600 font-medium truncate max-w-[180px]">{rangeText}</span>
-                          <span className="font-bold text-indigo-950 shrink-0">{unifiedItems.length} records ({formatDuration(totalDurationSeconds)})</span>
+                        <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-2.5 text-xs space-y-1">
+                          <div className="flex items-center justify-between font-bold text-slate-800">
+                            <span className="truncate max-w-[180px]">{rangeText}</span>
+                            <span className="text-indigo-950 shrink-0">{unifiedItems.length} records</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-indigo-100/60">
+                            <span className="flex items-center gap-1 font-medium truncate max-w-[200px]">
+                              <Building2 className="w-3 h-3 text-indigo-600 shrink-0" />
+                              {reportClientLabel}
+                            </span>
+                            <span className="font-bold text-indigo-700 shrink-0">{formatDuration(totalDurationSeconds)}</span>
+                          </div>
                         </div>
 
                         {/* Export Actions */}
