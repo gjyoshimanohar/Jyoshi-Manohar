@@ -61,8 +61,12 @@ import {
   LayoutGrid,
   TrendingUp,
   Activity,
+  BookmarkPlus,
+  CheckCircle2,
+  Calendar,
 } from "lucide-react";
 import { todoService } from "../services/todoService";
+import { templateService } from "../services/templateService";
 import {
   FileText,
   MessageSquare,
@@ -75,7 +79,9 @@ import {
   Copy,
   Square,
 } from "lucide-react";
-import { Todo, Project, Folder as FolderType, TaskActivity } from "../types";
+import { Todo, Project, Folder as FolderType, TaskActivity, TaskTemplate } from "../types";
+import TaskTemplatesModal from "./TaskTemplatesModal";
+import TrendsSkeletonLoader from "./TrendsSkeletonLoader";
 import { auth, db } from "../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import {
@@ -883,6 +889,13 @@ export default function WorkspaceApp() {
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [showSmartTips, setShowSmartTips] = useState(false);
 
+  // Task Templates & Trends Loading States
+  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [sourceTaskForTemplate, setSourceTaskForTemplate] = useState<Todo | null>(null);
+  const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false);
+  const [isTrendsLoading, setIsTrendsLoading] = useState(false);
+
   // Task Context Menu State
   const [taskContextMenu, setTaskContextMenu] = useState<{
     x: number;
@@ -1074,6 +1087,7 @@ export default function WorkspaceApp() {
     let unsubTodos = () => {};
     let unsubProjects = () => {};
     let unsubFolders = () => {};
+    let unsubTemplates = () => {};
 
     try {
       unsubTodos = todoService.subscribeToUserTodos(
@@ -1095,6 +1109,12 @@ export default function WorkspaceApp() {
           setFolders(fetchedFolders);
         },
       );
+      unsubTemplates = templateService.subscribeToUserTemplates(
+        auth.currentUser.uid,
+        (fetchedTemplates) => {
+          setTaskTemplates(fetchedTemplates);
+        },
+      );
     } catch (e) {
       console.error(e);
       setLoading(false);
@@ -1104,6 +1124,7 @@ export default function WorkspaceApp() {
       unsubTodos();
       unsubProjects();
       unsubFolders();
+      unsubTemplates();
     };
   }, []);
 
@@ -2959,17 +2980,6 @@ export default function WorkspaceApp() {
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white min-h-[300px]">
-        <div className="w-8 h-8 border-3 border-[#1a2b58] border-t-transparent rounded-full animate-spin"></div>
-        <span className="text-sm text-gray-400 mt-4 font-semibold tracking-wider">
-          Syncing with Cloud...
-        </span>
-      </div>
-    );
-  }
-
   // Tasks Filter counters
   const inboxCount = todos.filter(
     (t) =>
@@ -3705,6 +3715,24 @@ export default function WorkspaceApp() {
               </>
             )}
 
+            {/* Task Templates button */}
+            <button
+              onClick={() => {
+                setSourceTaskForTemplate(null);
+                setIsTemplatesModalOpen(true);
+              }}
+              className="p-1.5 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-lg shadow-2xs bg-indigo-50/80 transition-all flex items-center gap-1.5 cursor-pointer font-bold"
+              title="Task Templates Manager"
+            >
+              <BookmarkPlus className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span className="text-xs hidden sm:inline">Templates</span>
+              {taskTemplates.length > 0 && (
+                <span className="bg-indigo-600 text-white rounded-full text-[10px] px-1.5 py-0.2 font-extrabold ml-0.5">
+                  {taskTemplates.length}
+                </span>
+              )}
+            </button>
+
             {/* Smart Tips bulb */}
             <button
               onClick={() => {
@@ -4186,66 +4214,178 @@ export default function WorkspaceApp() {
           {(activeAppTab === "tasks" || activeAppTab === "payables") && (
             <div className="text-left w-full">
               {viewMode === "trends" ? (
-                <div className="py-8 bg-white border border-[#f0f0f0] rounded-2xl shadow-xl p-6 mb-8 text-center max-w-2xl mx-auto">
-                  <h2 className="text-sm text-gray-500 mb-6 uppercase tracking-wider">
-                    Historical Analytics (Last 7 Days)
-                  </h2>
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={getTrendsData()}
-                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                      >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                          stroke="#E5E7EB"
-                        />
-                        <XAxis
-                          dataKey="name"
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 11, fill: "#6B7280" }}
-                          dy={10}
-                        />
-                        <YAxis
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 11, fill: "#6B7280" }}
-                        />
-                        <Tooltip
-                          cursor={{ fill: "#F3F4F6" }}
-                          contentStyle={{
-                            borderRadius: "8px",
-                            border: "none",
-                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                          }}
-                        />
-                        <Legend
-                          iconType="circle"
-                          wrapperStyle={{
-                            fontSize: "11px",
-                            paddingTop: "15px",
-                          }}
-                        />
-                        <Bar
-                          dataKey="completed"
-                          name="Completed Tasks"
-                          fill="#10B981"
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={40}
-                        />
-                        <Bar
-                          dataKey="pending"
-                          name="Pending Tasks"
-                          fill="#DBEAFE"
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={40}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+                loading || isTrendsLoading ? (
+                  <TrendsSkeletonLoader />
+                ) : (() => {
+                  const trendsData = getTrendsData();
+                  const totalCompleted7Days = trendsData.reduce((acc, curr) => acc + curr.completed, 0);
+                  const totalPending7Days = trendsData.reduce((acc, curr) => acc + curr.pending, 0);
+                  const totalCreated7Days = trendsData.reduce((acc, curr) => acc + curr.total, 0);
+                  const completionRate7Days = totalCreated7Days > 0 ? Math.round((totalCompleted7Days / totalCreated7Days) * 100) : 0;
+                  const peakDayObj = trendsData.slice().sort((a, b) => b.completed - a.completed)[0];
+
+                  return (
+                    <div className="w-full max-w-4xl mx-auto py-4 space-y-6 animate-in fade-in duration-300">
+                      {/* Top Header Card */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-600">
+                              <TrendingUp className="w-5 h-5" />
+                            </div>
+                            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                              Trends & Analytics Dashboard
+                            </h2>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Live Firestore Sync
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            Historical 7-day task creation, completion velocity, and pending load metrics.
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => {
+                              setIsTrendsLoading(true);
+                              setTimeout(() => setIsTrendsLoading(false), 450);
+                            }}
+                            className="inline-flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xs transition-all cursor-pointer"
+                            title="Re-calculate and sync metrics from Firebase"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 text-indigo-600 ${isTrendsLoading ? "animate-spin" : ""}`} />
+                            <span>Sync Trends</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 4 Summary Metric Cards */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {/* Completed */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:border-emerald-200 transition-all">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-slate-500">Completed (7D)</span>
+                            <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                              <CheckCircle2 className="w-4 h-4" />
+                            </div>
+                          </div>
+                          <div className="text-2xl font-black text-slate-900">{totalCompleted7Days}</div>
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                            ✓ Resolved
+                          </span>
+                        </div>
+
+                        {/* Pending */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:border-amber-200 transition-all">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-slate-500">Pending Load</span>
+                            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                              <Clock className="w-4 h-4" />
+                            </div>
+                          </div>
+                          <div className="text-2xl font-black text-slate-900">{totalPending7Days}</div>
+                          <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                            In Progress
+                          </span>
+                        </div>
+
+                        {/* Total Created */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:border-blue-200 transition-all">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-slate-500">Tasks Created</span>
+                            <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                              <BarChart2 className="w-4 h-4" />
+                            </div>
+                          </div>
+                          <div className="text-2xl font-black text-slate-900">{totalCreated7Days}</div>
+                          <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                            Last 7 Days
+                          </span>
+                        </div>
+
+                        {/* Completion Rate */}
+                        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:border-indigo-200 transition-all">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-slate-500">Completion Rate</span>
+                            <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                              <TrendingUp className="w-4 h-4" />
+                            </div>
+                          </div>
+                          <div className="text-2xl font-black text-slate-900">{completionRate7Days}%</div>
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+                            <div
+                              className="bg-indigo-600 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${completionRate7Days}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Main Bar Chart Container */}
+                      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-slate-400" />
+                            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                              7-Day Task Activity Breakdown
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs font-semibold">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-3 h-3 rounded bg-emerald-500" />
+                              <span className="text-slate-600">Completed</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-3 h-3 rounded bg-blue-200" />
+                              <span className="text-slate-600">Pending</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="h-64 w-full pt-2">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={trendsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} dy={10} />
+                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
+                              <Tooltip
+                                cursor={{ fill: "#f8fafc" }}
+                                contentStyle={{
+                                  borderRadius: "12px",
+                                  border: "1px solid #e2e8f0",
+                                  boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+                                  fontSize: "12px",
+                                  fontWeight: 600,
+                                }}
+                              />
+                              <Bar dataKey="completed" name="Completed Tasks" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                              <Bar dataKey="pending" name="Pending Tasks" fill="#BFDBFE" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      {/* Productivity Insights Banner */}
+                      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-white border border-indigo-100 rounded-xl text-indigo-600 shadow-2xs">
+                            <Sparkles className="w-5 h-5 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Productivity Insight</h4>
+                            <p className="text-xs text-indigo-800 font-medium mt-0.5">
+                              {peakDayObj && peakDayObj.completed > 0
+                                ? `Peak performance achieved on ${peakDayObj.name} with ${peakDayObj.completed} tasks completed!`
+                                : "Keep creating and completing tasks to build your productivity momentum!"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="w-full">
                   {currentViewType === "kanban" ? (
@@ -5994,6 +6134,100 @@ export default function WorkspaceApp() {
                               )}
                             </div>
 
+                            {/* Template Quick Selection */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setIsTemplateDropdownOpen(!isTemplateDropdownOpen)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-xl transition-all cursor-pointer"
+                                title="Apply a saved Task Template"
+                              >
+                                <BookmarkPlus className="w-3.5 h-3.5 text-indigo-600" />
+                                <span className="hidden sm:inline">Templates</span>
+                                <ChevronDown className="w-3 h-3 text-indigo-500" />
+                              </button>
+
+                              {isTemplateDropdownOpen && (
+                                <div className="absolute right-0 top-9 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 z-50 text-left animate-in fade-in slide-in-from-top-1 duration-150">
+                                  <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-2">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saved Templates</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setIsTemplateDropdownOpen(false);
+                                        setSourceTaskForTemplate(null);
+                                        setIsTemplatesModalOpen(true);
+                                      }}
+                                      className="text-[11px] font-bold text-indigo-600 hover:underline"
+                                    >
+                                      Manage ({taskTemplates.length})
+                                    </button>
+                                  </div>
+
+                                  {taskTemplates.length === 0 ? (
+                                    <div className="p-3 text-center text-xs text-slate-400">
+                                      No templates yet. Click Manage to create one!
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+                                      {taskTemplates.map((tpl) => (
+                                        <button
+                                          key={tpl.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setNewTaskTitle(tpl.title);
+                                            setNewTaskDesc(tpl.description || "");
+                                            setNewTaskPriority(tpl.priority || 4);
+                                            if (tpl.projectId) setNewTaskProject(tpl.projectId);
+                                            if (tpl.subtasks && tpl.subtasks.length > 0) {
+                                              setNewTaskSubtasks(tpl.subtasks.map((s) => s.title));
+                                              setShowSubtasksField(true);
+                                            }
+                                            if (tpl.description) setShowNotesField(true);
+                                            setIsTemplateDropdownOpen(false);
+                                            toast.success(`Applied template: "${tpl.name}"`);
+                                          }}
+                                          className="w-full text-left p-2 rounded-xl hover:bg-indigo-50/80 transition-colors group flex items-center justify-between cursor-pointer"
+                                        >
+                                          <div>
+                                            <p className="text-xs font-bold text-slate-800 group-hover:text-indigo-900">{tpl.name}</p>
+                                            <p className="text-[10px] text-slate-500 truncate max-w-[170px]">{tpl.title}</p>
+                                          </div>
+                                          <Plus className="w-3.5 h-3.5 text-indigo-600 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Save Current Input as Template */}
+                            {newTaskTitle.trim() && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSourceTaskForTemplate({
+                                    id: 'temp-' + Date.now(),
+                                    userId: auth.currentUser?.uid || '',
+                                    title: newTaskTitle,
+                                    description: newTaskDesc,
+                                    completed: false,
+                                    createdAt: Date.now(),
+                                    priority: newTaskPriority,
+                                    projectId: newTaskProject,
+                                    subtasks: newTaskSubtasks.map((stTitle, i) => ({ id: `${i}`, title: stTitle, completed: false }))
+                                  });
+                                  setIsTemplatesModalOpen(true);
+                                }}
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                                title="Save current input as a reusable Template"
+                              >
+                                <BookmarkPlus className="w-3.5 h-3.5 text-indigo-600" />
+                                <span className="hidden sm:inline">Save as Template</span>
+                              </button>
+                            )}
+
                             {/* Submit Button */}
                             <button
                               type="button"
@@ -7302,7 +7536,7 @@ export default function WorkspaceApp() {
           )}
 
           {/* 6. SECTOR: STANDALONE POMODORO FOCUS ROOM TAB */}
-          {activeAppTab === "focus" && <PomodoroFocus todos={todos} />}
+          {activeAppTab === "focus" && <PomodoroFocus todos={todos} projects={projects} activeTimerTaskId={activeTimerTaskId} activeTimerElapsed={activeTimerElapsed} />}
 
           {/* 7. SECTOR: STARRED P1 VALUES ONLY GOALBOARD TAB */}
           {activeAppTab === "starred" && (
@@ -7835,12 +8069,25 @@ export default function WorkspaceApp() {
                           </>
                         )}
                       </div>
-                      <button
-                        onClick={() => setSelectedTodoId(null)}
-                        className="p-1.5 hover:bg-gray-100 rounded-md text-gray-500"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSourceTaskForTemplate(todo);
+                            setIsTemplatesModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
+                          title="Save task as reusable template"
+                        >
+                          <BookmarkPlus className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Save as Template</span>
+                        </button>
+                        <button
+                          onClick={() => setSelectedTodoId(null)}
+                          className="p-1.5 hover:bg-gray-100 rounded-md text-gray-500"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Tab Navigation */}
@@ -10605,7 +10852,7 @@ export default function WorkspaceApp() {
                 </button>
               </div>
 
-              {/* View Details & Trash */}
+              {/* View Details, Template & Trash */}
               <div className="pt-1 space-y-0.5">
                 <button
                   onClick={() => {
@@ -10616,6 +10863,18 @@ export default function WorkspaceApp() {
                 >
                   <FileText className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                   <span>View Full Details</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setSourceTaskForTemplate(taskContextMenu.todo);
+                    setIsTemplatesModalOpen(true);
+                    setTaskContextMenu(null);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 text-indigo-700 font-semibold transition cursor-pointer"
+                >
+                  <BookmarkPlus className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>Save as Template</span>
                 </button>
 
                 <button
@@ -10634,6 +10893,18 @@ export default function WorkspaceApp() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Task Templates Modal */}
+      <TaskTemplatesModal
+        isOpen={isTemplatesModalOpen}
+        onClose={() => {
+          setIsTemplatesModalOpen(false);
+          setSourceTaskForTemplate(null);
+        }}
+        templates={taskTemplates}
+        projects={projects}
+        sourceTask={sourceTaskForTemplate}
+      />
 
     </div>
   );

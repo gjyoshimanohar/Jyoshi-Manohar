@@ -88,6 +88,19 @@ export interface Todo {
 	};
 }
 
+export interface TaskTemplate {
+  id: string;
+  userId: string;
+  name: string; // Template display name
+  title: string; // Pre-filled task title
+  description?: string;
+  projectId?: string;
+  priority?: number; // 1 (urgent), 2 (high), 3 (medium), 4 (low)
+  subtasks?: { title: string }[];
+  tags?: string[];
+  createdAt: number;
+}
+
 export interface Folder {
  id: string;
  userId: string;
@@ -141,6 +154,7 @@ export interface FinanceRecord {
   isReceivableFromClient?: boolean;
   isReimbursed?: boolean;
   invoiceId?: string;
+  dueDate?: string;
   ccBillDetails?: {
     fullAmount: number;
     minAmount: number;
@@ -160,6 +174,7 @@ export interface UserProfile {
   createdAt: number;
   passwordLastChanged?: number;
   dailyTaskGoal?: number;
+  timezone?: string;
 }
 
 export interface InvoicePayment {

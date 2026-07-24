@@ -367,6 +367,81 @@ export default function FinanceTracker() {
   const [addCcBillDueDate, setAddCcBillDueDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [addCcBillAdjustLedger, setAddCcBillAdjustLedger] = useState(false);
 
+  // Convert Advance to Income States
+  // Schedule Installment States
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleRecord, setScheduleRecord] = useState<FinanceRecord | null>(null);
+  const [scheduleAmount, setScheduleAmount] = useState("");
+  const [scheduleDate, setScheduleDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  const handleOpenScheduleModal = (rec: FinanceRecord) => {
+    setScheduleRecord(rec);
+    setScheduleAmount(rec.amount.toString());
+    setScheduleDate(rec.dueDate || new Date().toISOString().split("T")[0]);
+    setScheduleModalOpen(true);
+  };
+
+  const handleScheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scheduleRecord) return;
+    
+    const amt = parseFloat(scheduleAmount);
+    if (isNaN(amt) || amt <= 0 || amt > scheduleRecord.amount) {
+      toast.error("Invalid installment amount");
+      return;
+    }
+    
+    try {
+      setSyncing(true);
+      
+      if (amt < scheduleRecord.amount) {
+        // Split into two
+        const remainder = scheduleRecord.amount - amt;
+        
+        await financeService.updateRecord(scheduleRecord.id, { 
+          amount: amt, 
+          dueDate: scheduleDate,
+          description: scheduleRecord.description ? `${scheduleRecord.description} (Installment)` : 'Installment'
+        });
+        
+        const newPayload: Omit<FinanceRecord, 'id'> = {
+          type: scheduleRecord.type,
+          category: scheduleRecord.category,
+          amount: remainder,
+          description: scheduleRecord.description ? `${scheduleRecord.description} (Remainder)` : 'Remainder',
+          date: scheduleRecord.date,
+          status: scheduleRecord.status,
+          scope: scheduleRecord.scope,
+          paymentMode: scheduleRecord.paymentMode,
+          paymentAccountId: scheduleRecord.paymentAccountId,
+          isReceivableFromClient: scheduleRecord.isReceivableFromClient,
+          isReimbursed: scheduleRecord.isReimbursed,
+          createdAt: Date.now()
+        };
+        await financeService.createRecord(newPayload);
+      } else {
+        await financeService.updateRecord(scheduleRecord.id, { dueDate: scheduleDate });
+      }
+      
+      const _records = await financeService.getAllRecords();
+      setRecords(_records.sort((a, b) => b.createdAt - a.createdAt));
+      toast.success("Installment scheduled!");
+      setScheduleModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to schedule installment");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const [showConvertAdvanceModal, setShowConvertAdvanceModal] = useState(false);
+  const [convertAdvAmount, setConvertAdvAmount] = useState("");
+  const [convertAdvDate, setConvertAdvDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [convertAdvCategory, setConvertAdvCategory] = useState("");
+  const [convertAdvAccount, setConvertAdvAccount] = useState("");
+  const [convertAdvDesc, setConvertAdvDesc] = useState("Converted from advance");
+
   // Adjust CC Balance States
   const [adjustCcBalanceModalOpen, setAdjustCcBalanceModalOpen] = useState(false);
   const [adjustCcAccount, setAdjustCcAccount] = useState<PaymentAccount | null>(null);
@@ -926,6 +1001,90 @@ export default function FinanceTracker() {
   };
 
   // Open Delete Confirmation Modal for single transaction
+    const handleConvertPayableToIncome = async (rec: FinanceRecord) => {
+    try {
+      setSyncing(true);
+      
+      // Update original payable status to 'paid'
+      await financeService.updateRecord(rec.id, { status: 'paid' });
+      
+      // Create a new income entry
+      const newIncomePayload: Omit<FinanceRecord, 'id'> = {
+        type: "income",
+        category: "Other Services",
+        amount: rec.amount,
+        description: `Converted from Payable: ${rec.description || rec.category}`,
+        date: new Date().toISOString().split("T")[0],
+        status: "paid",
+        scope: rec.scope || "business",
+        paymentMode: rec.paymentMode || "Cash",
+        paymentAccountId: rec.paymentAccountId,
+        createdAt: Date.now()
+      };
+      
+      await financeService.createRecord(newIncomePayload);
+      
+      const _records = await financeService.getAllRecords();
+      setRecords(_records.sort((a, b) => b.createdAt - a.createdAt));
+      toast.success("Payable converted to income successfully!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to convert payable to income.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleConvertAdvance = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(convertAdvAmount);
+    if (isNaN(amt) || amt <= 0) {
+      toast.error("Invalid amount");
+      return;
+    }
+    if (!convertAdvCategory || !convertAdvAccount) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+    if (amt > pendingAdvancesBalance) {
+      toast.error("Amount cannot exceed pending advances");
+      return;
+    }
+
+    const newRecords: FinanceRecord[] = [
+      {
+        id: "rec_" + Date.now().toString() + "_exp",
+        type: "expense",
+        category: "Payment from Advance",
+        amount: amt,
+        description: convertAdvDesc + " (Expense Leg)",
+        date: convertAdvDate,
+        status: "paid",
+        scope: "business",
+        paymentMode: "Bank Transfer",
+        paymentAccountId: convertAdvAccount,
+        createdAt: Date.now()
+      },
+      {
+        id: "rec_" + Date.now().toString() + "_inc",
+        type: "income",
+        category: convertAdvCategory,
+        amount: amt,
+        description: convertAdvDesc,
+        date: convertAdvDate,
+        status: "paid",
+        scope: "business",
+        paymentMode: "Bank Transfer",
+        paymentAccountId: convertAdvAccount,
+        createdAt: Date.now() + 1
+      }
+    ];
+
+    setRecords(prev => [...newRecords, ...prev]);
+    toast.success("Successfully converted advance to income!");
+    setShowConvertAdvanceModal(false);
+  };
+
   const handleDeleteTransaction = (id: string) => {
     const rec = records.find(r => r.id === id);
     if (rec) {
@@ -2271,6 +2430,19 @@ export default function FinanceTracker() {
     toast.success("Payment Invoice PDF generated successfully!");
   };
 
+  const getDueDateStatusInfo = (dueDateStr: string) => {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const due = new Date(dueDateStr);
+    due.setHours(0,0,0,0);
+    const diffTime = due.getTime() - today.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) return { label: "Overdue", color: "bg-rose-100 text-rose-700 border border-rose-200" };
+    if (diffDays === 0) return { label: "Due Today", color: "bg-amber-100 text-amber-700 border border-amber-200" };
+    return { label: "Upcoming", color: "bg-blue-100 text-blue-700 border border-blue-200" };
+  };
+
   const renderLedgerLogsTable = (title: string, subtitle: string, defaultFormTypeToAdd?: "income" | "expense" | "transfer") => {
     const selectedInTable = filteredRecords.filter(rec => selectedRecordIds.includes(rec.id));
     const allSelected = filteredRecords.length > 0 && filteredRecords.every(r => selectedRecordIds.includes(r.id));
@@ -2389,7 +2561,21 @@ export default function FinanceTracker() {
                       }}
                     />
                   </td>
-                  <td className="px-6 py-4">{new Date(record.date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1.5 items-start">
+                      <span>{new Date(record.date).toLocaleDateString()}</span>
+                      {record.dueDate && (record.status === 'pending' || record.status === 'overdue') && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> Due: {new Date(record.dueDate).toLocaleDateString()}
+                          </span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider w-fit ${getDueDateStatusInfo(record.dueDate).color}`}>
+                            {getDueDateStatusInfo(record.dueDate).label}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 font-medium text-slate-900">{record.description || record.clientName || "-"}</td>
                   <td className="px-6 py-4">{record.category}</td>
                   <td className="px-6 py-4 uppercase text-xs font-bold tracking-wider">{record.type}</td>
@@ -2417,6 +2603,26 @@ export default function FinanceTracker() {
                           title={record.type === "expense" && !record.isReceivableFromClient ? "Mark as Paid" : "Mark as Received"}
                         >
                           <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      {activeTab === "payables" && (record.status === "pending" || record.status === "overdue") && (
+                        <button
+                          onClick={() => handleConvertPayableToIncome(record)}
+                          className="p-1 text-indigo-500 hover:text-indigo-700 rounded hover:bg-indigo-50 transition flex items-center gap-1"
+                          title="Convert to Income"
+                        >
+                          <TrendingUp className="w-4 h-4" />
+                          <span className="text-[10px] font-bold hidden xl:inline">Convert</span>
+                        </button>
+                      )}
+                      {activeTab === "payables" && (record.status === "pending" || record.status === "overdue") && (
+                        <button
+                          onClick={() => handleOpenScheduleModal(record)}
+                          className="p-1 text-amber-500 hover:text-amber-700 rounded hover:bg-amber-50 transition flex items-center gap-1"
+                          title="Schedule Installment"
+                        >
+                          <Calendar className="w-4 h-4" />
+                          <span className="text-[10px] font-bold hidden xl:inline">Schedule</span>
                         </button>
                       )}
                       <button
@@ -2518,10 +2724,20 @@ export default function FinanceTracker() {
                <p className="text-indigo-700/80 text-sm font-medium">₹{totalAdvancesReceived.toLocaleString("en-IN")} Received - ₹{totalPaymentsFromAdvances.toLocaleString("en-IN")} Spent</p>
              </div>
            </div>
-           <div className="flex flex-col items-end">
-             <div className="text-2xl font-extrabold text-indigo-900 tracking-tight group-hover:scale-105 transition-transform flex items-center gap-2">
-               ₹{Math.abs(pendingAdvancesBalance).toLocaleString("en-IN")}
-               <ArrowLeftRight className="w-5 h-5 text-indigo-600 opacity-50 group-hover:opacity-100 group-hover:-rotate-12 transition-all" />
+           <div className="flex flex-col items-end gap-1">
+             <div className="flex items-center gap-4">
+               {pendingAdvancesBalance > 0 && (
+                 <button
+                   onClick={(e) => { e.stopPropagation(); setShowConvertAdvanceModal(true); setConvertAdvAmount(pendingAdvancesBalance.toString()); }}
+                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg transition-colors"
+                 >
+                   Convert to Income
+                 </button>
+               )}
+               <div className="text-2xl font-extrabold text-indigo-900 tracking-tight group-hover:scale-105 transition-transform flex items-center gap-2">
+                 ₹{Math.abs(pendingAdvancesBalance).toLocaleString("en-IN")}
+                 <ArrowLeftRight className="w-5 h-5 text-indigo-600 opacity-50 group-hover:opacity-100 group-hover:-rotate-12 transition-all" />
+               </div>
              </div>
              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">{pendingAdvancesBalance >= 0 ? "Unspent Liability" : "Overspent (Receivable)"}</span>
            </div>
@@ -3534,7 +3750,7 @@ export default function FinanceTracker() {
 
       {/* Tab-Specific Ledger Content */}
       {activeTab === "payables" && (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 payable-tracker-widget">
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between shadow-sm">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-rose-100/80 rounded-xl">

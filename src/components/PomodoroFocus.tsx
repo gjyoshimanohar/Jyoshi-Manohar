@@ -25,7 +25,17 @@ import { timesheetService } from '../services/timesheetService';
 import { invoiceService } from '../services/invoiceService';
 import { TimesheetLog } from '../types';
 
-export default function PomodoroFocus({ todos = [] }: { todos?: import("../types").Todo[] }) {
+export default function PomodoroFocus({ 
+  todos = [],
+  projects = [],
+  activeTimerTaskId = null,
+  activeTimerElapsed = 0
+}: { 
+  todos?: import("../types").Todo[];
+  projects?: import("../types").Project[];
+  activeTimerTaskId?: string | null;
+  activeTimerElapsed?: number;
+}) {
   // Timer States
   const [timeRemaining, setTimeRemaining] = useState(25 * 60);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -46,6 +56,18 @@ export default function PomodoroFocus({ todos = [] }: { todos?: import("../types
   // Tab State
   const [activeTab, setActiveTab] = useState<'timer' | 'reports'>('timer');
   const [reportDateRange, setReportDateRange] = useState<'today' | 'week' | 'month' | 'all'>('today');
+
+  const formatTimer = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
 
   // When a task is selected, auto-fill description and try to match client
   useEffect(() => {
@@ -724,13 +746,21 @@ export default function PomodoroFocus({ todos = [] }: { todos?: import("../types
       </div>
       ) : (
         <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 lg:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Timesheet Reports</h2>
-              <p className="text-xs text-slate-500">Track and analyze time spent on tasks</p>
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-indigo-600" />
+                Integrated Timesheet Report
+                <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                  IST (Asia/Kolkata)
+                </span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Unified report of active task timers and logged timesheets
+              </p>
             </div>
-            
-            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+
+            <div className="flex gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shrink-0">
               <button 
                 onClick={() => setReportDateRange('today')}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${reportDateRange === 'today' ? 'bg-white text-[#1a2b58] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -750,91 +780,225 @@ export default function PomodoroFocus({ todos = [] }: { todos?: import("../types
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="pb-3 px-2">Task / Description</th>
-                  <th className="pb-3 px-2">Client / Project</th>
-                  <th className="pb-3 px-2 text-right">Time Spent (Minutes)</th>
-                  <th className="pb-3 px-2 text-right">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {Object.entries(timesheets.filter(log => {
-                  const date = new Date(log.createdAt);
-                  if (reportDateRange === 'today') return isToday(date);
-                  if (reportDateRange === 'week') return isThisWeek(date);
-                  if (reportDateRange === 'month') return isThisMonth(date);
-                  return true;
-                }).reduce((acc, log) => {
-                  const key = log.taskTitle || log.description || 'General Work';
-                  if (!acc[key]) {
-                    acc[key] = {
-                      taskTitle: key,
-                      clientName: log.clientName,
-                      totalMinutes: 0,
-                      entries: []
-                    };
-                  }
-                  acc[key].totalMinutes += log.durationMinutes;
-                  acc[key].entries.push(log);
-                  return acc;
-                }, {} as Record<string, { taskTitle: string, clientName: string, totalMinutes: number, entries: TimesheetLog[] }>)).map(([key, group]) => (
-                  <React.Fragment key={key}>
-                    <tr className="hover:bg-slate-50/50 transition-colors bg-slate-50/20">
-                      <td className="py-4 px-2">
-                        <div className="font-bold text-slate-800 text-sm">{group.taskTitle}</div>
-                        <div className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{group.entries.length} log sessions</div>
-                      </td>
-                      <td className="py-4 px-2">
-                        <div className="text-xs text-slate-600 font-medium">
-                          {group.clientName === 'Internal Task' ? 'Internal' : group.clientName}
-                        </div>
-                      </td>
-                      <td className="py-4 px-2 text-right">
-                        <span className="inline-block px-3 py-1.5 bg-indigo-100 text-indigo-800 font-extrabold text-xs rounded-xl shadow-sm">
-                          {group.totalMinutes}m
-                        </span>
-                      </td>
-                      <td className="py-4 px-2 text-right text-xs text-slate-500">
-                        {/* Optionally show date range for group */}
-                      </td>
-                    </tr>
-                  </React.Fragment>
-                ))}
-                
-                {/* Aggregate Row */}
-                {timesheets.filter(log => {
-                  const date = new Date(log.createdAt);
-                  if (reportDateRange === 'today') return isToday(date);
-                  if (reportDateRange === 'week') return isThisWeek(date);
-                  if (reportDateRange === 'month') return isThisMonth(date);
-                  return true;
-                }).length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-400 text-sm">
-                      No timesheets found for this period.
-                    </td>
-                  </tr>
-                ) : (
-                  <tr className="bg-slate-50/80 font-bold border-t-2 border-slate-200">
-                    <td colSpan={2} className="py-4 px-2 text-right text-slate-700">Total Time Spent:</td>
-                    <td className="py-4 px-2 text-right text-indigo-700">
-                      {timesheets.filter(log => {
-                        const date = new Date(log.createdAt);
-                        if (reportDateRange === 'today') return isToday(date);
-                        if (reportDateRange === 'week') return isThisWeek(date);
-                        if (reportDateRange === 'month') return isThisMonth(date);
-                        return true;
-                      }).reduce((sum, log) => sum + log.durationMinutes, 0)}m
-                    </td>
-                    <td></td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {(() => {
+            // Build unified list of time tracking items
+            type UnifiedReportItem = {
+              id: string;
+              type: 'task_timer' | 'timesheet';
+              title: string;
+              category: string;
+              durationSeconds: number;
+              date: Date;
+              isActiveNow?: boolean;
+              isCompleted?: boolean;
+              statusText: string;
+              originalItem?: any;
+            };
+
+            const unifiedItems: UnifiedReportItem[] = [];
+
+            // IST Timezone helpers (Asia/Kolkata)
+            const getISTDateStr = (dateInput: Date | number) => {
+              return new Date(dateInput).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+            };
+
+            const isTodayIST = (dateInput: Date | number) => {
+              return getISTDateStr(dateInput) === getISTDateStr(Date.now());
+            };
+
+            const isThisWeekIST = (dateInput: Date | number) => {
+              const dIST = new Date(new Date(dateInput).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+              const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+              const diffTime = Math.abs(nowIST.getTime() - dIST.getTime());
+              const diffDays = diffTime / (1000 * 60 * 60 * 24);
+              return diffDays <= 7;
+            };
+
+            const isThisMonthIST = (dateInput: Date | number) => {
+              const dStr = new Date(dateInput).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', month: '2-digit', year: 'numeric' });
+              const nowStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', month: '2-digit', year: 'numeric' });
+              return dStr === nowStr;
+            };
+
+            const formatISTDate = (dateInput: Date | number) => {
+              return new Date(dateInput).toLocaleDateString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+              });
+            };
+
+            // 1. Task Timers
+            todos.forEach(t => {
+              const totalSec = (t.timeSpentSeconds || 0) + (t.id === activeTimerTaskId ? (activeTimerElapsed || 0) : 0);
+              if (totalSec > 0 || t.id === activeTimerTaskId) {
+                // Use completion date first if task is completed, or updatedAt/createdAt
+                const rawTimestamp = t.completedAt || (t as any).updatedAt || t.createdAt || Date.now();
+                const taskDate = new Date(rawTimestamp);
+                let matchesFilter = true;
+
+                if (t.id !== activeTimerTaskId) {
+                  if (reportDateRange === 'today') matchesFilter = isTodayIST(taskDate);
+                  else if (reportDateRange === 'week') matchesFilter = isThisWeekIST(taskDate);
+                  else if (reportDateRange === 'month') matchesFilter = isThisMonthIST(taskDate);
+                }
+
+                if (matchesFilter) {
+                  const projName = t.projectId ? (projects.find(p => p.id === t.projectId)?.name || 'Inbox') : 'Inbox';
+                  unifiedItems.push({
+                    id: `task-${t.id}`,
+                    type: 'task_timer',
+                    title: t.title,
+                    category: projName,
+                    durationSeconds: totalSec,
+                    date: taskDate,
+                    isActiveNow: t.id === activeTimerTaskId,
+                    isCompleted: t.completed,
+                    statusText: t.id === activeTimerTaskId ? 'Active Now' : (t.completed ? 'Completed' : 'In Progress'),
+                    originalItem: t
+                  });
+                }
+              }
+            });
+
+            // 2. Timesheet Logs
+            timesheets.forEach(log => {
+              const logDate = new Date(log.createdAt);
+              let matchesFilter = true;
+              if (reportDateRange === 'today') matchesFilter = isTodayIST(logDate);
+              else if (reportDateRange === 'week') matchesFilter = isThisWeekIST(logDate);
+              else if (reportDateRange === 'month') matchesFilter = isThisMonthIST(logDate);
+
+              if (matchesFilter) {
+                unifiedItems.push({
+                  id: `timesheet-${log.id}`,
+                  type: 'timesheet',
+                  title: log.taskTitle || log.description || 'General Work',
+                  category: log.clientName === 'Internal Task' ? 'Internal' : (log.clientName || 'General'),
+                  durationSeconds: (log.durationMinutes || 0) * 60,
+                  date: logDate,
+                  statusText: log.status === 'billed' ? 'Billed' : 'Logged',
+                  originalItem: log
+                });
+              }
+            });
+
+            // Sort active first, then date descending
+            unifiedItems.sort((a, b) => {
+              if (a.isActiveNow) return -1;
+              if (b.isActiveNow) return 1;
+              return b.date.getTime() - a.date.getTime();
+            });
+
+            const totalDurationSeconds = unifiedItems.reduce((sum, item) => sum + item.durationSeconds, 0);
+
+            const formatDuration = (totalSec: number) => {
+              if (!totalSec || totalSec <= 0) return '0m';
+              const hrs = Math.floor(totalSec / 3600);
+              const mins = Math.floor((totalSec % 3600) / 60);
+              const secs = totalSec % 60;
+              if (hrs > 0) return `${hrs}h ${mins}m`;
+              if (mins > 0) return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+              return `${secs}s`;
+            };
+
+            return (
+              <div className="space-y-6">
+                {/* Summary KPI Strip */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-slate-900 text-white rounded-xl p-4 shadow-sm relative overflow-hidden">
+                    <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Total Time Tracked</p>
+                    <p className="text-2xl font-black mt-1">{formatDuration(totalDurationSeconds)}</p>
+                    <p className="text-[11px] text-slate-400 mt-1">{unifiedItems.length} report items</p>
+                  </div>
+
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                    <p className="text-indigo-600 text-[10px] font-bold uppercase tracking-wider">Active Task Timers</p>
+                    <p className="text-2xl font-black text-indigo-900 mt-1">
+                      {formatDuration(unifiedItems.filter(i => i.type === 'task_timer').reduce((s, i) => s + i.durationSeconds, 0))}
+                    </p>
+                    <p className="text-[11px] text-indigo-600 font-medium mt-1">
+                      {unifiedItems.filter(i => i.type === 'task_timer').length} task timer items
+                    </p>
+                  </div>
+
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                    <p className="text-emerald-700 text-[10px] font-bold uppercase tracking-wider">Timesheet Logs</p>
+                    <p className="text-2xl font-black text-emerald-950 mt-1">
+                      {formatDuration(unifiedItems.filter(i => i.type === 'timesheet').reduce((s, i) => s + i.durationSeconds, 0))}
+                    </p>
+                    <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                      {unifiedItems.filter(i => i.type === 'timesheet').length} logged timesheets
+                    </p>
+                  </div>
+                </div>
+
+                {/* Unified Report Table */}
+                <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="py-3 px-4">Task / Description</th>
+                        <th className="py-3 px-4">Client / Project</th>
+                        <th className="py-3 px-4">Type</th>
+                        <th className="py-3 px-4">Date</th>
+                        <th className="py-3 px-4 text-right">Time Spent</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {unifiedItems.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-slate-400 text-sm font-medium">
+                            No time logs or active task timers found for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        unifiedItems.map(item => (
+                          <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-bold ${item.isCompleted ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                                  {item.title}
+                                </span>
+                                {item.isActiveNow && (
+                                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 animate-pulse">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active Now
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-xs font-medium text-slate-600">
+                              {item.category}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {item.type === 'task_timer' ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-md">
+                                  Task Timer
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md">
+                                  Timesheet Log
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-xs text-slate-500 font-medium">
+                              {formatISTDate(item.date)}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <span className="text-xs font-black text-slate-800 font-mono bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                                {formatDuration(item.durationSeconds)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

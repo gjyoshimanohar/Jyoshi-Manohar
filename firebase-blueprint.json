@@ -27,7 +27,8 @@
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "isAdmin": { "type": "boolean" },
-        "dailyTaskGoal": { "type": "number" }
+        "dailyTaskGoal": { "type": "number" },
+        "timezone": { "type": "string" }
       },
       "required": ["uid", "email"]
     },
@@ -217,6 +218,35 @@
         "invoiceId": { "type": "string" }
       },
       "required": ["id", "userId", "clientId", "clientName", "durationMinutes", "createdAt", "status"]
+    },
+    "TaskTemplate": {
+      "title": "Task Template",
+      "description": "Reusable template configuration for tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "projectId": { "type": "string" },
+        "priority": { "type": "number" },
+        "subtasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" }
+            }
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "name", "title", "createdAt"]
     }
   },
   "firestore": {
@@ -267,6 +297,10 @@
     "timesheets/{timesheetId}": {
       "schema": "Timesheet",
       "description": "Logged timesheet details for clients"
+    },
+    "task_templates/{templateId}": {
+      "schema": "TaskTemplate",
+      "description": "Reusable task templates for quick recurring task creation"
     }
   }
 }

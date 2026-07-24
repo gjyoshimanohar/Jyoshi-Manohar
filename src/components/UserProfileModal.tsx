@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, X, Mail, Shield, Clock, Phone, Building, Briefcase, Edit2, CheckCircle2, Loader2, Save } from 'lucide-react';
+import { User, X, Mail, Shield, Clock, Phone, Building, Briefcase, Edit2, CheckCircle2, Loader2, Save, Globe } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { format } from 'date-fns';
 import { userService } from '../services/userService';
@@ -11,6 +11,22 @@ interface UserProfileModalProps {
   onClose: () => void;
   isAdmin?: boolean;
 }
+
+const TIMEZONE_OPTIONS = [
+  { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST, GMT+5:30)' },
+  { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+  { value: 'America/New_York', label: 'America/New_York (EST/EDT, GMT-5)' },
+  { value: 'America/Chicago', label: 'America/Chicago (CST/CDT, GMT-6)' },
+  { value: 'America/Denver', label: 'America/Denver (MST/MDT, GMT-7)' },
+  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (PST/PDT, GMT-8)' },
+  { value: 'Europe/London', label: 'Europe/London (GMT/BST, GMT+0)' },
+  { value: 'Europe/Paris', label: 'Europe/Paris (CET/CEST, GMT+1)' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin (CET/CEST, GMT+1)' },
+  { value: 'Asia/Dubai', label: 'Asia/Dubai (GST, GMT+4)' },
+  { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT, GMT+8)' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (JST, GMT+9)' },
+  { value: 'Australia/Sydney', label: 'Australia/Sydney (AEST/AEDT, GMT+10)' },
+];
 
 export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: UserProfileModalProps) {
   const user = auth.currentUser;
@@ -28,6 +44,7 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
     companyName: '',
     displayName: '',
     mobileNo: '',
+    timezone: 'Asia/Kolkata',
   });
 
   useEffect(() => {
@@ -46,7 +63,10 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
             companyName: data.companyName || '',
             displayName: data.displayName || '',
             mobileNo: data.mobileNo || '',
+            timezone: data.timezone || 'Asia/Kolkata',
           });
+        } else {
+          setFormData(prev => ({ ...prev, timezone: 'Asia/Kolkata' }));
         }
       } catch (error) {
         console.error("Error loading profile:", error);
@@ -191,6 +211,29 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-black"
                     />
                   </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider ml-1 flex items-center justify-between">
+                      <span>Timezone Configuration</span>
+                      <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                        Default: Asia/Kolkata
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={formData.timezone}
+                        onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-black appearance-none pr-8 cursor-pointer font-medium"
+                      >
+                        {TIMEZONE_OPTIONS.map((tz) => (
+                          <option key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </option>
+                        ))}
+                      </select>
+                      <Globe className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
                   
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider ml-1 flex justify-between">
@@ -247,6 +290,21 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
 
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                      <Globe className="w-4 h-4 text-slate-500" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-0.5">Timezone Preference</p>
+                      <p className="text-sm font-medium text-slate-800 flex items-center gap-2">
+                        <span>{formData.timezone || 'Asia/Kolkata'}</span>
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
                       <Mail className="w-4 h-4 text-slate-500" />
                     </div>
                     <div>
@@ -296,6 +354,7 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
                           companyName: profile.companyName || '',
                           displayName: profile.displayName || '',
                           mobileNo: profile.mobileNo || '',
+                          timezone: profile.timezone || 'Asia/Kolkata',
                         });
                         setIsEditing(false);
                       }}
@@ -333,3 +392,4 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
     </AnimatePresence>
   );
 }
+
