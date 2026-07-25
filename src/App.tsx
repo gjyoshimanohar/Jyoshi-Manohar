@@ -40,6 +40,7 @@ import ClientDashboard from './pages/ClientDashboard';
 import UserProfile from './pages/UserProfile';
 import ServiceDetail from './pages/ServiceDetail';
 import Toolkit from './pages/Toolkit';
+import Resources from './pages/Resources';
 
 
 function ScrollToTop() {
@@ -101,6 +102,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/blog" element={<BlogList />} />
+                <Route path="/resources" element={<Resources />} />
                 <Route path="/blog/:slug" element={<BlogPost />} />
                 <Route path="/services/:id" element={<ServiceDetail />} />
                 <Route path="/admin" element={<Admin />} />

@@ -5,6 +5,8 @@ export interface Service {
  iconName: string;
 }
 
+export interface Resource { id: string; title: string; type: "whitepaper" | "report" | "guide"; description: string; fileSize: string; fileFormat: string; downloadUrl: string; }
+
 export interface BlogPost {
  id: string;
  title: string;

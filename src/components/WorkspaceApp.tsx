@@ -67,6 +67,7 @@ import {
   BookmarkPlus,
   CheckCircle2,
   Calendar,
+    LayoutDashboard,
 } from "lucide-react";
 import { todoService } from "../services/todoService";
 import { templateService } from "../services/templateService";
@@ -81,7 +82,7 @@ import {
   Wallet,
   Copy,
   Square,
-} from "lucide-react";
+  } from "lucide-react";
 import { Todo, Project, Folder as FolderType, TaskActivity, TaskTemplate, TaskCategory } from "../types";
 import TaskTemplatesModal from "./TaskTemplatesModal";
 import TrendsSkeletonLoader from "./TrendsSkeletonLoader";
@@ -133,6 +134,8 @@ import GuidePopup from "./GuidePopup";
 import { determineProjectByTitle } from "../utils/autoCategorize";
 import ChangePasswordModal from "./ChangePasswordModal";
 import DependencyTree from "./DependencyTree";
+import DashboardWidgets from "./DashboardWidgets";
+import ProjectTimeline from "./ProjectTimeline";
 import { userService } from "../services/userService";
 
 const PROJECT_ICONS: Record<string, React.ElementType> = {
@@ -204,6 +207,7 @@ type ViewMode =
   | "project"
   | "folder"
   | "trends"
+  | "timeline"
   | "completed"
   | "trash";
 
@@ -612,8 +616,9 @@ export default function WorkspaceApp() {
   };
 
   // Far-Left Nav Dock Tab Selection
-  // 'tasks' (default checklist), 'matrix' (Kanban quadrants), 'habits' (streaks), 'focus' (sound timers), 'starred' (P1 values), 'search' (extended filters)
+  // 'tasks' (default checklist), 'matrix' (Kanban quadrants), 'habits' (streaks), 'focus' (sound timers), 'starred' (P1 values), 'search' (extended filters), 'dashboard' (executive hub)
   const [activeAppTab, setActiveAppTab] = useState<
+    | "dashboard"
     | "tasks"
     | "matrix"
     | "habits"
@@ -623,7 +628,7 @@ export default function WorkspaceApp() {
     | "settings"
     | "dependencies"
     | "payables"
-  >("tasks");
+  >("dashboard");
 
   // Sidebar controls
   const [viewMode, setViewMode] = useState<ViewMode>("today");
@@ -2530,6 +2535,8 @@ export default function WorkspaceApp() {
         return "Upcoming";
       case "trends":
         return "Trends & Analytics";
+      case "timeline":
+        return "Project Timeline";
       case "completed":
         return "Completed Tasks";
       case "trash":
@@ -3339,6 +3346,19 @@ export default function WorkspaceApp() {
           {/* Active app subtabs lists */}
           <button
             onClick={() => {
+              setActiveAppTab("dashboard");
+            }}
+            className={`p-2.5 rounded-xl transition-all relative group ${activeAppTab === "dashboard" ? "bg-[#1a2b58]/10 text-[#1a2b58]" : "text-gray-500 hover:bg-gray-200"}`}
+            title="Executive Dashboard"
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="absolute left-[54px] top-1/2 -translate-y-1/2 scale-0 group-hover:scale-100 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-xl z-50 whitespace-nowrap origin-left transition-all">
+              Executive Dashboard
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
               setActiveAppTab("tasks");
               setViewMode("today");
             }}
@@ -3455,7 +3475,16 @@ export default function WorkspaceApp() {
       </div>
 
       {/* MOBILE APP TABS BOTTOM NAVIGATION (Aesthetic excellence) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-2 grid grid-cols-8 gap-0.5 z-[100] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-2 grid grid-cols-8 gap-0.5 z-[100] shadow-[0_-4px_12px_rgba(0,0,0,0.05)] overflow-x-auto">
+        <button
+          onClick={() => setActiveAppTab("dashboard")}
+          className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === "dashboard" ? "text-[#1a2b58] bg-[#1a2b58]/5" : "text-gray-400"}`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="text-[10px] sm:text-xs font-medium mt-1">
+            Dashboard
+          </span>
+        </button>
         <button
           onClick={() => setActiveAppTab("settings")}
           className={`flex flex-col items-center justify-center p-1 rounded-xl transition ${activeAppTab === "settings" ? "text-[#1a2b58] bg-[#1a2b58]/5" : "text-gray-400"}`}
@@ -3681,6 +3710,21 @@ export default function WorkspaceApp() {
                         {inboxCount}
                       </span>
                     )}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setViewMode("timeline");
+                      selectedProjectId && setSelectedProjectId(null);
+                      setIsAddingTask(false);
+                      setSidebarSelectedTag(null);
+                    }}
+                    className={`w-full flex items-center justify-between p-2 rounded-lg text-sm font-medium transition-colors ${viewMode === "timeline" ? "bg-gray-200/60 text-gray-900 font-semibold" : "hover:bg-gray-100/80 text-gray-700"}`}
+                  >
+                    <div className="flex items-center space-x-2.5">
+                      <Clock className="w-4 h-4 text-gray-600" />
+                      <span>Project Timeline</span>
+                    </div>
                   </button>
                 </nav>
 
@@ -4528,10 +4572,26 @@ export default function WorkspaceApp() {
 
         {/* WORKSPACE SECTIONS RENDER ROUTERS */}
         <div className="w-[98%] mx-auto px-6 py-6 flex-1">
+          {activeAppTab === "dashboard" && (
+            <DashboardWidgets
+              todos={todos}
+              projects={projects}
+              activeTimerTaskId={activeTimerTaskId}
+              activeTimerElapsed={activeTimerElapsed}
+              onNavigateToTab={(tab, view, id) => {
+                setActiveAppTab(tab as any);
+                if (view) setViewMode(view as any);
+                if (id) setSelectedProjectId(id);
+              }}
+            />
+          )}
+
           {/* 1. SECTOR: UNIFIED FLAT TIKTIK MAIN LISTVIEW */}
           {(activeAppTab === "tasks" || activeAppTab === "payables") && (
             <div className="text-left w-full">
-              {viewMode === "trends" ? (
+              {viewMode === "timeline" ? (
+                <ProjectTimeline todos={todos} projects={projects} />
+              ) : viewMode === "trends" ? (
                 loading || isTrendsLoading ? (
                   <TrendsSkeletonLoader />
                 ) : (() => {

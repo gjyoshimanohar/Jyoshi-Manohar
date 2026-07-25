@@ -35,6 +35,7 @@ import { storage } from "../lib/firebase";
 import SunEditor from "suneditor-react";
 import "suneditor/dist/css/suneditor.min.css";
 import FinanceTracker from "../components/FinanceTracker";
+import ResourceManager from "../components/ResourceManager";
 
 export default function Admin() {
   const [user, setUser] = useState<User | null>(null);
@@ -49,7 +50,7 @@ export default function Admin() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [activeAdminTab, setActiveAdminTab] = useState<"blogs" | "finances">("finances");
+  const [activeAdminTab, setActiveAdminTab] = useState<"blogs" | "finances" | "resources">("finances");
 
   const isAdmin = user?.email === "gjyoshimanohar@gmail.com";
 
@@ -409,6 +410,19 @@ export default function Admin() {
           >
             Manage Blog Posts
           </button>
+          <button
+            onClick={() => {
+              setActiveAdminTab("resources");
+              setEditingPost(null);
+            }}
+            className={`py-4 px-6 font-bold uppercase tracking-widest text-xs border-b-2 transition-all shrink-0 ${
+              activeAdminTab === "resources"
+                ? "border-secondary text-primary border-b-2"
+                : "border-transparent text-gray-400 hover:text-primary"
+            }`}
+          >
+            Manage Resources
+          </button>
         </div>
 
         {activeAdminTab === "blogs" ? (
@@ -693,7 +707,7 @@ export default function Admin() {
               )}
             </div>
           )
-        ) : (
+        ) : activeAdminTab === "resources" ? (<ResourceManager />) : (
           <FinanceTracker />
         )}
       </div>

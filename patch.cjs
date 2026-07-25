@@ -2,7 +2,7 @@ const fs = require('fs');
 let content = fs.readFileSync('src/pages/Admin.tsx', 'utf8');
 
 content = content.replace(
-  /\) : activeAdminTab === "resources"\ \?\ \(<ResourceManager \/>\) : \(/g,
+  /\) : activeAdminTab === "resources" \? \(<ResourceManager \/>\) : \(/g,
   ') : ('
 );
 

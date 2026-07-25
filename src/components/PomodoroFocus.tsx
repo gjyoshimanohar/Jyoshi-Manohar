@@ -856,25 +856,17 @@ export default function PomodoroFocus({
               </button>
 
               {/* Client Filter Dropdown */}
-              <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-                <Building2 className="w-3.5 h-3.5 text-indigo-600 ml-1 shrink-0" />
-                <select
+              <div className="flex items-center gap-1.5 w-48">
+                <CustomSelect
                   value={reportClientId}
-                  onChange={(e) => setReportClientId(e.target.value)}
-                  className="text-xs font-bold bg-transparent text-slate-700 focus:outline-none cursor-pointer pl-1 pr-7"
-                >
-                  <option value="all">All Clients ({clientOptions.length})</option>
-                  <option value="unassigned">Internal / No Client</option>
-                  {clientOptions.length > 0 && (
-                    <optgroup label="Associated Clients">
-                      {clientOptions.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                  onChange={(val) => setReportClientId(val)}
+                  className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-3 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                  options={[
+                    { value: 'all', label: `All Clients (${clientOptions.length})` },
+                    { value: 'unassigned', label: 'Internal / No Client' },
+                    ...(clientOptions.length > 0 ? [{ label: 'Associated Clients', options: clientOptions.map(c => ({ value: c.id, label: c.label })) }] : [])
+                  ]}
+                />
               </div>
 
               {/* Preset Buttons */}
@@ -1205,23 +1197,16 @@ export default function PomodoroFocus({
                             <Building2 className="w-3.5 h-3.5 text-indigo-600" />
                             Filter by Client:
                           </label>
-                          <select
+                          <CustomSelect
                             value={reportClientId}
-                            onChange={(e) => setReportClientId(e.target.value)}
-                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl pl-2.5 pr-8 py-1.5 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                          >
-                            <option value="all">All Clients ({clientOptions.length})</option>
-                            <option value="unassigned">Internal / No Client</option>
-                            {clientOptions.length > 0 && (
-                              <optgroup label="Clients">
-                                {clientOptions.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.label}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                          </select>
+                            onChange={(val) => setReportClientId(val)}
+                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-slate-800 hover:bg-slate-100 hover:border-slate-300"
+                            options={[
+                              { value: 'all', label: `All Clients (${clientOptions.length})` },
+                              { value: 'unassigned', label: 'Internal / No Client' },
+                              ...(clientOptions.length > 0 ? [{ label: 'Clients', options: clientOptions.map(c => ({ value: c.id, label: c.label })) }] : [])
+                            ]}
+                          />
                         </div>
 
                         {/* Date Filter Selection */}

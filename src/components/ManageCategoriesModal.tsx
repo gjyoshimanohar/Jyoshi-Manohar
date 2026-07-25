@@ -40,6 +40,8 @@ const COLOR_PRESETS = [
 
 const EMOJI_PRESETS = ["🚀", "🐛", "🎨", "🔬", "📄", "🧪", "👀", "⚙️", "⚡", "🎯", "🔥", "💡", "🛠️", "📌", "📦"];
 
+import CustomSelect from "./CustomSelect";
+
 export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
   isOpen,
   onClose,
@@ -233,34 +235,24 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
             {selectedScope === "folder" && folders.length > 0 && (
               <div className="flex items-center gap-3 bg-indigo-50/50 border border-indigo-100 rounded-2xl p-3">
                 <span className="text-xs font-bold text-slate-700 shrink-0">Folder:</span>
-                <select
+                <CustomSelect
                   value={selectedTargetId}
-                  onChange={(e) => setSelectedTargetId(e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 rounded-xl pl-3 pr-8 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                >
-                  {folders.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      📁 {f.name} ({f.categories?.length || 0} sub-types)
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedTargetId(val)}
+                  className="flex-1 min-w-[200px] text-xs font-bold bg-white border border-slate-200 rounded-xl py-1.5 px-3 text-slate-800 hover:bg-slate-50 hover:border-slate-300"
+                  options={folders.map(f => ({ value: f.id, label: `📁 ${f.name} (${f.categories?.length || 0} sub-types)` }))}
+                />
               </div>
             )}
 
             {selectedScope === "project" && projects.length > 0 && (
               <div className="flex items-center gap-3 bg-blue-50/50 border border-blue-100 rounded-2xl p-3">
                 <span className="text-xs font-bold text-slate-700 shrink-0">Project:</span>
-                <select
+                <CustomSelect
                   value={selectedTargetId}
-                  onChange={(e) => setSelectedTargetId(e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 rounded-xl pl-3 pr-8 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      📊 {p.name} ({p.categories?.length || 0} sub-types)
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedTargetId(val)}
+                  className="flex-1 min-w-[200px] text-xs font-bold bg-white border border-slate-200 rounded-xl py-1.5 px-3 text-slate-800 hover:bg-slate-50 hover:border-slate-300"
+                  options={projects.map(p => ({ value: p.id, label: `📊 ${p.name} (${p.categories?.length || 0} sub-types)` }))}
+                />
               </div>
             )}
 

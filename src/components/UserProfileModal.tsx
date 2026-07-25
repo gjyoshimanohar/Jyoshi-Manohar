@@ -28,7 +28,10 @@ const TIMEZONE_OPTIONS = [
   { value: 'Australia/Sydney', label: 'Australia/Sydney (AEST/AEDT, GMT+10)' },
 ];
 
-export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: UserProfileModalProps) {
+import CustomSelect from "./CustomSelect";
+
+export default function UserProfileModal({ 
+isOpen, onClose, isAdmin = false }: UserProfileModalProps) {
   const user = auth.currentUser;
   
   const [isEditing, setIsEditing] = useState(false);
@@ -220,18 +223,12 @@ export default function UserProfileModal({ isOpen, onClose, isAdmin = false }: U
                       </span>
                     </label>
                     <div className="relative">
-                      <select
+                      <CustomSelect
                         value={formData.timezone}
-                        onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                        className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-slate-800 appearance-none [background-image:none] cursor-pointer font-medium"
-                      >
-                        {TIMEZONE_OPTIONS.map((tz) => (
-                          <option key={tz.value} value={tz.value}>
-                            {tz.label}
-                          </option>
-                        ))}
-                      </select>
-                      <Globe className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        onChange={(val) => setFormData({ ...formData, timezone: val })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm text-slate-800 font-medium hover:border-slate-300 hover:shadow-sm"
+                        options={TIMEZONE_OPTIONS}
+                      />
                     </div>
                   </div>
                   

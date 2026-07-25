@@ -181,3 +181,33 @@ Need help assessing your GST risk under the new rules? Consult our team of GST e
  `
  }
 ];
+
+export const resources = [
+  {
+    id: 'r1',
+    title: 'Union Budget Analysis 2026-27',
+    type: 'report',
+    description: 'Comprehensive breakdown of the latest Union Budget, highlighting key tax amendments, corporate incentives, and sector-wise impacts.',
+    fileSize: '4.2 MB',
+    fileFormat: 'PDF',
+    downloadUrl: '#'
+  },
+  {
+    id: 'r2',
+    title: 'Startup Tax Compliance Guide',
+    type: 'guide',
+    description: 'An essential checklist for early-stage founders to navigate GST, direct taxes, and mandatory corporate filings.',
+    fileSize: '2.8 MB',
+    fileFormat: 'PDF',
+    downloadUrl: '#'
+  },
+  {
+    id: 'r3',
+    title: 'The Future of AI in Financial Auditing',
+    type: 'whitepaper',
+    description: 'A thought leadership whitepaper discussing the integration of AI tools in internal audits, risk detection, and compliance automation.',
+    fileSize: '5.1 MB',
+    fileFormat: 'PDF',
+    downloadUrl: '#'
+  }
+];

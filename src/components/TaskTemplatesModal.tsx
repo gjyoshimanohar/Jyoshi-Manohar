@@ -18,7 +18,10 @@ interface TaskTemplatesModalProps {
   sourceTask?: Todo | null; // Optional task to convert into a template
 }
 
+import CustomSelect from "./CustomSelect";
+
 export default function TaskTemplatesModal({
+
   isOpen,
   onClose,
   templates,
@@ -412,18 +415,15 @@ export default function TaskTemplatesModal({
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Target Project
                     </label>
-                    <select
+                    <CustomSelect
                       value={projectId}
-                      onChange={(e) => setProjectId(e.target.value)}
-                      className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
-                    >
-                      <option value="inbox">Inbox</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setProjectId(val)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm text-slate-800 font-medium hover:border-slate-300 hover:shadow-sm"
+                      options={[
+                        { value: 'inbox', label: 'Inbox' },
+                        ...projects.map((p) => ({ value: p.id, label: p.name }))
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -459,16 +459,17 @@ export default function TaskTemplatesModal({
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Priority Level
                     </label>
-                    <select
-                      value={priority}
-                      onChange={(e) => setPriority(Number(e.target.value))}
-                      className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
-                    >
-                      <option value={1}>P1 - Urgent</option>
-                      <option value={2}>P2 - High</option>
-                      <option value={3}>P3 - Medium</option>
-                      <option value={4}>P4 - Low</option>
-                    </select>
+                    <CustomSelect
+                      value={priority.toString()}
+                      onChange={(val) => setPriority(Number(val))}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm text-slate-800 font-medium hover:border-slate-300 hover:shadow-sm"
+                      options={[
+                        { value: '1', label: 'P1 - Urgent' },
+                        { value: '2', label: 'P2 - High' },
+                        { value: '3', label: 'P3 - Medium' },
+                        { value: '4', label: 'P4 - Low' }
+                      ]}
+                    />
                   </div>
 
                   <div>
