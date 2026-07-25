@@ -1039,7 +1039,7 @@ export default function FinanceTracker() {
     }
   };
 
-  const handleConvertAdvance = (e: React.FormEvent) => {
+  const handleConvertAdvance = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(convertAdvAmount);
     if (isNaN(amt) || amt <= 0) {
@@ -1055,9 +1055,10 @@ export default function FinanceTracker() {
       return;
     }
 
-    const newRecords: FinanceRecord[] = [
-      {
-        id: "rec_" + Date.now().toString() + "_exp",
+    try {
+      setSyncing(true);
+      
+      await financeService.createRecord({
         type: "expense",
         category: "Payment from Advance",
         amount: amt,
@@ -1066,11 +1067,10 @@ export default function FinanceTracker() {
         status: "paid",
         scope: "business",
         paymentMode: "Bank Transfer",
-        paymentAccountId: convertAdvAccount,
-        createdAt: Date.now()
-      },
-      {
-        id: "rec_" + Date.now().toString() + "_inc",
+        paymentAccountId: convertAdvAccount
+      } as any);
+
+      await financeService.createRecord({
         type: "income",
         category: convertAdvCategory,
         amount: amt,
@@ -1079,14 +1079,19 @@ export default function FinanceTracker() {
         status: "paid",
         scope: "business",
         paymentMode: "Bank Transfer",
-        paymentAccountId: convertAdvAccount,
-        createdAt: Date.now() + 1
-      }
-    ];
+        paymentAccountId: convertAdvAccount
+      } as any);
 
-    setRecords(prev => [...newRecords, ...prev]);
-    toast.success("Successfully converted advance to income!");
-    setShowConvertAdvanceModal(false);
+      const _records = await financeService.getAllRecords();
+      setRecords(_records.sort((a, b) => b.createdAt - a.createdAt));
+      toast.success("Successfully converted advance to income!");
+      setShowConvertAdvanceModal(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to convert advance.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleDeleteTransaction = (id: string) => {
@@ -5774,6 +5779,121 @@ export default function FinanceTracker() {
         </div>
       )}
 
+
+      {/* Convert Advance to Income Modal */}
+      {showConvertAdvanceModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <div 
+            onClick={() => setShowConvertAdvanceModal(false)}
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity" 
+          />
+          <div className="relative bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
+              <h3 className="text-lg font-bold text-primary flex items-center gap-2">
+                <ArrowLeftRight className="w-5 h-5 text-indigo-600" />
+                <span>Convert Advance to Income</span>
+              </h3>
+              <button 
+                onClick={() => setShowConvertAdvanceModal(false)}
+                className="text-slate-400 hover:text-primary transition p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConvertAdvance} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Amount to Convert (Max: ₹{pendingAdvancesBalance}) *
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none font-bold text-slate-400">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    max={pendingAdvancesBalance}
+                    required
+                    value={convertAdvAmount}
+                    onChange={(e) => setConvertAdvAmount(e.target.value)}
+                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 pl-8 pr-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Income Category *
+                </label>
+                <CustomSelect
+                  value={convertAdvCategory}
+                  onChange={setConvertAdvCategory}
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+                  options={customCategories.businessIncome.map(c => ({value: c, label: c}))}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Payment Account *
+                </label>
+                <CustomSelect
+                  value={convertAdvAccount}
+                  onChange={setConvertAdvAccount}
+                  placeholder="Select account"
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
+                  options={paymentAccounts
+                    .filter(a => a.id !== 'virtual_pending_reimbursements')
+                    .map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={convertAdvDate}
+                  onChange={(e) => setConvertAdvDate(e.target.value)}
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  Description *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={convertAdvDesc}
+                  onChange={(e) => setConvertAdvDesc(e.target.value)}
+                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowConvertAdvanceModal(false)}
+                  className="px-5 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-2"
+                >
+                  Convert to Income
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Floating Action Button */}
       <button

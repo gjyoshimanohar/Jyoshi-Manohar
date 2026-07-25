@@ -4252,7 +4252,11 @@ Stewardship, Accuracy, Legacy.
                     <button
                       type="button"
                       id="portal-dashboard-nav-btn"
-                      onClick={() => setActiveTab("portal-dashboard")}
+                      onClick={() => {
+                        setActiveTab("portal-dashboard");
+                        setSelectedClientId("");
+                        setSelectedClientEmail("");
+                      }}
                       className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
                         activeTab === "portal-dashboard"
                           ? "bg-primary text-white border-primary shadow-md"
@@ -4267,9 +4271,9 @@ Stewardship, Accuracy, Legacy.
                           </span>
                         )}
                       </div>
-                      {isSidebarOpen && (
+                      {isSidebarOpen && activeTab === "portal-dashboard" && (
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeTab === "portal-dashboard" ? "bg-white/15 text-white" : "bg-emerald-100 text-emerald-800"}`}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/15 text-white`}
                         >
                           Active
                         </span>
@@ -4279,7 +4283,11 @@ Stewardship, Accuracy, Legacy.
                     <button
                       type="button"
                       id="clients-master-nav-btn"
-                      onClick={() => setActiveTab("clients")}
+                      onClick={() => {
+                        setActiveTab("clients");
+                        setSelectedClientId("");
+                        setSelectedClientEmail("");
+                      }}
                       className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
                         activeTab === "clients"
                           ? "bg-primary text-white border-primary shadow-md"
@@ -4306,7 +4314,11 @@ Stewardship, Accuracy, Legacy.
                     <button
                       type="button"
                       id="client-requests-nav-btn"
-                      onClick={() => setActiveTab("requests")}
+                      onClick={() => {
+                        setActiveTab("requests");
+                        setSelectedClientId("");
+                        setSelectedClientEmail("");
+                      }}
                       className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
                         activeTab === "requests"
                           ? "bg-primary text-white border-primary shadow-md"
@@ -4336,7 +4348,11 @@ Stewardship, Accuracy, Legacy.
                     <button
                       type="button"
                       id="admin-invoices-nav-btn"
-                      onClick={() => setActiveTab("invoices")}
+                      onClick={() => {
+                        setActiveTab("invoices");
+                        setSelectedClientId("");
+                        setSelectedClientEmail("");
+                      }}
                       className={`w-full flex items-center ${isSidebarOpen ? "justify-between p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
                         activeTab === "invoices"
                           ? "bg-primary text-white border-primary shadow-md"
