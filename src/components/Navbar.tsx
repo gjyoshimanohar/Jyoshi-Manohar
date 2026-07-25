@@ -48,7 +48,6 @@ export default function Navbar() {
     { name: 'Home', path: '/' },
     { name: 'Services', path: '/#services' },
     { name: 'Insights', path: '/blog' },
-    { name: 'Resources', path: '/resources' },
     { name: 'Portal', path: '/dashboard' },
     { name: 'About', path: '/#about' },
   ];
