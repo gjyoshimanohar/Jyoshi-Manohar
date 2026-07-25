@@ -2662,17 +2662,35 @@ export default function WorkspaceApp() {
     const isDragged = draggedTaskId === todo.id;
     const isDragOver = dragOverTaskId === todo.id;
 
+    const isTouchDevice = typeof window !== 'undefined' && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
     return (
       <motion.div
         layout="position"
         key={todo.id}
-        draggable={currentViewType === "list" && viewMode !== "trash"}
-        onDragStart={(e: any) => {
+        /* animations moved to parent */
+        style={isTouchDevice ? { touchAction: "pan-y" } : {}}
+        className="relative w-full mb-0.5 rounded-lg"
+      >
+        {isTouchDevice && (
+          <div className="absolute inset-0 flex justify-between items-center px-4 bg-slate-100/80 rounded-xl overflow-hidden shadow-inner">
+            <div className="flex items-center text-blue-500 font-bold text-xs uppercase tracking-wider"><CalendarIcon className="w-4 h-4 mr-2" /> Reschedule</div>
+            <div className="flex items-center text-red-500 font-bold text-xs uppercase tracking-wider">Delete <Trash2 className="w-4 h-4 ml-2" /></div>
+          </div>
+        )}
+        <motion.div
+          drag={isTouchDevice ? "x" : false}
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={isTouchDevice ? 0.8 : 0}
+          dragSnapToOrigin={isTouchDevice}
+          draggable={!isTouchDevice && currentViewType === "list" && viewMode !== "trash"}
+          onDragStart={(e: any) => {
+            if (isTouchDevice) return;
           e.dataTransfer.setData("text/plain", todo.id);
           e.dataTransfer.effectAllowed = "move";
           setDraggedTaskId(todo.id);
         }}
         onDragOver={(e: any) => {
+          if (isTouchDevice) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
           if (draggedTaskId === todo.id) return;
@@ -2687,15 +2705,25 @@ export default function WorkspaceApp() {
           }
         }}
         onDragLeave={() => {
+          if (isTouchDevice) return;
           if (dragOverTaskId === todo.id) {
             setDragOverTaskId(null);
           }
         }}
-        onDragEnd={() => {
-          setDraggedTaskId(null);
-          setDragOverTaskId(null);
+        onDragEnd={(e: any, info: any) => {
+          if (isTouchDevice && info) {
+            if (info.offset.x > 80) {
+              setEditingTodoDateId(todo.id);
+            } else if (info.offset.x < -80) {
+              setDeletingTodoState({ id: todo.id, title: todo.title });
+            }
+          } else {
+            setDraggedTaskId(null);
+            setDragOverTaskId(null);
+          }
         }}
         onDrop={(e: any) => {
+          if (isTouchDevice) return;
           e.preventDefault();
           const sourceId = e.dataTransfer.getData("text/plain") || draggedTaskId;
           setDraggedTaskId(null);
@@ -2953,6 +2981,7 @@ export default function WorkspaceApp() {
             </button>
           </div>
         </div>
+        </motion.div>
       </motion.div>
     );
   };
