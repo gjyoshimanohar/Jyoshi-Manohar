@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Target, Clock, Zap, CheckCircle2, AlertCircle, LayoutDashboard, Flag } from 'lucide-react';
 import { Todo, Project } from '../types';
 import { isToday, isThisWeek, startOfWeek, endOfWeek } from 'date-fns';
@@ -12,11 +12,37 @@ export interface DashboardWidgetsProps {
   onNavigateToTab: (tab: string, viewMode?: string, entityId?: string) => void;
 }
 
+const containerVariants: any = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  },
+  exit: {
+    opacity: 0,
+    transition: { staggerChildren: 0.05, staggerDirection: -1 }
+  }
+};
+
+const itemVariants: any = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 300, damping: 24 }
+  },
+  exit: {
+    opacity: 0,
+    y: -20,
+    transition: { duration: 0.2 }
+  }
+};
+
 export default function DashboardWidgets({ 
-  todos, 
-  projects, 
-  activeTimerTaskId, 
-  activeTimerElapsed,
+   todos, 
+   projects, 
+   activeTimerTaskId, 
+   activeTimerElapsed,
   onNavigateToTab
 }: DashboardWidgetsProps) {
   // Compute some quick stats
@@ -32,8 +58,14 @@ export default function DashboardWidgets({
   }).sort((a, b) => b.activeTasks - a.activeTasks).slice(0, 4);
 
   return (
-    <div className="w-full max-w-5xl mx-auto py-8 animate-in fade-in duration-300">
-      <div className="mb-8 flex items-center justify-between">
+    <motion.div 
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className="w-full max-w-5xl mx-auto py-8"
+    >
+      <motion.div variants={itemVariants} className="mb-8 flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
             <LayoutDashboard className="w-8 h-8 text-indigo-600" />
@@ -43,10 +75,11 @@ export default function DashboardWidgets({
             Your centralized hub for immediate priorities, active projects, and time-tracking insights.
           </p>
         </div>
-      </div>
+      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <motion.div 
+          variants={itemVariants}
           whileHover={{ y: -2 }}
           onClick={() => onNavigateToTab("tasks", "today")}
           className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm cursor-pointer transition-shadow hover:shadow-md"
@@ -63,6 +96,7 @@ export default function DashboardWidgets({
         </motion.div>
 
         <motion.div 
+          variants={itemVariants}
           whileHover={{ y: -2 }}
           onClick={() => onNavigateToTab("tasks", "today")}
           className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm cursor-pointer transition-shadow hover:shadow-md"
@@ -79,6 +113,7 @@ export default function DashboardWidgets({
         </motion.div>
 
         <motion.div 
+          variants={itemVariants}
           whileHover={{ y: -2 }}
           onClick={() => onNavigateToTab("starred")}
           className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm cursor-pointer transition-shadow hover:shadow-md"
@@ -96,7 +131,7 @@ export default function DashboardWidgets({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white border border-slate-200/60 rounded-2xl shadow-sm p-6">
+        <motion.div variants={itemVariants} className="bg-white border border-slate-200/60 rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Target className="w-5 h-5 text-indigo-500" />
@@ -123,9 +158,9 @@ export default function DashboardWidgets({
               ))
             )}
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white border border-slate-200/60 rounded-2xl shadow-sm p-6">
+        <motion.div variants={itemVariants} className="bg-white border border-slate-200/60 rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Clock className="w-5 h-5 text-amber-500" />
@@ -168,8 +203,8 @@ export default function DashboardWidgets({
               <p className="text-sm font-semibold text-slate-800">Prioritize</p>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }

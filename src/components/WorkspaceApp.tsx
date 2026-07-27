@@ -2715,7 +2715,7 @@ export default function WorkspaceApp() {
             if (info.offset.x > 80) {
               setEditingTodoDateId(todo.id);
             } else if (info.offset.x < -80) {
-              setDeletingTodoState({ id: todo.id, title: todo.title });
+              setDeletingTodoState({ id: todo.id, viewModeAtTime: viewMode });
             }
           } else {
             setDraggedTaskId(null);

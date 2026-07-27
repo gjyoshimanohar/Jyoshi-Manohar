@@ -44,7 +44,7 @@ export default function BlogList() {
     fetchResources();
   }, []);
 
-  const categories = ['All', ...Array.from(new Set(posts.map(p => p.category)))];
+  const categories = ['All', ...Array.from(new Set(posts.map(p => p.category))) as string[]];
 
   const filteredPosts = selectedCategory === 'All'
     ? posts

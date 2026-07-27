@@ -1,10 +1,11 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect, useMemo } from 'react';
 import CustomSelect from './CustomSelect';
+import StatementGeneratorModal from './StatementGeneratorModal';
 import { 
   Plus, Trash2, Eye, Edit2, Download, CheckCircle, Clock, 
   AlertCircle, XCircle, Printer, ArrowLeft, Mail, FileText, FileSpreadsheet,
-  Check, DollarSign, Calendar, ChevronRight, Send, Search, Filter, ShieldAlert, MessageSquare, Layers,
+  Check, IndianRupee, Calendar, ChevronRight, Send, Search, Filter, ShieldAlert, MessageSquare, Layers,
   TrendingUp, CreditCard, Landmark, CheckSquare, Sparkles
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
@@ -49,6 +50,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
   
   // Unified Export Report Modal State
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<'csv' | 'excel' | 'pdf'>('excel');
   const [exportDatePreset, setExportDatePreset] = useState<string>('all');
   const [exportStartDate, setExportStartDate] = useState<string>('');
@@ -1369,7 +1371,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               {isAdmin ? "Total Invoiced" : "Total Billed"}
             </span>
             <h4 className="text-base sm:text-lg lg:text-xl font-bold text-slate-900 tracking-tight mt-0.5 truncate">
-              ₹{totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{totalInvoiced.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
@@ -1383,7 +1385,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               {isAdmin ? "Received Payments" : "Payments Made"}
             </span>
             <h4 className="text-base sm:text-lg lg:text-xl font-bold text-emerald-600 tracking-tight mt-0.5 truncate">
-              ₹{paidInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{paidInvoiced.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
@@ -1397,7 +1399,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               Outstanding Balances
             </span>
             <h4 className="text-base sm:text-lg lg:text-xl font-bold text-blue-600 tracking-tight mt-0.5 truncate">
-              ₹{outstandingInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{outstandingInvoiced.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
@@ -1411,7 +1413,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               Overdue Balances
             </span>
             <h4 className="text-base sm:text-lg lg:text-xl font-bold text-rose-600 tracking-tight mt-0.5 truncate">
-              ₹{overdueInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{overdueInvoiced.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h4>
           </div>
         </div>
@@ -1802,6 +1804,14 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
           >
             <Download className="w-4 h-4 text-emerald-700" /> Export Report
           </button>
+          
+          <button 
+            onClick={() => setIsStatementModalOpen(true)}
+            className="flex items-center justify-center gap-2 bg-blue-50 border border-blue-200 hover:bg-blue-100/80 text-blue-800 font-semibold text-xs sm:text-sm px-3.5 sm:px-4.5 py-2.5 rounded-xl shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+            title="Generate Client Account Statement"
+          >
+            <FileText className="w-4 h-4 text-blue-700" /> Statement
+          </button>
 
           <button 
             onClick={handleGenerateVirtualDemo}
@@ -1889,7 +1899,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                               </div>
                             </td>
                             <td className="px-6 py-4 font-mono font-bold text-gray-950">
-                              {getCurrencySymbol(invoice.currency)}{invoice.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {getCurrencySymbol(invoice.currency)}{invoice.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                             <td className="px-6 py-4 text-center">
                               {getStatusBadge(invoice.status, invoice.dueDate)}
@@ -2029,7 +2039,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                         onClick={() => setIsPaymentModalOpen(true)}
                         className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-sm"
                       >
-                        <DollarSign className="w-3.5 h-3.5" /> Record Payment
+                        <IndianRupee className="w-3.5 h-3.5" /> Record Payment
                       </button>
                     )}
 
@@ -2067,7 +2077,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                         }}
                         className="flex items-center gap-1.5 bg-[#635BFF] hover:bg-[#5851e5] text-white px-5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-sm"
                       >
-                        <DollarSign className="w-3.5 h-3.5" /> Pay Now
+                        <IndianRupee className="w-3.5 h-3.5" /> Pay Now
                       </button>
                     )}
                     <a

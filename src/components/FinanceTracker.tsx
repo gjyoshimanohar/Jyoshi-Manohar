@@ -1,5 +1,10 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import ChartOfAccounts from "./ChartOfAccounts";
+import APARDashboard from "./APARDashboard";
+import GeneralLedger from "./GeneralLedger";
+import StatementsTab from "./StatementsTab";
+import FinancialReports from "./FinancialReports";
 import CustomSelect from "./CustomSelect";
 import CalendarSyncModal from "./CalendarSyncModal";
 import DailyStandupModal from "./DailyStandupModal";
@@ -23,11 +28,10 @@ import { format, parseISO } from "date-fns";
 import { 
   TrendingUp,
   TrendingDown,
-  DollarSign,
+  IndianRupee,
   Calendar,
   Tag,
   FileText,
-  FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
   ArrowLeftRight,
@@ -53,6 +57,9 @@ import {
   Menu,
   Settings,
   Printer,
+  BookOpen,
+  Briefcase,
+  FileSpreadsheet,
   ArrowUp,
   ArrowDown,
   ArrowUpDown
@@ -186,7 +193,7 @@ export default function FinanceTracker() {
   };
 
   // Filters
-  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "transfers" | "account" | "settings" | "receivables" | "payables" | "ai_insights">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "transfers" | "account" | "settings" | "receivables" | "payables" | "ai_insights" | "coa" | "ap_ar" | "gl" | "statements" | "reports">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
   const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
@@ -2840,6 +2847,11 @@ export default function FinanceTracker() {
               { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
               { id: "transfers", label: "Transfers", icon: ArrowLeftRight, desc: "Internal Movement" },
               { id: "account", label: "Account", icon: Wallet, desc: "Assets & Liabilities" },
+              { id: "reports", label: "Formal Reports", icon: BookOpen, desc: "P&L, Balance Sheet" },
+              { id: "coa", label: "Chart of Accounts", icon: BookOpen, desc: "Double-Entry Ledgers" },
+              { id: "ap_ar", label: "AP/AR Dashboard", icon: Briefcase, desc: "Invoices & Bills" },
+              { id: "gl", label: "General Ledger", icon: FileSpreadsheet, desc: "Debits & Credits" },
+              { id: "statements", label: "Statements", icon: FileText, desc: "Account Statements" },
               { id: "ai_insights", label: "AI Insights", icon: Sparkles, desc: "Smart Advisor & Forecasting" },
               { id: "settings", label: "Settings", icon: Settings, desc: "Configuration & Categories" },
             ].map((tab) => {
@@ -3168,7 +3180,7 @@ export default function FinanceTracker() {
                 <span className={`text-[11px] font-semibold flex items-center gap-1 mt-1 ${
                   metrics.balance >= 0 ? "text-[#AD8D3E]" : "text-rose-500"
                 }`}>
-                  <DollarSign className="w-3.5 h-3.5" />
+                  <IndianRupee className="w-3.5 h-3.5" />
                   <span>
                     {selectedScope === "business"
                       ? "Net Operating Margin"
@@ -4040,6 +4052,17 @@ export default function FinanceTracker() {
           </div>
         </div>
       )}
+
+      {activeTab === "coa" && <ChartOfAccounts allRecords={records} filteredRecords={filteredRecords} accounts={paymentAccounts} />}
+      {activeTab === "ap_ar" && <APARDashboard records={records} />}
+      {activeTab === "gl" && <GeneralLedger allRecords={records} accounts={paymentAccounts} />}
+
+      {activeTab === "coa" && <ChartOfAccounts allRecords={records} filteredRecords={filteredRecords} accounts={paymentAccounts} />}
+      {activeTab === "ap_ar" && <APARDashboard records={records} />}
+      {activeTab === "gl" && <GeneralLedger allRecords={records} accounts={paymentAccounts} />}
+      {activeTab === "statements" && <StatementsTab />}
+
+      {activeTab === "reports" && <FinancialReports records={records} accounts={paymentAccounts} />}
 
       {/* Settings Tab Content */}
       {activeTab === "settings" && (

@@ -1,5 +1,5 @@
 import { timesheetService } from "../services/timesheetService";
-import { TimesheetLog } from "../types";
+import { TimesheetLog, FinanceRecord } from "../types";
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from "react";
 import JSZip from "jszip";
@@ -98,7 +98,7 @@ import {
   Eye,
   EyeOff,
   Copy,
-} from "lucide-react";
+  BookOpen } from "lucide-react";
 
 // Pre-defined interfaces
 interface Application {
@@ -432,6 +432,10 @@ export default function ClientDashboard() {
     | "requests"
     | "invoices"
     | "book-consultation"
+    | "statements"
+    | "gl"
+    | "ap_ar"
+    | "coa"
   >("overview");
   const [serviceFilter, setServiceFilter] = useState<string>("All");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -4510,6 +4514,68 @@ Stewardship, Accuracy, Legacy.
                       {isSidebarOpen && (
                         <span className="text-xs font-bold uppercase tracking-wider ml-3">
                           Book Consultation
+                        </span>
+                      )}
+                    </button>
+
+                    
+                    <button
+                      onClick={() => setActiveTab("statements")}
+                      className={`w-full flex items-center ${isSidebarOpen ? "justify-start p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
+                        activeTab === "statements"
+                          ? "bg-primary text-white border-primary shadow-md"
+                          : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
+                      } mb-2`}
+                    >
+                      <FileText className="h-4 w-4 shrink-0" />
+                      {isSidebarOpen && (
+                        <span className="text-xs font-bold uppercase tracking-wider ml-3">
+                          Statements
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("gl")}
+                      className={`w-full flex items-center ${isSidebarOpen ? "justify-start p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
+                        activeTab === "gl"
+                          ? "bg-primary text-white border-primary shadow-md"
+                          : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
+                      } mb-2`}
+                    >
+                      <FileSpreadsheet className="h-4 w-4 shrink-0" />
+                      {isSidebarOpen && (
+                        <span className="text-xs font-bold uppercase tracking-wider ml-3">
+                          General Ledger
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("ap_ar")}
+                      className={`w-full flex items-center ${isSidebarOpen ? "justify-start p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
+                        activeTab === "ap_ar"
+                          ? "bg-primary text-white border-primary shadow-md"
+                          : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
+                      } mb-2`}
+                    >
+                      <Briefcase className="h-4 w-4 shrink-0" />
+                      {isSidebarOpen && (
+                        <span className="text-xs font-bold uppercase tracking-wider ml-3">
+                          AP/AR Dashboard
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("coa")}
+                      className={`w-full flex items-center ${isSidebarOpen ? "justify-start p-4" : "justify-center p-3"} rounded-xl text-left transition-all border ${
+                        activeTab === "coa"
+                          ? "bg-primary text-white border-primary shadow-md"
+                          : "bg-white text-slate-700 hover:text-primary hover:bg-slate-50 border-slate-100/60"
+                      } mb-2`}
+                    >
+                      <BookOpen className="h-4 w-4 shrink-0" />
+                      {isSidebarOpen && (
+                        <span className="text-xs font-bold uppercase tracking-wider ml-3">
+                          Chart of Accounts
                         </span>
                       )}
                     </button>

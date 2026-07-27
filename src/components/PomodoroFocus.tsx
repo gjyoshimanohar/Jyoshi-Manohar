@@ -9,7 +9,7 @@ import {
   CloudRain, 
   Clock, 
   User, 
-  DollarSign, 
+  IndianRupee, 
   Receipt, 
   Plus, 
   CheckCircle, 
@@ -644,7 +644,7 @@ export default function PomodoroFocus({
 
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                  <DollarSign className="w-3 h-3" /> Hourly Retainer Rate
+                  <IndianRupee className="w-3 h-3" /> Hourly Retainer Rate
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs font-semibold text-slate-400">₹</span>
