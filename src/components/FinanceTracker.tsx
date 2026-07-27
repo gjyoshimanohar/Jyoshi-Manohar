@@ -52,7 +52,10 @@ import {
   LayoutDashboard,
   Menu,
   Settings,
-  Printer
+  Printer,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from "lucide-react";
 import { 
   ResponsiveContainer,
@@ -183,7 +186,7 @@ export default function FinanceTracker() {
   };
 
   // Filters
-  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "account" | "settings" | "receivables" | "payables" | "ai_insights">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "transfers" | "account" | "settings" | "receivables" | "payables" | "ai_insights">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
   const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
@@ -1342,7 +1345,8 @@ export default function FinanceTracker() {
     const filtered = records.filter(rec => {
       // Tab pre-filters
       if (activeTab === "incomes" && (rec.type !== "income" || rec.category === "Reimbursement")) return false;
-      if (activeTab === "expenses" && rec.type !== "expense" && rec.type !== "transfer") return false;
+      if (activeTab === "expenses" && rec.type !== "expense") return false;
+      if (activeTab === "transfers" && rec.type !== "transfer") return false;
             if (activeTab === "payables") {
         if (rec.type !== "expense" || (rec.status !== "pending" && rec.status !== "overdue")) return false;
       }
@@ -1387,7 +1391,8 @@ export default function FinanceTracker() {
         const descMatch = rec.description?.toLowerCase().includes(queryLower);
         const catMatch = rec.category.toLowerCase().includes(queryLower);
         const clientMatch = rec.clientName?.toLowerCase().includes(queryLower);
-        if (!descMatch && !catMatch && !clientMatch) return false;
+        const amountMatch = rec.amount.toString().includes(queryLower);
+        if (!descMatch && !catMatch && !clientMatch && !amountMatch) return false;
       }
 
       // Date Range Filter
@@ -1723,14 +1728,14 @@ export default function FinanceTracker() {
 
       if (recYear === selectedYear && monthMatch) {
         if (rec.type === "income") {
-          if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
+          if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
             totalIncome += rec.amount;
             if (rec.status === "pending" || rec.status === "overdue") {
               pendingInvoicesVal += rec.amount;
             }
           }
         } else if (rec.type === "expense") {
-          if (!rec.isReceivableFromClient && !rec.isReimbursed && rec.category !== "Payment from Advance") {
+          if (!rec.isReceivableFromClient && !rec.isReimbursed && rec.category !== "Payment from Advance" && rec.category !== "Internal Transfer") {
             totalExpense += rec.amount;
           }
         }
@@ -1795,7 +1800,7 @@ export default function FinanceTracker() {
         const recMonth = rec.date.split("-")[1];
         if (recYear === selectedYear && recMonth === monthStr) {
           if (rec.type === "income") {
-            if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
+            if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
               income += rec.amount;
               if (rec.status === "pending" || rec.status === "overdue") {
                 pendingInvoices += rec.amount;
@@ -1803,7 +1808,7 @@ export default function FinanceTracker() {
             }
           }
           else if (rec.type === "expense") {
-            if (!rec.isReceivableFromClient && !rec.isReimbursed && rec.category !== "Payment from Advance") {
+            if (!rec.isReceivableFromClient && !rec.isReimbursed && rec.category !== "Payment from Advance" && rec.category !== "Internal Transfer") {
               expense += rec.amount;
             }
             if (rec.isReceivableFromClient) {
@@ -1831,7 +1836,7 @@ export default function FinanceTracker() {
     const expenseTotals: { [name: string]: number } = {};
 
     filteredRecords.forEach(rec => {
-      if (rec.type === "transfer") return;
+      if (rec.type === "transfer" || rec.category === "Internal Transfer") return;
       if (rec.type === "income") {
         if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
           incomeTotals[rec.category] = (incomeTotals[rec.category] || 0) + rec.amount;
@@ -2014,8 +2019,8 @@ export default function FinanceTracker() {
     let totalExpense = 0;
 
     filteredRecords.forEach(rec => {
-      if (rec.type === "income") totalIncome += Number(rec.amount);
-      if (rec.type === "expense") totalExpense += Number(rec.amount);
+      if (rec.type === "income" && rec.category !== "Internal Transfer") totalIncome += Number(rec.amount);
+      if (rec.type === "expense" && rec.category !== "Internal Transfer") totalExpense += Number(rec.amount);
 
       const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "-";
       const typeColor = rec.type === "income" ? "#10b981" : rec.type === "expense" ? "#ef4444" : "#3b82f6";
@@ -2544,12 +2549,33 @@ export default function FinanceTracker() {
                     }}
                   />
                 </th>
-                <th className="px-6 py-3 font-semibold">Date</th>
+
+                <th className="px-6 py-3 font-semibold cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => { if (sortBy === 'date') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); else { setSortBy('date'); setSortOrder('desc'); } }}>
+                  <div className="flex items-center gap-1">
+                    Date
+                    {sortBy === 'date' ? (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 text-slate-300" />}
+                  </div>
+                </th>
                 <th className="px-6 py-3 font-semibold">Description</th>
-                <th className="px-6 py-3 font-semibold">Category</th>
+                <th className="px-6 py-3 font-semibold cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => { if (sortBy === 'category') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); else { setSortBy('category'); setSortOrder('asc'); } }}>
+                  <div className="flex items-center gap-1">
+                    Category
+                    {sortBy === 'category' ? (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 text-slate-300" />}
+                  </div>
+                </th>
                 <th className="px-6 py-3 font-semibold">Type</th>
-                <th className="px-6 py-3 font-semibold text-right">Amount</th>
-                <th className="px-6 py-3 font-semibold text-center">Status</th>
+                <th className="px-6 py-3 font-semibold cursor-pointer hover:bg-slate-100 transition-colors text-right" onClick={() => { if (sortBy === 'amount') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); else { setSortBy('amount'); setSortOrder('desc'); } }}>
+                  <div className="flex items-center justify-end gap-1">
+                    Amount
+                    {sortBy === 'amount' ? (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 text-slate-300" />}
+                  </div>
+                </th>
+                <th className="px-6 py-3 font-semibold cursor-pointer hover:bg-slate-100 transition-colors text-center" onClick={() => { if (sortBy === 'status') setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); else { setSortBy('status'); setSortOrder('asc'); } }}>
+                  <div className="flex items-center justify-center gap-1">
+                    Status
+                    {sortBy === 'status' ? (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 text-slate-300" />}
+                  </div>
+                </th>
                 <th className="px-6 py-3 font-semibold text-center">Actions</th>
               </tr>
             </thead>
@@ -2812,6 +2838,7 @@ export default function FinanceTracker() {
               { id: "payables", label: "Payables", icon: AlertCircle, desc: "Pending Outlays" },
               { id: "incomes", label: "Incomes", icon: TrendingUp, desc: "Professional Inflows" },
               { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
+              { id: "transfers", label: "Transfers", icon: ArrowLeftRight, desc: "Internal Movement" },
               { id: "account", label: "Account", icon: Wallet, desc: "Assets & Liabilities" },
               { id: "ai_insights", label: "AI Insights", icon: Sparkles, desc: "Smart Advisor & Forecasting" },
               { id: "settings", label: "Settings", icon: Settings, desc: "Configuration & Categories" },
@@ -3016,7 +3043,7 @@ export default function FinanceTracker() {
             </span>
             <input
               type="text"
-              placeholder="Search descriptions/clients..."
+              placeholder="Search descriptions, clients, amounts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-accent border border-slate-200 rounded-lg py-2 pl-9 pr-4 text-xs font-medium text-primary outline-none focus:ring-1 focus:ring-primary"
@@ -3838,6 +3865,7 @@ export default function FinanceTracker() {
       {activeTab === "receivables" && renderLedgerLogsTable("Pending Receivables", "All outstanding invoices and reimbursements")}
       {activeTab === "incomes" && renderLedgerLogsTable("Professional Income Streams", "Inflows of professional billings & fee drawings", "income")}
       {activeTab === "expenses" && renderLedgerLogsTable("Firm Operating Expenses", "Operating overheads, staff drawdowns, and equipment purchases", "expense")}
+      {activeTab === "transfers" && renderLedgerLogsTable("Internal Transfers", "Movement of funds between accounts", "transfer")}
 
       {activeTab === "dashboard" && (
         <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
