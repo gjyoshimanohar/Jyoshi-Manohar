@@ -6758,7 +6758,7 @@ Stewardship, Accuracy, Legacy.
                     
                     <div className="w-full bg-slate-50 rounded-2xl border border-slate-100/60 overflow-hidden" style={{ height: "700px" }}>
                       <iframe
-                        src="https://calendly.com"
+                        src="https://calendly.com/gjyoshimanohar"
                         width="100%"
                         height="100%"
                         frameBorder="0"

@@ -62,7 +62,8 @@ import {
   FileSpreadsheet,
   ArrowUp,
   ArrowDown,
-  ArrowUpDown
+  ArrowUpDown,
+  ChevronDown
 } from "lucide-react";
 import { 
   ResponsiveContainer,
@@ -193,7 +194,8 @@ export default function FinanceTracker() {
   };
 
   // Filters
-  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "transfers" | "account" | "settings" | "receivables" | "payables" | "ai_insights" | "coa" | "ap_ar" | "gl" | "statements" | "reports">("dashboard");
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "transfers" | "advances" | "account" | "settings" | "receivables" | "payables" | "ai_insights" | "coa" | "ap_ar" | "gl" | "statements" | "reports">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
   const [selectedScope, setSelectedScope] = useState<"all" | "business" | "personal">("all");
@@ -1354,6 +1356,7 @@ export default function FinanceTracker() {
       if (activeTab === "incomes" && (rec.type !== "income" || rec.category === "Reimbursement")) return false;
       if (activeTab === "expenses" && rec.type !== "expense") return false;
       if (activeTab === "transfers" && rec.type !== "transfer") return false;
+      if (activeTab === "advances" && rec.category !== "Advance Received" && rec.category !== "Payment from Advance") return false;
             if (activeTab === "payables") {
         if (rec.type !== "expense" || (rec.status !== "pending" && rec.status !== "overdue")) return false;
       }
@@ -2749,42 +2752,6 @@ export default function FinanceTracker() {
         </div>
       )}
 
-      {/* Client Advances Summary Bar */}
-      {(totalAdvancesReceived > 0 || totalPaymentsFromAdvances > 0) && (
-        <div 
-          onClick={() => {
-            setActiveTab("dashboard");
-          }}
-          className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in cursor-default hover:bg-indigo-100 transition-colors group mt-4"
-        >
-           <div className="flex items-center gap-3">
-             <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition-colors">
-               <AlertCircle className="w-5 h-5 text-indigo-700" />
-             </div>
-             <div>
-               <h3 className="text-indigo-900 font-bold tracking-tight">Client Advances & Deposits</h3>
-               <p className="text-indigo-700/80 text-sm font-medium">₹{totalAdvancesReceived.toLocaleString("en-IN")} Received - ₹{totalPaymentsFromAdvances.toLocaleString("en-IN")} Spent</p>
-             </div>
-           </div>
-           <div className="flex flex-col items-end gap-1">
-             <div className="flex items-center gap-4">
-               {pendingAdvancesBalance > 0 && (
-                 <button
-                   onClick={(e) => { e.stopPropagation(); setShowConvertAdvanceModal(true); setConvertAdvAmount(pendingAdvancesBalance.toString()); }}
-                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg transition-colors"
-                 >
-                   Convert to Income
-                 </button>
-               )}
-               <div className="text-2xl font-extrabold text-indigo-900 tracking-tight group-hover:scale-105 transition-transform flex items-center gap-2">
-                 ₹{Math.abs(pendingAdvancesBalance).toLocaleString("en-IN")}
-                 <ArrowLeftRight className="w-5 h-5 text-indigo-600 opacity-50 group-hover:opacity-100 group-hover:-rotate-12 transition-all" />
-               </div>
-             </div>
-             <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">{pendingAdvancesBalance >= 0 ? "Unspent Liability" : "Overspent (Receivable)"}</span>
-           </div>
-        </div>
-      )}
 
       {/* Mobile/Tablet Header Bar Toggle (screens < md) */}
       <div className="flex md:hidden items-center justify-between w-full bg-slate-900 border border-slate-800 text-white rounded-xl p-3 mb-3 shadow-sm">
@@ -2841,20 +2808,109 @@ export default function FinanceTracker() {
           <div className="flex flex-col gap-1.5 overflow-y-auto scrollbar-none pb-4 md:pb-0">
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, desc: "Overview & Analytics" },
-              { id: "receivables", label: "Receivables", icon: AlertCircle, desc: "Pending Payments" },
-              { id: "payables", label: "Payables", icon: AlertCircle, desc: "Pending Outlays" },
-              { id: "incomes", label: "Incomes", icon: TrendingUp, desc: "Professional Inflows" },
-              { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
-              { id: "transfers", label: "Transfers", icon: ArrowLeftRight, desc: "Internal Movement" },
+              { 
+                id: "transactions", label: "Transactions", icon: ArrowUpDown, desc: "Income, Expense, Transfer", 
+                subItems: [
+                  { id: "incomes", label: "Incomes", icon: TrendingUp, desc: "Professional Inflows" },
+                  { id: "expenses", label: "Expenses", icon: TrendingDown, desc: "Firm Outlays" },
+                  { id: "transfers", label: "Transfers", icon: ArrowLeftRight, desc: "Internal Movement" },
+                  { id: "advances", label: "Client Advances", icon: AlertCircle, desc: "Advances Summary" },
+                ]
+              },
+              { 
+                id: "outstanding", label: "Outstanding", icon: AlertCircle, desc: "Pending Payments & Outlays", 
+                subItems: [
+                  { id: "receivables", label: "Receivables", icon: ArrowDown, desc: "Pending Payments" },
+                  { id: "payables", label: "Payables", icon: ArrowUp, desc: "Pending Outlays" },
+                ]
+              },
+              { 
+                id: "accounting", label: "Accounting", icon: BookOpen, desc: "Ledgers, Reports & Statements", 
+                subItems: [
+                  { id: "reports", label: "Formal Reports", icon: FileText, desc: "P&L, Balance Sheet" },
+                  { id: "coa", label: "Chart of Accounts", icon: BookOpen, desc: "Double-Entry Ledgers" },
+                  { id: "ap_ar", label: "AP/AR Dashboard", icon: Briefcase, desc: "Invoices & Bills" },
+                  { id: "gl", label: "General Ledger", icon: FileSpreadsheet, desc: "Debits & Credits" },
+                  { id: "statements", label: "Statements", icon: FileText, desc: "Account Statements" },
+                ]
+              },
               { id: "account", label: "Account", icon: Wallet, desc: "Assets & Liabilities" },
-              { id: "reports", label: "Formal Reports", icon: BookOpen, desc: "P&L, Balance Sheet" },
-              { id: "coa", label: "Chart of Accounts", icon: BookOpen, desc: "Double-Entry Ledgers" },
-              { id: "ap_ar", label: "AP/AR Dashboard", icon: Briefcase, desc: "Invoices & Bills" },
-              { id: "gl", label: "General Ledger", icon: FileSpreadsheet, desc: "Debits & Credits" },
-              { id: "statements", label: "Statements", icon: FileText, desc: "Account Statements" },
               { id: "ai_insights", label: "AI Insights", icon: Sparkles, desc: "Smart Advisor & Forecasting" },
               { id: "settings", label: "Settings", icon: Settings, desc: "Configuration & Categories" },
-            ].map((tab) => {
+            ].map((tab: any) => {
+              if (tab.subItems) {
+                const isAnySubActive = tab.subItems.some((sub: any) => activeTab === sub.id);
+                const isExpanded = expandedMenus.includes(tab.id);
+                return (
+                  <div key={tab.id} className="flex flex-col w-full">
+                    <button
+                      onClick={() => {
+                        setExpandedMenus((prev: string[]) => prev.includes(tab.id) ? prev.filter(id => id !== tab.id) : [...prev, tab.id]);
+                        if (!isSidebarOpen) setIsSidebarOpen(true);
+                      }}
+                      className={`group relative flex items-center justify-between w-full text-left px-3.5 py-3 rounded-xl transition-all font-semibold text-sm whitespace-nowrap shrink-0 border ${
+                        isAnySubActive && !isExpanded
+                          ? "bg-slate-100 border-slate-200 text-slate-900 shadow-sm"
+                          : "bg-transparent border-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                      } ${!isSidebarOpen ? "md:justify-center md:px-0" : ""}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <tab.icon className={`w-5 h-5 shrink-0 ${isAnySubActive ? "text-amber-500" : "text-slate-500 group-hover:text-slate-800"}`} />
+                        <div className={`flex flex-col text-left transition-all duration-300 ${isSidebarOpen ? "opacity-100" : "md:opacity-0 md:w-0 overflow-hidden"}`}>
+                          <span className="leading-tight font-bold text-sm">{tab.label}</span>
+                        </div>
+                      </div>
+                      {isSidebarOpen && (
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      )}
+                      {!isSidebarOpen && (
+                        <div className="hidden md:block absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-[12px] rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 shadow-lg border border-slate-700 pointer-events-none">
+                          {tab.label}
+                        </div>
+                      )}
+                    </button>
+                    <AnimatePresence>
+                      {isExpanded && isSidebarOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="flex flex-col overflow-hidden"
+                        >
+                          <div className="flex flex-col gap-1 pl-11 pr-2 py-1 mt-1">
+                            {tab.subItems.map((subTab: any) => {
+                              const SubIcon = subTab.icon;
+                              const isSubActive = activeTab === subTab.id;
+                              return (
+                                <button
+                                  key={subTab.id}
+                                  id={`nav-tab-${subTab.id}`}
+                                  onClick={() => {
+                                    setActiveTab(subTab.id as any);
+                                    setSelectedCategory("All");
+                                    if (window.innerWidth < 768) {
+                                      setIsSidebarOpen(false);
+                                    }
+                                  }}
+                                  className={`group flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-lg transition-all font-semibold text-sm whitespace-nowrap border ${
+                                    isSubActive
+                                      ? "bg-slate-900 border-slate-900 text-white shadow-md"
+                                      : "bg-transparent border-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                  }`}
+                                >
+                                  <SubIcon className={`w-4 h-4 shrink-0 ${isSubActive ? "text-amber-400" : "text-slate-400 group-hover:text-slate-600"}`} />
+                                  <span className="leading-tight text-[13px]">{subTab.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              }
+
               const IconComp = tab.icon;
               const isActive = activeTab === tab.id;
               return (
@@ -3878,6 +3934,7 @@ export default function FinanceTracker() {
       {activeTab === "incomes" && renderLedgerLogsTable("Professional Income Streams", "Inflows of professional billings & fee drawings", "income")}
       {activeTab === "expenses" && renderLedgerLogsTable("Firm Operating Expenses", "Operating overheads, staff drawdowns, and equipment purchases", "expense")}
       {activeTab === "transfers" && renderLedgerLogsTable("Internal Transfers", "Movement of funds between accounts", "transfer")}
+      {activeTab === "advances" && renderLedgerLogsTable("Client Advances Ledger", "History of received deposits and corresponding outlays", "income")}
 
       {activeTab === "dashboard" && (
         <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -4053,9 +4110,38 @@ export default function FinanceTracker() {
         </div>
       )}
 
-      {activeTab === "coa" && <ChartOfAccounts allRecords={records} filteredRecords={filteredRecords} accounts={paymentAccounts} />}
-      {activeTab === "ap_ar" && <APARDashboard records={records} />}
-      {activeTab === "gl" && <GeneralLedger allRecords={records} accounts={paymentAccounts} />}
+      {/* Client Advances Summary Bar */}
+      {((activeTab === "dashboard" && pendingAdvancesBalance > 0) || (activeTab === "advances" && (totalAdvancesReceived > 0 || totalPaymentsFromAdvances > 0))) && (
+        <div 
+          className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fade-in cursor-default transition-colors group mt-6"
+        >
+           <div className="flex items-center gap-3">
+             <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition-colors">
+               <AlertCircle className="w-5 h-5 text-indigo-700" />
+             </div>
+             <div>
+               <h3 className="text-indigo-900 font-bold tracking-tight">Client Advances & Deposits</h3>
+               <p className="text-indigo-700/80 text-sm font-medium">₹{totalAdvancesReceived.toLocaleString("en-IN")} Received - ₹{totalPaymentsFromAdvances.toLocaleString("en-IN")} Spent</p>
+             </div>
+           </div>
+           <div className="flex flex-col items-end gap-1">
+             <div className="flex items-center gap-4">
+               {pendingAdvancesBalance > 0 && (
+                 <button
+                   onClick={(e) => { e.stopPropagation(); setShowConvertAdvanceModal(true); setConvertAdvAmount(pendingAdvancesBalance.toString()); }}
+                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] uppercase font-bold tracking-wider px-3 py-1.5 rounded-lg transition-colors"
+                 >
+                   Convert to Income
+                 </button>
+               )}
+               <div className="text-2xl font-extrabold text-indigo-900 tracking-tight flex items-center gap-2">
+                 ₹{pendingAdvancesBalance.toLocaleString("en-IN")}
+               </div>
+             </div>
+             <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Unspent Liability</span>
+           </div>
+        </div>
+      )}
 
       {activeTab === "coa" && <ChartOfAccounts allRecords={records} filteredRecords={filteredRecords} accounts={paymentAccounts} />}
       {activeTab === "ap_ar" && <APARDashboard records={records} />}
