@@ -9,6 +9,9 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss()],
     build: {
       outDir: 'dist',
+      target: 'esnext',
+      minify: false,
+      sourcemap: false,
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {

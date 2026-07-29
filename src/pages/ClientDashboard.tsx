@@ -3481,6 +3481,17 @@ Stewardship, Accuracy, Legacy.
     )
       return;
     try {
+      if (col === "compliance_filings") {
+        const filingDoc = await getDoc(doc(db, col, itemId));
+        if (filingDoc.exists() && filingDoc.data().taskId) {
+          try {
+            await deleteDoc(doc(db, "todos", filingDoc.data().taskId));
+          } catch (e) {
+            console.error("Failed to delete linked task", e);
+          }
+        }
+      }
+
       await deleteDoc(doc(db, col, itemId));
       setFeedback({
         message: "Item deleted successfully from client registers.",
@@ -3544,9 +3555,17 @@ Stewardship, Accuracy, Legacy.
           where("userId", "==", clientId),
         ),
       );
-      const filingDeletes = filingsSnap.docs.map((d) =>
-        deleteDoc(doc(db, "compliance_filings", d.id)),
-      );
+      const filingDeletes = filingsSnap.docs.map(async (d) => {
+        const data = d.data();
+        if (data.taskId) {
+          try {
+            await deleteDoc(doc(db, "todos", data.taskId));
+          } catch (e) {
+            console.error("Failed to delete linked task", e);
+          }
+        }
+        return deleteDoc(doc(db, "compliance_filings", d.id));
+      });
 
       // Execute all subcollection deletes
       await Promise.all([...appDeletes, ...docDeletes, ...filingDeletes]);

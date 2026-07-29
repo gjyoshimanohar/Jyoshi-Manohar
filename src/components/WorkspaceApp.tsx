@@ -742,6 +742,8 @@ export default function WorkspaceApp() {
     string | null
   >(null);
   const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
+  const [selectedComplianceTask, setSelectedComplianceTask] = useState<Todo | null>(null);
+  const [complianceFilter, setComplianceFilter] = useState<'active' | 'overdue' | 'completed'>('active');
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(
     null,
   );
@@ -1262,137 +1264,6 @@ export default function WorkspaceApp() {
 
   // Keep track of tasks we've already notified about in this session
   const notifiedTaskIds = useRef<Set<string>>(new Set());
-  const hasSyncedCompliance = useRef(false);
-
-  // Auto-sync critical compliance deadlines as High-Priority actionable tasks
-  useEffect(() => {
-    if (loading || !auth.currentUser || hasSyncedCompliance.current) return;
-
-    const syncComplianceDeadlines = async () => {
-      try {
-        let compProj = projects.find((p) => p.name === "Compliance Deadlines");
-        let complianceProjectId = compProj?.id;
-
-        if (!compProj) {
-          const createdProj = await todoService.createProject(
-            "Compliance Deadlines",
-            "#ef4444",
-            auth.currentUser.uid,
-            "📅",
-            null,
-            "list",
-          );
-          if (createdProj) {
-            complianceProjectId = createdProj.id;
-          }
-        }
-
-        if (!complianceProjectId) return;
-
-        const getNextDateOfMonthTimestamp = (day: number) => {
-          const d = new Date();
-          if (d.getDate() > day) {
-            d.setMonth(d.getMonth() + 1);
-          }
-          d.setDate(day);
-          d.setHours(0, 0, 0, 0);
-          return d.getTime();
-        };
-
-        const getSpecificYearlyDateTimestamp = (
-          monthZeroIndexed: number,
-          day: number,
-        ) => {
-          const d = new Date();
-          d.setMonth(monthZeroIndexed);
-          d.setDate(day);
-          d.setHours(0, 0, 0, 0);
-          if (d.getTime() < Date.now()) {
-            d.setFullYear(d.getFullYear() + 1);
-          }
-          return d.getTime();
-        };
-
-        const complianceTasks = [
-          {
-            title: "Filing: GST GSTR-1 (Outward Supplies)",
-            description:
-              "Filing of details of outward supplies of goods or services for monthly taxpayers.",
-            dueDate: getNextDateOfMonthTimestamp(11),
-            tags: ["Compliance", "GST"],
-          },
-          {
-            title: "Filing: GST GSTR-3B (Summary Return)",
-            description:
-              "Monthly self-assessment return and payment of tax for GSTR-3B taxpayers.",
-            dueDate: getNextDateOfMonthTimestamp(20),
-            tags: ["Compliance", "GST"],
-          },
-          {
-            title: "Deposit: TDS/TCS Tax (Challan 281)",
-            description:
-              "Challan payment for TDS/TCS deducted in the preceding month.",
-            dueDate: getNextDateOfMonthTimestamp(7),
-            tags: ["Compliance", "IncomeTax"],
-          },
-          {
-            title: "Filing: Quarterly TDS Return (Form 24Q / 26Q)",
-            description:
-              "Filing of quarterly return of tax deducted at source for salaries and other payments.",
-            dueDate: getSpecificYearlyDateTimestamp(6, 31), // July 31
-            tags: ["Compliance", "IncomeTax"],
-          },
-          {
-            title: "Filing: Income Tax Return (ITR) (Individuals)",
-            description:
-              "Statutory deadline for individual taxpayers, HUFs, and non-audit firms to file annual returns.",
-            dueDate: getSpecificYearlyDateTimestamp(6, 31), // July 31
-            tags: ["Compliance", "IncomeTax"],
-          },
-          {
-            title: "Filing: ROC Annual Filing AOC-4",
-            description:
-              "Filing of Financial Statements with the Registrar of Companies (within 30 days of AGM).",
-            dueDate: getSpecificYearlyDateTimestamp(9, 30), // October 30
-            tags: ["Compliance", "Corporate"],
-          },
-        ];
-
-        for (const task of complianceTasks) {
-          const alreadyExists = todos.some(
-            (t) =>
-              !t.deletedAt &&
-              t.title.trim().toLowerCase() ===
-                task.title.trim().toLowerCase() &&
-              t.projectId === complianceProjectId,
-          );
-
-          if (!alreadyExists) {
-            await todoService.createTodo({
-              title: task.title,
-              description: task.description,
-              userId: auth.currentUser.uid,
-      metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
-              completed: false,
-              projectId: complianceProjectId,
-              priority: 1, // P1 (Urgent/High)
-              dueDate: task.dueDate,
-              tags: task.tags,
-              sectionName: null,
-            });
-          }
-        }
-
-        hasSyncedCompliance.current = true;
-      } catch (err) {
-        console.error("Failed to auto-sync compliance deadlines:", err);
-      }
-    };
-
-    if (projects.length > 0) {
-      syncComplianceDeadlines();
-    }
-  }, [loading, projects, todos]);
 
   // Load clients securely for task association
   useEffect(() => {
@@ -3851,6 +3722,75 @@ export default function WorkspaceApp() {
                   )}
 
                   {renderProjectList()}
+                </div>
+
+                {/* Compliance Calendar section */}
+                <div className="h-px bg-gray-200/60 my-4" />
+                <div className="mb-1">
+                  <div className="flex items-center justify-between px-2 text-gray-400 text-sm uppercase tracking-widest mb-2">
+                    <span>Compliance Calendar</span>
+                    <select
+                      value={complianceFilter}
+                      onChange={(e) => setComplianceFilter(e.target.value as any)}
+                      className="bg-transparent text-xs text-gray-500 outline-none cursor-pointer hover:text-gray-700 ml-2"
+                    >
+                      <option value="active">Active</option>
+                      <option value="overdue">Overdue</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                  <div className="space-y-0.5 px-2">
+                    {todos
+                      .filter((t) => {
+                         if (t.deletedAt || !t.title.toLowerCase().startsWith("compliance:")) return false;
+                         const isOverdue = t.dueDate && t.dueDate < Date.now();
+                         if (complianceFilter === 'completed') return t.completed;
+                         if (complianceFilter === 'overdue') return !t.completed && isOverdue;
+                         return !t.completed && !isOverdue; // active
+                      })
+                      .sort((a, b) => (a.dueDate || 0) - (b.dueDate || 0))
+                      .slice(0, 5)
+                      .map((t) => {
+                        let indicatorClass = "bg-blue-500";
+                        let textClass = "text-gray-500";
+                        if (t.completed) {
+                          indicatorClass = "bg-green-500";
+                          textClass = "text-green-600";
+                        } else if (t.dueDate && t.dueDate < Date.now()) {
+                          indicatorClass = "bg-red-500";
+                          textClass = "text-red-500 font-medium";
+                        } else if (t.dueDate && t.dueDate - Date.now() <= 3 * 24 * 60 * 60 * 1000) {
+                          indicatorClass = "bg-yellow-500";
+                          textClass = "text-yellow-600 font-medium";
+                        }
+                        
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => setSelectedComplianceTask(t)}
+                            className="w-full text-left flex flex-col p-2 rounded-lg hover:bg-gray-100 transition-colors border-l-4 border-transparent hover:border-gray-300"
+                            style={{ borderLeftColor: indicatorClass.replace('bg-', '').replace('-500', '') === 'red' ? '#ef4444' : indicatorClass.replace('bg-', '').replace('-500', '') === 'yellow' ? '#eab308' : indicatorClass.replace('bg-', '').replace('-500', '') === 'green' ? '#22c55e' : '#3b82f6' }}
+                          >
+                            <div className="flex items-center gap-1.5 w-full">
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${indicatorClass}`} />
+                              <span className="text-xs font-semibold text-gray-700 truncate flex-1">{t.title.replace("Compliance: ", "")}</span>
+                            </div>
+                            <span className={`text-[10px] pl-3.5 mt-0.5 ${textClass}`}>
+                              {t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'No date'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    {todos.filter((t) => {
+                         if (t.deletedAt || !t.title.toLowerCase().startsWith("compliance:")) return false;
+                         const isOverdue = t.dueDate && t.dueDate < Date.now();
+                         if (complianceFilter === 'completed') return t.completed;
+                         if (complianceFilter === 'overdue') return !t.completed && isOverdue;
+                         return !t.completed && !isOverdue;
+                      }).length === 0 && (
+                      <span className="text-xs text-gray-400 italic px-2">No {complianceFilter} deadlines</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Completed trash anchors */}
@@ -11677,6 +11617,76 @@ export default function WorkspaceApp() {
         onClose={() => setIsDailyStandupOpen(false)}
         tasks={todos}
       />
+      {/* Compliance Deadline Modal */}
+      <AnimatePresence>
+        {selectedComplianceTask && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
+                <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-indigo-500" />
+                  Compliance Deadline
+                </h3>
+                <button
+                  onClick={() => setSelectedComplianceTask(null)}
+                  className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 p-1.5 rounded-full transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <h4 className="font-bold text-lg text-gray-900">{selectedComplianceTask.title}</h4>
+                  <p className="text-sm text-gray-600 mt-1">{selectedComplianceTask.description || "No description provided."}</p>
+                </div>
+                
+                <div className="bg-orange-50 text-orange-800 p-3 rounded-lg border border-orange-100 flex items-center gap-3">
+                  <Clock className="w-5 h-5 text-orange-500 shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-orange-600">Due Date</span>
+                    <span className="font-bold">{selectedComplianceTask.dueDate ? new Date(selectedComplianceTask.dueDate).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "No specific date"}</span>
+                  </div>
+                </div>
+
+                {selectedComplianceTask.projectId && (
+                  <button
+                    onClick={() => {
+                      setSelectedProjectId(selectedComplianceTask.projectId);
+                      setViewMode("inbox");
+                      setSelectedComplianceTask(null);
+                    }}
+                    className="w-full mt-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+                  >
+                    <Folder className="w-4 h-4" />
+                    Open Project Folder
+                  </button>
+                )}
+                
+                <button
+                  onClick={() => {
+                    setSelectedTodoId(selectedComplianceTask.id);
+                    if (selectedComplianceTask.projectId) {
+                       setSelectedProjectId(selectedComplianceTask.projectId);
+                       setViewMode("inbox");
+                    }
+                    setSelectedComplianceTask(null);
+                  }}
+                  className="w-full mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition"
+                >
+                  <FileText className="w-4 h-4" />
+                  View Task Details
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
 
     </div>
   );
