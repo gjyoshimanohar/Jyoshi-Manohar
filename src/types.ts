@@ -155,7 +155,7 @@ export interface PaymentAccount {
 
 export interface FinanceRecord {
   id: string;
-  type: 'income' | 'expense' | 'transfer';
+  type: 'income' | 'expense' | 'transfer' | 'journal';
   category: string;
   amount: number;
   description: string;

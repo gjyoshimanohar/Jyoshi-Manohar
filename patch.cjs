@@ -1,14 +1,11 @@
 const fs = require('fs');
-let content = fs.readFileSync('src/pages/Admin.tsx', 'utf8');
-
+let content = fs.readFileSync('src/components/FinanceTracker.tsx', 'utf8');
 content = content.replace(
-  /\) : activeAdminTab === "resources" \? \(<ResourceManager \/>\) : \(/g,
-  ') : ('
+  'const [activeTab, setActiveTab] = useState<"dashboard"',
+  'const [glInitialSearch, setGlInitialSearch] = useState("");\n  const [activeTab, setActiveTab] = useState<"dashboard"'
 );
-
 content = content.replace(
-  /\) : \(\s*<FinanceTracker \/>/g,
-  ') : activeAdminTab === "resources" ? (<ResourceManager />) : (\n          <FinanceTracker />'
+  '<GeneralLedger allRecords={records} accounts={paymentAccounts} />',
+  '<GeneralLedger allRecords={records} accounts={paymentAccounts} defaultSearchTerm={glInitialSearch} />'
 );
-
-fs.writeFileSync('src/pages/Admin.tsx', content);
+fs.writeFileSync('src/components/FinanceTracker.tsx', content);

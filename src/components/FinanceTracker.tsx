@@ -195,6 +195,7 @@ export default function FinanceTracker() {
 
   // Filters
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const [glInitialSearch, setGlInitialSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"dashboard" | "incomes" | "expenses" | "transfers" | "advances" | "account" | "settings" | "receivables" | "payables" | "ai_insights" | "coa" | "ap_ar" | "gl" | "statements" | "reports">("dashboard");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [selectedMonth, setSelectedMonth] = useState<string>("All");
@@ -328,7 +329,7 @@ export default function FinanceTracker() {
   
   // Transaction Form fields
   const [formScope, setFormScope] = useState<"business" | "personal">("business");
-  const [formType, setFormType] = useState<"income" | "expense" | "transfer">("income");
+  const [formType, setFormType] = useState<"income" | "expense" | "transfer" | "journal">("income");
   const [formCategory, setFormCategory] = useState("");
   const [formAmount, setFormAmount] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -366,7 +367,7 @@ export default function FinanceTracker() {
 
   // Export Modal States
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportReportType, setExportReportType] = useState<"expenses" | "income" | "payable" | "receivables">("expenses");
+  const [exportReportType, setExportReportType] = useState<"expenses" | "income" | "payable" | "receivables" | "bankwise">("expenses");
   const [exportPeriod, setExportPeriod] = useState<"all" | "this_month" | "last_month" | "custom">("this_month");
   const [exportFormat, setExportFormat] = useState<"excel" | "pdf">("excel");
   const [exportStartDate, setExportStartDate] = useState("");
@@ -718,7 +719,22 @@ export default function FinanceTracker() {
   // Autofill Category default when formType or formScope changes
   useEffect(() => {
     if (!editingRecord) {
-      if (formType === "transfer") {
+      if (formType === "journal") {
+      if (!formTransferToAccountId) {
+        toast.error("Please select a Debit Account.");
+        return;
+      }
+      if (!formPaymentAccountId) {
+        toast.error("Please select a Credit Account.");
+        return;
+      }
+      if (formPaymentAccountId === formTransferToAccountId) {
+        toast.error("Debit and Credit accounts cannot be the same.");
+        return;
+      }
+    }
+
+    if (formType === "transfer") {
         setFormCategory("Internal Transfer");
       } else if (formScope === "business") {
         if (formType === "income") {
@@ -953,17 +969,17 @@ export default function FinanceTracker() {
 
     const transactionPayload = {
       type: formType,
-      category: formType === "transfer" ? "Internal Transfer" : formCategory,
+      category: formType === "transfer" ? "Internal Transfer" : formType === "journal" ? "Manual Journal" : formCategory,
       amount: parseFloat(formAmount),
       description: formDescription,
       date: formDate,
       status: formStatus,
-      clientName: formType === "transfer" ? "" : clientName,
-      clientId: formType === "transfer" ? "" : (formClientId || ""),
+      clientName: (formType === "transfer" || formType === "journal") ? "" : clientName,
+      clientId: (formType === "transfer" || formType === "journal") ? "" : (formClientId || ""),
       scope: formScope,
-      paymentMode: (formStatus === "paid" || formType === "transfer") ? formPaymentMode : "",
-      paymentAccountId: (formStatus === "paid" || formType === "transfer") ? formPaymentAccountId : "",
-      transferToAccountId: formType === "transfer" ? formTransferToAccountId : "",
+      paymentMode: (formStatus === "paid" || formType === "transfer" || formType === "journal") ? formPaymentMode : "",
+      paymentAccountId: (formStatus === "paid" || formType === "transfer" || formType === "journal") ? formPaymentAccountId : "",
+      transferToAccountId: (formType === "transfer" || formType === "journal") ? formTransferToAccountId : "",
       isReceivableFromClient: formIsReceivableFromClient
     };
 
@@ -1840,6 +1856,24 @@ export default function FinanceTracker() {
     });
   }, [records, selectedYear, selectedScope]);
 
+
+  const journalOptions = useMemo(() => {
+    return [
+      {
+        label: "Assets & Liabilities",
+        options: paymentAccounts.map(a => ({ value: a.id, label: a.name }))
+      },
+      {
+        label: "Income (Revenue)",
+        options: [...customCategories.businessIncome, ...customCategories.personalIncome].map(c => ({ value: `rev-${c}`, label: c }))
+      },
+      {
+        label: "Expenses",
+        options: [...customCategories.businessExpense, ...customCategories.personalExpense].map(c => ({ value: `exp-${c}`, label: c }))
+      }
+    ];
+  }, [paymentAccounts, customCategories]);
+
   // Category Breakdown for Pie Charts (Current Filters applied)
   const { incomeChartData, expenseChartData } = useMemo(() => {
     const incomeTotals: { [name: string]: number } = {};
@@ -1876,6 +1910,14 @@ export default function FinanceTracker() {
       recordsToExport = recordsToExport.filter(r => r.type === "expense" && r.status !== "paid");
     } else if (exportReportType === "receivables") {
       recordsToExport = recordsToExport.filter(r => r.type === "income" && r.status !== "paid");
+    } else if (exportReportType === "bankwise") {
+      recordsToExport = recordsToExport.filter(r => r.status === "paid" || r.type === "transfer");
+      recordsToExport.sort((a, b) => {
+        const accAName = paymentAccounts.find(acc => acc.id === a.paymentAccountId)?.name || "";
+        const accBName = paymentAccounts.find(acc => acc.id === b.paymentAccountId)?.name || "";
+        if (accAName !== accBName) return accAName.localeCompare(accBName);
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
     }
 
     // Filter by period
@@ -1947,6 +1989,27 @@ export default function FinanceTracker() {
     document.body.removeChild(link);
   };
 
+  
+  const handleExportAccountLedger = (acc: PaymentAccount) => {
+    let recordsToExport = records.filter(r => 
+      (r.paymentAccountId === acc.id || r.transferToAccountId === acc.id) && 
+      (r.status === 'paid' || r.type === 'transfer')
+    );
+    recordsToExport.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    if (recordsToExport.length === 0) {
+      toast.error("No transactions available to export for this account.");
+      return;
+    }
+    
+    // Ask user or default to Excel? Let's just use the existing export format logic.
+    if (exportFormat === "excel") {
+      handleExportExcel(recordsToExport);
+    } else {
+      handleExportPDF(recordsToExport);
+    }
+  };
+
   // Export Excel of Filtered Records
   const handleExportExcel = (recordsToExport: FinanceRecord[] = filteredRecords) => {
     if (recordsToExport.length === 0) {
@@ -1971,14 +2034,14 @@ export default function FinanceTracker() {
     </style></head><body>`;
 
     html += `<div class="header-title">CA JYOSHI MANOHAR - FINANCIAL LEDGER REGISTER</div>`;
-    html += `<div class="header-meta">Generated on ${new Date().toLocaleDateString()} | Filter: ${selectedMonth}/${selectedYear} | Total Records: ${filteredRecords.length}</div>`;
+    html += `<div class="header-meta">Generated on ${new Date().toLocaleDateString()} | Filter: ${selectedMonth}/${selectedYear} | Total Records: ${recordsToExport.length}</div>`;
     html += `<table><thead><tr>`;
     headers.forEach(h => {
       html += `<th>${h}</th>`;
     });
     html += `</tr></thead><tbody>`;
 
-    filteredRecords.forEach(rec => {
+    recordsToExport.forEach(rec => {
       const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "";
       const destAcc = paymentAccounts.find(a => a.id === rec.transferToAccountId)?.name || "";
       const typeStyle = rec.type === "income" ? "type-income" : rec.type === "expense" ? "type-expense" : "type-transfer";
@@ -2028,7 +2091,7 @@ export default function FinanceTracker() {
     let totalIncome = 0;
     let totalExpense = 0;
 
-    filteredRecords.forEach(rec => {
+    recordsToExport.forEach(rec => {
       if (rec.type === "income" && rec.category !== "Internal Transfer") totalIncome += Number(rec.amount);
       if (rec.type === "expense" && rec.category !== "Internal Transfer") totalExpense += Number(rec.amount);
 
@@ -3349,7 +3412,7 @@ export default function FinanceTracker() {
                       const typeInfo = getAccountTypeInfo(acc.type);
                       const IconComp = typeInfo.icon;
                       return (
-                        <div key={acc.id} className="border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs">
+                        <div key={acc.id} onClick={() => { setGlInitialSearch(acc.name); setActiveTab("gl"); }} className="cursor-pointer border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs hover:shadow-md">
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
@@ -3365,14 +3428,21 @@ export default function FinanceTracker() {
                               {acc.id !== 'virtual_pending_reimbursements' && (
                                 <>
                                   <button
-                                    onClick={() => handleOpenEditAccountModal(acc)}
+                                    onClick={(e) => { e.stopPropagation(); handleOpenEditAccountModal(acc); }}
                                     className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                     title="Edit asset account"
                                   >
                                     <Edit3 className="w-4 h-4" />
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                                    onClick={(e) => { e.stopPropagation(); handleExportAccountLedger(acc); }}
+                                    className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
+                                    title="Export Ledger"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id, acc.name); }}
                                     className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                     title="Delete asset account"
                                   >
@@ -3439,7 +3509,7 @@ export default function FinanceTracker() {
                       const outstandingDebt = -b.current;
 
                       return (
-                        <div key={acc.id} className="border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs">
+                        <div key={acc.id} onClick={() => { setGlInitialSearch(acc.name); setActiveTab("gl"); }} className="cursor-pointer border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs hover:shadow-md">
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
@@ -3453,14 +3523,21 @@ export default function FinanceTracker() {
                             
                             <div className="flex items-center gap-1.5 opacity-100 transition-all">
                               <button
-                                onClick={() => handleOpenEditAccountModal(acc)}
+                                onClick={(e) => { e.stopPropagation(); handleOpenEditAccountModal(acc); }}
                                 className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                 title="Edit liability account"
                               >
                                 <Edit3 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDeleteAccount(acc.id, acc.name)}
+                                onClick={(e) => { e.stopPropagation(); handleExportAccountLedger(acc); }}
+                                className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
+                                title="Export Ledger"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteAccount(acc.id, acc.name); }}
                                 className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                 title="Delete liability"
                               >
@@ -3480,7 +3557,7 @@ export default function FinanceTracker() {
                             {acc.type === 'credit_card' && (
                               <div className="flex gap-2">
                                 <button
-                                  onClick={() => handleAdjustCcBalance(acc, outstandingDebt)}
+                                  onClick={(e) => { e.stopPropagation(); handleAdjustCcBalance(acc, outstandingDebt); }}
                                   className="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 transition-colors shadow-sm"
                                   title="Adjust Balance"
                                 >
@@ -4145,7 +4222,7 @@ export default function FinanceTracker() {
 
       {activeTab === "coa" && <ChartOfAccounts allRecords={records} filteredRecords={filteredRecords} accounts={paymentAccounts} />}
       {activeTab === "ap_ar" && <APARDashboard records={records} />}
-      {activeTab === "gl" && <GeneralLedger allRecords={records} accounts={paymentAccounts} />}
+      {activeTab === "gl" && <GeneralLedger allRecords={records} accounts={paymentAccounts} defaultSearchTerm={glInitialSearch} />}
       {activeTab === "statements" && <StatementsTab />}
 
       {activeTab === "reports" && <FinancialReports records={records} accounts={paymentAccounts} />}
@@ -4612,6 +4689,7 @@ export default function FinanceTracker() {
                       { value: "income", label: "Income" },
                       { value: "payable", label: "Payables" },
                       { value: "receivables", label: "Receivables" },
+                      { value: "bankwise", label: "Bankwise Transactions" },
                     ]}
                   />
                 </div>
@@ -5431,6 +5509,18 @@ export default function FinanceTracker() {
                   <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />
                   <span>Transfer</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setFormType("journal")}
+                  className={`py-2.5 rounded-lg text-xs font-bold transition-all text-center flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
+                    formType === "journal"
+                      ? "bg-white text-indigo-700 shadow-sm border border-slate-100"
+                      : "text-slate-600 hover:text-primary"
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Journal Entry</span>
+                </button>
               </div>
 
               {/* Amount and Date */}
@@ -5469,15 +5559,15 @@ export default function FinanceTracker() {
               </div>
 
               {/* Category and Status */}
-              {formType === "transfer" ? (
+              {(formType === "transfer" || formType === "journal") ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                      Account Category
+                      {formType === "journal" ? "Journal Entry" : "Account Category"}
                     </label>
                     <div className="w-full bg-slate-100 border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-500 flex items-center gap-1.5">
-                      <ArrowLeftRight className="w-4 h-4 text-slate-400" />
-                      <span>Internal Transfer</span>
+                      <FileSpreadsheet className="w-4 h-4 text-slate-400" />
+                      <span>{formType === "journal" ? "Manual Journal" : "Internal Transfer"}</span>
                     </div>
                   </div>
 
@@ -5612,40 +5702,41 @@ export default function FinanceTracker() {
               )}
 
               {/* Payment Mode and Source Account / Transfer Route */}
-              {formType === "transfer" ? (
-                <div className="bg-blue-50/40 border border-blue-100 p-4 rounded-xl space-y-4">
-                  <div className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
-                    <ArrowLeftRight className="w-4 h-4 text-blue-600" />
-                    <span>Configure Transfer Route</span>
+              {(formType === "transfer" || formType === "journal") ? (
+                <div className={`${formType === "journal" ? "bg-indigo-50/40 border-indigo-100" : "bg-blue-50/40 border-blue-100"} border p-4 rounded-xl space-y-4`}>
+                  <div className={`text-xs font-bold flex items-center gap-1.5 ${formType === "journal" ? "text-indigo-800" : "text-blue-800"}`}>
+                    {formType === "journal" ? <FileSpreadsheet className="w-4 h-4 text-indigo-600" /> : <ArrowLeftRight className="w-4 h-4 text-blue-600" />}
+                    <span>{formType === "journal" ? "Journal Entry (Double Entry)" : "Configure Transfer Route"}</span>
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                        Source Account (From) *
+                        {formType === "journal" ? "Credit (Cr) Account *" : "Source Account (From) *"}
                       </label>
                       <CustomSelect
               value={formPaymentAccountId}
               onChange={setFormPaymentAccountId}
               placeholder="Select account"
               className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
-              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
+              options={formType === "journal" ? journalOptions : paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements').map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
             />
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
-                        Destination Account (To) *
+                        {formType === "journal" ? "Debit (Dr) Account *" : "Destination Account (To) *"}
                       </label>
                       <CustomSelect
               value={formTransferToAccountId}
               onChange={setFormTransferToAccountId}
               placeholder="Select destination account"
               className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-semibold text-primary hover:border-slate-300 hover:shadow-sm"
-              options={paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements' && a.id !== formPaymentAccountId).map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
+              options={formType === "journal" ? journalOptions : paymentAccounts.filter(a => a.id !== 'virtual_pending_reimbursements' && a.id !== formPaymentAccountId).map(a => ({ value: a.id, label: `${a.name} (₹${(accountBalances[a.id]?.current ?? a.openingBalance).toLocaleString("en-IN")})` }))}
             />
                     </div>
                   </div>
 
+                  {formType === "transfer" && (
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">
                       Transfer Payment Mode *
@@ -5664,6 +5755,7 @@ export default function FinanceTracker() {
               ]}
             />
                   </div>
+                  )}
                 </div>
               ) : formStatus === "paid" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
