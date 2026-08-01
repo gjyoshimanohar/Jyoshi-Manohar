@@ -1,4 +1,9 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+const fs = require('fs');
+const file = 'src/components/CustomSelect.tsx';
+let code = fs.readFileSync(file, 'utf8');
+
+// We will rewrite CustomSelect.tsx to support searching
+const newCode = `import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Search } from 'lucide-react';
 import { useClickOutside } from '../hooks/useClickOutside';
@@ -67,7 +72,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
   }, [options, searchTerm, searchable]);
 
   return (
-    <div className={`relative ${className}`} ref={dropdownRef} style={{ zIndex: isOpen ? 50 : undefined }}>
+    <div className={\`relative \${className}\`} ref={dropdownRef} style={{ zIndex: isOpen ? 50 : undefined }}>
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -106,7 +111,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
         ) : (
           <span className="block truncate select-none">{displayLabel || value}</span>
         )}
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-300 ml-2 ${isOpen ? 'rotate-180 text-primary' : 'text-slate-400'}`} />
+        <ChevronDown className={\`h-4 w-4 shrink-0 transition-transform duration-300 ml-2 \${isOpen ? 'rotate-180 text-primary' : 'text-slate-400'}\`} />
       </div>
 
       <AnimatePresence>
@@ -116,7 +121,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
              animate={{ opacity: 1, y: 0, scale: 1 }} 
              exit={{ opacity: 0, y: openUp ? 4 : -4, scale: 0.96 }} 
              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }} 
-             className={`absolute z-50 w-full min-w-max bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)] border border-slate-100/80 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5 ${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+             className={\`absolute z-50 w-full min-w-max bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)] border border-slate-100/80 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5 \${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}\`}
           >
             <div className="space-y-0.5">
               {filteredOptions.length === 0 ? (
@@ -131,7 +136,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
                           const optValue = getValue(subOpt);
                           const optLabel = getLabel(subOpt);
                           return (
-                            <button key={`${optValue}-${subIndex}`} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block ${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}`}>
+                            <button key={\`\${optValue}-\${subIndex}\`} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={\`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block \${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}\`}>
                               {optLabel}
                             </button>
                           );
@@ -143,7 +148,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
                   const optValue = getValue(option as string | SelectOption);
                   const optLabel = getLabel(option as string | SelectOption);
                   return (
-                    <button key={`${optValue}-${index}`} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block ${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}`}>
+                    <button key={\`\${optValue}-\${index}\`} type="button" onClick={(e) => { e.stopPropagation(); onChange(optValue); setIsOpen(false); }} className={\`w-full px-3 py-2 text-sm text-left font-medium transition-colors rounded-lg block \${value === optValue ? 'text-primary bg-primary/5' : 'text-slate-700 hover:bg-slate-50 hover:text-primary'}\`}>
                       {optLabel}
                     </button>
                   );
@@ -156,3 +161,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
     </div>
   );
 }
+`;
+
+fs.writeFileSync(file, newCode);
+console.log('Patched CustomSelect');

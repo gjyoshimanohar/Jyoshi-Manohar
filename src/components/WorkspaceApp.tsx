@@ -3729,15 +3729,16 @@ export default function WorkspaceApp() {
                 <div className="mb-1">
                   <div className="flex items-center justify-between px-2 text-gray-400 text-sm uppercase tracking-widest mb-2">
                     <span>Compliance Calendar</span>
-                    <select
+                    <CustomSelect
                       value={complianceFilter}
-                      onChange={(e) => setComplianceFilter(e.target.value as any)}
-                      className="bg-transparent text-xs text-gray-500 outline-none cursor-pointer hover:text-gray-700 ml-2"
-                    >
-                      <option value="active">Active</option>
-                      <option value="overdue">Overdue</option>
-                      <option value="completed">Completed</option>
-                    </select>
+                      onChange={(val) => setComplianceFilter(val as any)}
+                      options={[
+                        { value: 'active', label: 'Active' },
+                        { value: 'overdue', label: 'Overdue' },
+                        { value: 'completed', label: 'Completed' }
+                      ]}
+                      className="bg-transparent border-none text-xs text-gray-500 ml-2 w-28 focus-within:ring-0"
+                    />
                   </div>
                   <div className="space-y-0.5 px-2">
                     {todos
@@ -4650,21 +4651,27 @@ export default function WorkspaceApp() {
                                       <div className="grid grid-cols-2 gap-2 pt-1">
                                         <div>
                                           <span className="text-[10px] font-bold text-slate-400 block mb-0.5">START DATE</span>
-                                          <input
-                                            type="date"
-                                            value={customStartDate}
-                                            onChange={(e) => setCustomStartDate(e.target.value)}
-                                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                          />
+                                          <div className="relative">
+      <input
+        type="date"
+        value={customStartDate}
+        onChange={(e) => setCustomStartDate(e.target.value)}
+        className="w-full pl-7 pr-2 py-1 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+      />
+      <Calendar className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+   </div>
                                         </div>
                                         <div>
                                           <span className="text-[10px] font-bold text-slate-400 block mb-0.5">END DATE</span>
-                                          <input
-                                            type="date"
-                                            value={customEndDate}
-                                            onChange={(e) => setCustomEndDate(e.target.value)}
-                                            className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                          />
+                                          <div className="relative">
+      <input
+        type="date"
+        value={customEndDate}
+        onChange={(e) => setCustomEndDate(e.target.value)}
+        className="w-full pl-7 pr-2 py-1 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+      />
+      <Calendar className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+   </div>
                                         </div>
                                       </div>
                                     )}

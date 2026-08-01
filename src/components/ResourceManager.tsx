@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Resource } from '../types';
 import { resourceService } from '../services/resourceService';
 import { Plus, Trash2, Save, X, Edit, Loader2, Download } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 import toast from 'react-hot-toast';
 
 export default function ResourceManager() {
@@ -121,16 +122,17 @@ export default function ResourceManager() {
                 <label className="block text-xs uppercase tracking-widest text-slate-700 font-bold mb-2">
                   Resource Type *
                 </label>
-                <select
-                  required
+                <CustomSelect
                   value={editingResource.type || "whitepaper"}
-                  onChange={(e) => setEditingResource({ ...editingResource, type: e.target.value as any })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-900 focus:ring-2 focus:ring-primary outline-none"
-                >
-                  <option value="whitepaper">Whitepaper</option>
-                  <option value="report">Report</option>
-                  <option value="guide">Guide</option>
-                </select>
+                  onChange={(val) => setEditingResource({ ...editingResource, type: val as any })}
+                  options={[
+                    { value: 'whitepaper', label: 'Whitepaper' },
+                    { value: 'report', label: 'Report' },
+                    { value: 'guide', label: 'Guide' }
+                  ]}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-900 focus-within:ring-2 focus-within:ring-primary h-[46px]"
+                  
+                />
               </div>
 
               <div className="md:col-span-2">

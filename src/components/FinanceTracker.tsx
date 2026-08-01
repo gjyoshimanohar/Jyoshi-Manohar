@@ -5159,12 +5159,15 @@ export default function FinanceTracker() {
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Due Date
                   </label>
-                  <input
-                    type="date"
-                    value={addCcBillDueDate}
-                    onChange={(e) => setAddCcBillDueDate(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:border-primary transition shadow-sm"
-                  />
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={addCcBillDueDate}
+                      onChange={(e) => setAddCcBillDueDate(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-primary outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
+                    />
+                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
                 
                 <label className="flex items-start gap-3 p-3 mt-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">

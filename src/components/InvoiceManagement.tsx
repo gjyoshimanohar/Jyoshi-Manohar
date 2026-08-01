@@ -2700,24 +2700,30 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Issue Date</label>
-                  <input 
-                    type="date"
-                    required
-                    value={issueDate}
-                    onChange={(e) => setIssueDate(e.target.value)}
-                    className="w-full border border-slate-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#1a2b58]"
-                  />
+                  <div className="relative">
+                    <input 
+                      type="date"
+                      required
+                      value={issueDate}
+                      onChange={(e) => setIssueDate(e.target.value)}
+                      className="w-full border border-slate-200 pl-9 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/20 focus:border-[#1a2b58]"
+                    />
+                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Due Date</label>
-                  <input 
-                    type="date"
-                    required
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full border border-slate-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-[#1a2b58]"
-                  />
+                  <div className="relative">
+                    <input 
+                      type="date"
+                      required
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full border border-slate-200 pl-9 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/20 focus:border-[#1a2b58]"
+                    />
+                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                   
                 </div>
               </div>

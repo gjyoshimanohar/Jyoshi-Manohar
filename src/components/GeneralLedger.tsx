@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import React, { useMemo, useState } from 'react';
 import { FinanceRecord, PaymentAccount } from '../types';
 import { FileSpreadsheet, Search, Filter, Calendar, Download } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -447,17 +448,19 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
 
           <div className="flex items-center gap-2 flex-1 sm:flex-none">
             <Filter className="w-4 h-4 text-slate-400 hidden sm:block" />
-            <select
+            <CustomSelect
               value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value as any)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-indigo-500 outline-none w-full"
-            >
-              <option value="All">All Types</option>
-              <option value="Asset">Assets</option>
-              <option value="Liability">Liabilities</option>
-              <option value="Revenue">Revenue</option>
-              <option value="Expense">Expenses</option>
-            </select>
+              onChange={(val) => setSelectedType(val as any)}
+              options={[
+                { value: 'All', label: 'All Types' },
+                { value: 'Asset', label: 'Assets' },
+                { value: 'Liability', label: 'Liabilities' },
+                { value: 'Revenue', label: 'Revenue' },
+                { value: 'Expense', label: 'Expenses' }
+              ]}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-[9px] text-sm focus-within:border-primary w-full sm:w-40"
+              
+            />
           </div>
         </div>
       </div>
@@ -613,22 +616,28 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Export Filters (Date Range)</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      value={exportStartDate}
-                      onChange={(e) => setExportStartDate(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                    />
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Start Date</label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={exportStartDate}
+                        onChange={(e) => setExportStartDate(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                      />
+                      <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">End Date</label>
-                    <input
-                      type="date"
-                      value={exportEndDate}
-                      onChange={(e) => setExportEndDate(e.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                    />
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">End Date</label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={exportEndDate}
+                        onChange={(e) => setExportEndDate(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                      />
+                      <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2">Leave blank to export all available records.</p>
