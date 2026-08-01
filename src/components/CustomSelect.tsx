@@ -172,7 +172,7 @@ export default function CustomSelect({ options, value, onChange, className = '',
              animate={{ opacity: 1, y: 0, scale: 1 }} 
              exit={{ opacity: 0, y: openUp ? 4 : -4, scale: 0.96 }} 
              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }} 
-             className={`absolute z-50 w-full min-w-full bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)] border border-slate-100/80 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5 ${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+             className={`absolute z-50 min-w-[200px] w-max max-w-[340px] bg-white rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.12)] border border-slate-100/80 overflow-hidden max-h-60 overflow-y-auto left-0 p-1.5 ${openUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
           >
             <div className="space-y-0.5">
               {filteredOptions.length === 0 ? (

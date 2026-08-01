@@ -4140,7 +4140,7 @@ Stewardship, Accuracy, Legacy.
                         label: c.displayName || c.email,
                       })),
                     ]}
-                    className={`bg-transparent ${selectedClientId ? "text-amber-300" : "text-slate-300"} font-semibold outline-none border-none py-1 px-2 rounded-lg cursor-pointer transition-colors w-auto min-w-0`}
+                    className={`bg-transparent ${selectedClientId ? "text-amber-300" : "text-slate-300"} font-semibold outline-none border-none py-1 px-2 rounded-lg cursor-pointer transition-colors w-auto min-w-[150px] sm:min-w-[200px]`}
                   />
                   {selectedClientId && (
                     <button
