@@ -478,7 +478,7 @@ export default function InteractiveTools() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.25 }}
-              className="p-6 md:p-10 lg:p-12"
+              className="p-4 sm:p-5 md:p-10 lg:p-12"
             >
               
               {/* --- TAB 1: TAX & GST ESTIMATOR --- */}
@@ -513,9 +513,9 @@ export default function InteractiveTools() {
                   </div>
 
                   {calcType === 'income' ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:p-4 sm:p-5 lg:gap-12">
                       {/* Inputs Column */}
-                      <div className="lg:col-span-5 space-y-5 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                      <div className="lg:col-span-5 space-y-5 bg-slate-50/50 p-4 sm:p-5 rounded-2xl border border-slate-100">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
                           <span>Financial Parameters</span>
                           <span className="text-[10px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded font-bold">FY 2026-27</span>
@@ -637,7 +637,7 @@ export default function InteractiveTools() {
                         )}
 
                         {/* Breakdown tables side-by-side */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-100 pt-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:p-5 border-t border-slate-100 pt-6">
                           <div>
                             <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Old Regime Breakdown</h5>
                             <div className="space-y-2 text-xs">
@@ -672,9 +672,9 @@ export default function InteractiveTools() {
                     </div>
                   ) : (
                     /* GST CALCULATOR */
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:p-4 sm:p-5 lg:gap-12">
                       {/* Inputs */}
-                      <div className="lg:col-span-5 space-y-5 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                      <div className="lg:col-span-5 space-y-5 bg-slate-50/50 p-4 sm:p-5 rounded-2xl border border-slate-100">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Transaction Values</h4>
                         
                         <div>
@@ -760,7 +760,7 @@ export default function InteractiveTools() {
                       </div>
 
                       {/* Display Receipt Results */}
-                      <div className="lg:col-span-7 flex flex-col justify-between bg-slate-50/20 border border-slate-200/60 rounded-2xl p-6 md:p-8">
+                      <div className="lg:col-span-7 flex flex-col justify-between bg-slate-50/20 border border-slate-200/60 rounded-2xl p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5">
                         <div className="space-y-6">
                           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-3">Filing & Invoice Summary</h4>
                           
@@ -849,7 +849,7 @@ export default function InteractiveTools() {
                   </div>
 
                   {/* Timeline Cards Container */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:p-5">
                     {deadlines
                       .filter(d => selectedDeadlineCategory === 'All' || d.category === selectedDeadlineCategory)
                       .map((deadline) => {
@@ -857,7 +857,7 @@ export default function InteractiveTools() {
                         return (
                           <div 
                             key={deadline.id}
-                            className="bg-white border border-slate-200 p-8 lg:p-10 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_12px_40px_rgba(49,80,160,0.25)] transition-all duration-500 hover:-translate-y-2 hover:scale-[1.02] relative overflow-hidden group flex flex-col justify-between min-h-[240px]"
+                            className="bg-white border border-slate-200 p-5 sm:p-4 sm:p-5 lg:p-10 rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] hover:shadow-[0_12px_40px_rgba(49,80,160,0.25)] transition-all duration-500 hover:-translate-y-2 hover:scale-[1.02] relative overflow-hidden group flex flex-col justify-between min-h-[240px]"
                           >
                             <div>
                               {/* Header tags */}
@@ -941,7 +941,7 @@ export default function InteractiveTools() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:p-4 sm:p-5 lg:gap-12">
                     {/* Check items list */}
                     <div className="lg:col-span-7 space-y-3">
                       {currentChecklist.items.map((item) => {
@@ -987,7 +987,7 @@ export default function InteractiveTools() {
                     </div>
 
                     {/* Progress Panel */}
-                    <div className="lg:col-span-5 bg-slate-50 border border-slate-200/60 rounded-2xl p-6 md:p-8 flex flex-col justify-between">
+                    <div className="lg:col-span-5 bg-slate-50 border border-slate-200/60 rounded-2xl p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 flex flex-col justify-between">
                       <div className="space-y-6">
                         <div className="text-center">
                           <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Completion Status</span>

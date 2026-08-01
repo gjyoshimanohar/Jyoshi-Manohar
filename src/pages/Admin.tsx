@@ -233,7 +233,7 @@ export default function Admin() {
 
   if (!user) {
     return (
-      <div className="min-h-screen pt-32 pb-24 bg-accent flex items-center justify-center">
+      <div className="min-h-screen pt-24 pb-12 bg-accent flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -317,12 +317,12 @@ export default function Admin() {
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
       <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
       <main className="pt-32 pb-24 bg-accent min-h-screen text-left">
-      <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
+      <div className="w-full px-2 sm:px-4 md:px-6 lg:px-8">
         <Breadcrumb items={[
           { label: 'Home', to: '/' },
           { label: 'Admin Panel' }
         ]} />
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:p-5 mb-8">
           <div>
             <p className="text-primary font-medium tracking-widest capitalize text-base mb-6">
               Control Center
@@ -430,7 +430,7 @@ export default function Admin() {
             <motion.div
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white p-8 md:p-12 border border-border mb-12"
+              className="bg-white p-5 sm:p-4 sm:p-5 md:p-12 border border-border mb-12"
             >
               <div className="flex justify-between items-center mb-10">
                 <h2 className="text-2xl text-primary">
@@ -445,7 +445,7 @@ export default function Admin() {
                 </button>
               </div>
               <form onSubmit={handleSave} className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:p-4 sm:p-5">
                   <div>
                     <label className="block text-xs uppercase tracking-widest text-black mb-3">
                       Post Title
@@ -483,7 +483,7 @@ export default function Admin() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:p-4 sm:p-5">
                   <div className="space-y-8">
                     <div>
                       <label className="block text-xs uppercase tracking-widest text-black mb-3">
@@ -644,7 +644,7 @@ export default function Admin() {
                 posts.map((post) => (
                   <div
                     key={post.id}
-                    className="p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-slate-50 transition-colors"
+                    className="p-5 sm:p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:p-5 hover:bg-slate-50 transition-colors"
                   >
                     <div className="max-w-2xl">
                       <div className="flex items-center space-x-3 mb-2">

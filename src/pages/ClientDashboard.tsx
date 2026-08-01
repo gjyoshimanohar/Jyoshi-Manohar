@@ -3719,7 +3719,7 @@ Stewardship, Accuracy, Legacy.
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="bg-white border border-slate-100/60 shadow-2xl p-8 sm:p-12 rounded-3xl"
+            className="bg-white border border-slate-100/60 shadow-2xl p-4 sm:p-5 sm:p-5 sm:p-4 sm:p-5 rounded-3xl"
           >
             {/* Header */}
             <div className="text-center mb-8">
@@ -3873,8 +3873,8 @@ Stewardship, Accuracy, Legacy.
         onClose={() => setShowProfileModal(false)}
         isAdmin={isAdmin}
       />
-      <main className="min-h-screen pt-28 pb-20 bg-[#FDFDFD]">
-        <div className="w-[98%] mx-auto px-2 sm:px-4 lg:px-6">
+      <main className="min-h-screen pt-24 pb-12 bg-[#FDFDFD]">
+        <div className="w-full px-2 sm:px-4 md:px-6 lg:px-8">
           <Breadcrumb items={[
             { label: 'Home', to: '/' },
             { label: 'Portal' }
@@ -3899,7 +3899,7 @@ Stewardship, Accuracy, Legacy.
           </AnimatePresence>
 
           {/* Dashboard Title Ribbon */}
-          <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-30">
+          <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-30">
             <div className="flex items-start gap-4">
               <div>
                 <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary text-[10px] uppercase font-bold tracking-widest rounded-full w-fit border border-primary/10">
@@ -3980,7 +3980,7 @@ Stewardship, Accuracy, Legacy.
 
                         <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
                           {notifications.length === 0 ? (
-                            <div className="p-8 text-center flex flex-col items-center justify-center gap-2 bg-white">
+                            <div className="p-5 sm:p-4 sm:p-5 text-center flex flex-col items-center justify-center gap-2 bg-white">
                               <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
                                 <Bell className="h-5 w-5" />
                               </div>
@@ -4104,9 +4104,10 @@ Stewardship, Accuracy, Legacy.
                 />
               </div>
               {isAdmin && (
-                <div
-                  className={`relative z-[60] flex items-center gap-2 bg-primary text-white px-3 py-1.5 rounded-xl text-sm font-sans tracking-normal shadow-md animate-in fade-in slide-in-from-right-2 duration-300 border border-primary/20 ${!selectedClientId ? "opacity-80" : ""}`}
-                >
+                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                  <div
+                    className={`relative z-10 flex items-center gap-2 bg-primary text-white px-3 py-1.5 rounded-xl text-sm font-sans tracking-normal shadow-md animate-in fade-in slide-in-from-right-2 duration-300 border border-primary/20 ${!selectedClientId ? "opacity-100" : ""}`}
+                  >
                   <span className="relative flex h-2 w-2 shrink-0">
                     {selectedClientId ? (
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -4139,7 +4140,7 @@ Stewardship, Accuracy, Legacy.
                         label: c.displayName || c.email,
                       })),
                     ]}
-                    className={`bg-transparent ${selectedClientId ? "text-amber-300" : "text-slate-300"} font-semibold outline-none border-none py-1 px-2 rounded-lg cursor-pointer transition-colors w-40 min-w-[150px]`}
+                    className={`bg-transparent ${selectedClientId ? "text-amber-300" : "text-slate-300"} font-semibold outline-none border-none py-1 px-2 rounded-lg cursor-pointer transition-colors w-auto min-w-0`}
                   />
                   {selectedClientId && (
                     <button
@@ -4155,11 +4156,9 @@ Stewardship, Accuracy, Legacy.
                     </button>
                   )}
                 </div>
-              )}
-
               {/* Operations Console Dropdown */}
-              {isAdmin && (
-                <div className="relative w-full sm:w-auto mt-2 flex justify-end">
+              {/* Operations Console Dropdown */}
+                <div className="relative w-full sm:w-fit flex justify-end">
                   <button
                     type="button"
                     onClick={() => setIsOpsDropdownOpen(!isOpsDropdownOpen)}
@@ -4172,12 +4171,12 @@ Stewardship, Accuracy, Legacy.
                   {isOpsDropdownOpen && (
                     <>
                       <div
-                        className="fixed inset-0 z-40 bg-transparent"
+                        className="fixed inset-0 z-[80] bg-transparent"
                         onClick={() => setIsOpsDropdownOpen(false)}
                       />
-                      <div className="absolute right-0 mt-3 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 animate-in fade-in slide-in-from-top-3 duration-200 text-left">
-                        <div className="p-4 bg-slate-50 border-b border-slate-100">
-                          <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                      <div className="absolute right-0 mt-3 w-full min-w-full bg-white border border-slate-200 rounded-2xl shadow-xl z-[90] overflow-hidden divide-y divide-slate-100 animate-in fade-in slide-in-from-top-3 duration-200 text-left">
+                        <div className="p-3 bg-slate-50 border-b border-slate-100">
+                          <span className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wider block truncate">
                             Operations Console
                           </span>
                         </div>
@@ -4196,39 +4195,36 @@ Stewardship, Accuracy, Legacy.
                               setShowAddNewClientModal(true);
                               setIsOpsDropdownOpen(false);
                             }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-secondary rounded-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap truncate"
                           >
-                            <Users className="h-3.5 w-3.5" /> Add New Client
+                            <Users className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Add New Client</span>
                           </button>
                           <button
                             onClick={() => {
                               setOpsModalType("app");
                               setIsOpsDropdownOpen(false);
                             }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-secondary rounded-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap truncate"
                           >
-                            <Briefcase className="h-3.5 w-3.5" /> Push Service
-                            Engagement
+                            <Briefcase className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Push Service Engagement</span>
                           </button>
                           <button
                             onClick={() => {
                               setOpsModalType("doc");
                               setIsOpsDropdownOpen(false);
                             }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-secondary rounded-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap truncate"
                           >
-                            <FileText className="h-3.5 w-3.5" /> Deliver Legal
-                            Document
+                            <FileText className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Deliver Legal Document</span>
                           </button>
                           <button
                             onClick={() => {
                               setOpsModalType("filing");
                               setIsOpsDropdownOpen(false);
                             }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-secondary rounded-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap truncate"
                           >
-                            <Calendar className="h-3.5 w-3.5" /> Push Compliance
-                            Calendar
+                            <Calendar className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Push Compliance Calendar</span>
                           </button>
                           <button
                             onClick={() => {
@@ -4238,14 +4234,15 @@ Stewardship, Accuracy, Legacy.
                                 window.dispatchEvent(new CustomEvent('OPEN_CREATE_INVOICE'));
                               }, 150);
                             }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-primary/5 hover:text-primary rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-secondary rounded-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap truncate"
                           >
-                            <CreditCard className="h-3.5 w-3.5" /> Generate Invoice
+                            <CreditCard className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Generate Invoice</span>
                           </button>
                         </div>
                       </div>
                     </>
                   )}
+                </div>
                 </div>
               )}
             </div>
@@ -4253,7 +4250,7 @@ Stewardship, Accuracy, Legacy.
 
           {/* Grid and Tabs layout */}
           <div
-            className={`flex flex-col lg:flex-row gap-8 transition-all duration-300 items-start`}
+            className={`flex flex-col lg:flex-row gap-5 sm:p-4 sm:p-5 transition-all duration-300 items-start`}
           >
             {/* Navigation drawer rail (Desktop) */}
             <div
@@ -4589,7 +4586,7 @@ Stewardship, Accuracy, Legacy.
               {/* CLIENT REQUESTS TAB */}
               {activeTab === "requests" && isAdmin && (
                 <div className="space-y-6">
-                  <div className="flex items-start gap-4 bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm relative overflow-hidden">
+                  <div className="flex items-start gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm relative overflow-hidden">
                     <div className="absolute right-0 top-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl -z-1" />
                     <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
                       <Clock className="h-6 w-6 text-amber-600" />
@@ -4930,7 +4927,7 @@ Stewardship, Accuracy, Legacy.
               {activeTab === "portal-dashboard" && isAdmin && (
                 <div className="space-y-6">
                   {/* Header card */}
-                  <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
+                  <div className="bg-white p-4 sm:p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
                     <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -z-1" />
                     <div className="flex items-start gap-4">
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/60">
@@ -4956,11 +4953,11 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* KPI Metrics bento grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:p-5">
                     {/* KPI 1 */}
                     <div
                       onClick={() => setActiveTab("clients")}
-                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-4 sm:p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
                       <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
                         <Users className="h-24 w-24" />
@@ -4997,7 +4994,7 @@ Stewardship, Accuracy, Legacy.
                     {/* KPI 2 */}
                     <div
                       onClick={() => setActiveTab("admin")}
-                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-4 sm:p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
                       <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
                         <Bell className="h-24 w-24" />
@@ -5027,7 +5024,7 @@ Stewardship, Accuracy, Legacy.
                     {/* KPI 3 */}
                     <div
                       onClick={() => setActiveTab("applications")}
-                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-4 sm:p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
                       <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
                         <Briefcase className="h-24 w-24" />
@@ -5054,7 +5051,7 @@ Stewardship, Accuracy, Legacy.
                     {/* KPI 4 */}
                     <div
                       onClick={() => setActiveTab("compliance")}
-                      className="bg-white border border-slate-100/80 rounded-[24px] p-6 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
+                      className="bg-white border border-slate-100/80 rounded-[24px] p-4 sm:p-5 sm:p-7 shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:border-slate-200 hover:shadow-[0_20px_40px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300 cursor-pointer text-left relative overflow-hidden group"
                     >
                       <div className="absolute -right-3 -bottom-3 text-slate-200/40 opacity-40 group-hover:scale-105 transition-all duration-300 pointer-events-none">
                         <Calendar className="h-24 w-24" />
@@ -5080,7 +5077,7 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* TIME REPORTS SECTION */}
-                  <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm text-left relative overflow-hidden group">
+                  <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm text-left relative overflow-hidden group">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100/60 pb-4 mb-6 gap-4">
                       <div>
                         <h3 className="text-base font-semibold text-primary tracking-tight flex items-center gap-1.5">
@@ -5167,11 +5164,11 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* Main Body Columns */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:p-5">
                     {/* Left Column: Client requests (2 columns wide) */}
                     <div className="lg:col-span-2 space-y-6">
                       {/* Quick Interactive Client Directory */}
-                      <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm text-left">
+                      <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm text-left">
                         <div className="flex justify-between items-center border-b border-slate-100/60 pb-3 mb-5">
                           <div>
                             <h3 className="text-base font-semibold text-primary tracking-tight flex items-center gap-1.5">
@@ -5298,7 +5295,7 @@ Stewardship, Accuracy, Legacy.
                     {/* Right Column: Mini charts & stat feeds (1 column wide) */}
                     <div className="lg:col-span-1 space-y-6">
                       {/* Active Applications by Type */}
-                      <div className="bg-white border border-slate-100/60 rounded-3xl p-6 shadow-sm text-left">
+                      <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-5 shadow-sm text-left">
                         <h4 className="text-xs font-bold text-primary uppercase tracking-wider border-b border-slate-100/60 pb-3 mb-4 flex items-center gap-1.5 font-mono">
                           <Activity className="h-4 w-4 text-rose-500" />
                           <span>Ongoing Services (Types)</span>
@@ -5342,7 +5339,7 @@ Stewardship, Accuracy, Legacy.
                       </div>
 
                       {/* Pending Filings & Compliance stats */}
-                      <div className="bg-white border border-slate-100/60 rounded-3xl p-6 shadow-sm text-left">
+                      <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-5 shadow-sm text-left">
                         <h4 className="text-xs font-bold text-primary uppercase tracking-wider border-b border-slate-100/60 pb-3 mb-4 flex items-center gap-1.5 font-mono">
                           <Calendar className="h-4 w-4 text-emerald-500" />
                           <span>Filing statuses</span>
@@ -5404,7 +5401,7 @@ Stewardship, Accuracy, Legacy.
                       </div>
 
                       {/* Recent Documents list */}
-                      <div className="bg-white border border-slate-100/60 rounded-3xl p-6 shadow-sm text-left">
+                      <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-5 shadow-sm text-left">
                         <h4 className="text-xs font-bold text-primary uppercase tracking-wider border-b border-slate-100/60 pb-3 mb-4 flex items-center gap-1.5 font-mono">
                           <FileText className="h-4 w-4 text-primary" />
                           <span>Recent Vault Uploads</span>
@@ -5452,7 +5449,7 @@ Stewardship, Accuracy, Legacy.
               {/* DASHBOARD OVERVIEW (CLIENT) */}
               {activeTab === "overview" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
+                  <div className="bg-white p-4 sm:p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative overflow-hidden">
                     <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl -z-1" />
                     <div className="flex items-start gap-4">
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/60">
@@ -5469,8 +5466,8 @@ Stewardship, Accuracy, Legacy.
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div className="bg-white rounded-2xl border border-slate-100/60 p-6 shadow-sm flex items-center gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:p-5">
+                    <div className="bg-white rounded-2xl border border-slate-100/60 p-4 sm:p-5 shadow-sm flex items-center gap-4">
                       <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
                         <Briefcase className="h-6 w-6" />
                       </div>
@@ -5479,7 +5476,7 @@ Stewardship, Accuracy, Legacy.
                         <p className="text-2xl font-black text-slate-800">{applications.length}</p>
                       </div>
                     </div>
-                    <div className="bg-white rounded-2xl border border-slate-100/60 p-6 shadow-sm flex items-center gap-4">
+                    <div className="bg-white rounded-2xl border border-slate-100/60 p-4 sm:p-5 shadow-sm flex items-center gap-4">
                       <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
                         <Calendar className="h-6 w-6" />
                       </div>
@@ -5488,7 +5485,7 @@ Stewardship, Accuracy, Legacy.
                         <p className="text-2xl font-black text-slate-800">{complianceFilings.filter(f => f.status !== "Filed").length}</p>
                       </div>
                     </div>
-                    <div className="bg-white rounded-2xl border border-slate-100/60 p-6 shadow-sm flex items-center gap-4">
+                    <div className="bg-white rounded-2xl border border-slate-100/60 p-4 sm:p-5 shadow-sm flex items-center gap-4">
                       <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
                         <FolderLock className="h-6 w-6" />
                       </div>
@@ -5499,8 +5496,8 @@ Stewardship, Accuracy, Legacy.
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-white rounded-2xl border border-slate-100/60 p-6 shadow-sm">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:p-5">
+                    <div className="bg-white rounded-2xl border border-slate-100/60 p-4 sm:p-5 shadow-sm">
                       <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-6">Activity Timeline</h3>
                       <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -5530,7 +5527,7 @@ Stewardship, Accuracy, Legacy.
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-2xl border border-slate-100/60 p-6 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-slate-100/60 p-4 sm:p-5 shadow-sm">
                       <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-6">Compliance & Health</h3>
                       <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -5572,7 +5569,7 @@ Stewardship, Accuracy, Legacy.
               {/* APPLICATION TRACKER BOARD */}
               {activeTab === "applications" && (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm">
+                  <div className="flex justify-between items-center bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm">
                     <h2 className="text-lg font-medium text-primary tracking-tight">
                       Active Service Applications ({applications.length})
                     </h2>
@@ -5639,7 +5636,7 @@ Stewardship, Accuracy, Legacy.
                   )}
 
                   {applications.length === 0 ? (
-                    <div className="bg-white rounded-3xl p-16 text-center border border-slate-100/60 shadow-sm max-w-xl mx-auto">
+                    <div className="bg-white rounded-3xl p-5 sm:p-4 sm:p-5 sm:p-12 text-center border border-slate-100/60 shadow-sm max-w-xl mx-auto">
                       <FileCheck2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                       <h3 className="text-sm font-bold text-slate-700">
                         No Applications Assigned
@@ -5661,7 +5658,7 @@ Stewardship, Accuracy, Legacy.
                           key={app.id}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-shadow relative"
+                          className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-shadow relative"
                         >
                           <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
                             <div>
@@ -6037,7 +6034,7 @@ Stewardship, Accuracy, Legacy.
                     <div className="space-y-6">
                       {/* PENDING DOCUMENT REQUESTS IF ANY */}
                       {requestedDocs.length > 0 && (
-                        <div className="bg-amber-50/40 border border-amber-200/50 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+                        <div className="bg-amber-50/40 border border-amber-200/50 rounded-3xl p-4 sm:p-4 sm:p-5 space-y-4 shadow-sm">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/30 pb-4 mb-2">
                             <div className="flex items-start gap-2.5">
                               <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
@@ -6191,7 +6188,7 @@ Stewardship, Accuracy, Legacy.
                         </div>
                       )}
 
-                      <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
+                      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
                         <div>
                           <h2 className="text-lg font-medium text-primary tracking-tight">
                             Document Command Central
@@ -6223,9 +6220,9 @@ Stewardship, Accuracy, Legacy.
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:p-5">
                         {regularDocs.length === 0 ? (
-                          <div className="col-span-full bg-white rounded-3xl p-16 text-center border border-slate-100/60 shadow-sm">
+                          <div className="col-span-full bg-white rounded-3xl p-5 sm:p-4 sm:p-5 sm:p-12 text-center border border-slate-100/60 shadow-sm">
                             <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                             <h3 className="text-sm font-bold text-slate-700">
                               Vault Empty
@@ -6261,7 +6258,7 @@ Stewardship, Accuracy, Legacy.
                                   key={docItem.id}
                                   initial={{ opacity: 0, scale: 0.98 }}
                                   animate={{ opacity: 1, scale: 1 }}
-                                  className="bg-white border border-slate-100/60 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-shadow flex flex-col justify-between"
+                                  className="bg-white border border-slate-100/60 rounded-2xl p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-shadow flex flex-col justify-between"
                                 >
                                   <div>
                                     <div className="flex justify-between items-start mb-3">
@@ -6334,8 +6331,8 @@ Stewardship, Accuracy, Legacy.
               {activeTab === "compliance" && (
                 <div className="space-y-6">
                   {/* Visual scorecard for client transparency */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:p-5">
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4">
                       <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100">
                         <CheckCircle2 className="h-6 w-6" />
                       </div>
@@ -6354,7 +6351,7 @@ Stewardship, Accuracy, Legacy.
                       </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4">
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4">
                       <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center border border-rose-100">
                         <AlertTriangle className="h-6 w-6 font-bold" />
                       </div>
@@ -6373,7 +6370,7 @@ Stewardship, Accuracy, Legacy.
                       </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4">
+                    <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm flex items-center gap-4">
                       <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
                         <Clock className="h-6 w-6 animate-pulse" />
                       </div>
@@ -6396,7 +6393,7 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* Calendar compliance board */}
-                  <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm">
+                  <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm">
                     <h2 className="text-lg font-medium text-primary tracking-tight mb-6 border-b border-slate-100/60 pb-4 flex flex-wrap items-center justify-between gap-3">
                       <span>
                         Static Compliance Checklist & Timeline (Real-Time
@@ -6677,7 +6674,7 @@ Stewardship, Accuracy, Legacy.
               {/* BOOK A CONSULTATION */}
               {activeTab === "book-consultation" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="bg-white rounded-3xl border border-slate-100/60 p-6 md:p-8 shadow-sm">
+                  <div className="bg-white rounded-3xl border border-slate-100/60 p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100/60 pb-6 mb-6">
                       <div>
                         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
@@ -6707,7 +6704,7 @@ Stewardship, Accuracy, Legacy.
               {/* CONSULTATION & QUERY DESK CHAT FLOOD */}
               {activeTab === "chat" && (
                 <div className="space-y-6">
-                  <div className="bg-white rounded-3xl border border-slate-100/60 p-6 md:p-8 shadow-sm">
+                  <div className="bg-white rounded-3xl border border-slate-100/60 p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100/60 pb-6 mb-6">
                       <div>
                         <h2 className="text-xl font-bold text-primary flex items-center gap-2">
@@ -6730,7 +6727,7 @@ Stewardship, Accuracy, Legacy.
                     </div>
 
                     <div
-                      className={`grid grid-cols-1 ${!isAdmin || !isSidebarOpen ? "lg:grid-cols-1" : "lg:grid-cols-4"} gap-6`}
+                      className={`grid grid-cols-1 ${!isAdmin || !isSidebarOpen ? "lg:grid-cols-1" : "lg:grid-cols-4"} gap-4 sm:p-5`}
                     >
                       {/* If Admin, show Client Selection Sidebar on left */}
                       {isAdmin && (
@@ -7131,7 +7128,7 @@ Stewardship, Accuracy, Legacy.
               {activeTab === "admin" && isAdmin && (
                 <div className="space-y-8">
                   {/* Panel Overview */}
-                  <div className="bg-slate-950 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-lg">
+                  <div className="bg-slate-950 text-white p-4 sm:p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-lg">
                     <h2 className="text-xl text-white tracking-tight flex items-center gap-2">
                       <Shield className="h-5 w-5 text-amber-500" />
                       <span>Operations Console</span>
@@ -7144,7 +7141,7 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* Section: Pending Client Requests (Admin Review Panel) */}
-                  <div className="bg-slate-50 border border-slate-200/60 rounded-3xl p-6 sm:p-8 shadow-sm">
+                  <div className="bg-slate-50 border border-slate-200/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/50 mb-6">
                       <div>
                         <div className="flex items-center gap-2.5">
@@ -7533,7 +7530,7 @@ Stewardship, Accuracy, Legacy.
               {/* LOGINS ADMIN PANEL */}
               {activeTab === "logins" && isAdmin && (
                 <div className="space-y-8">
-                  <div className="bg-slate-950 text-white p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-lg">
+                  <div className="bg-slate-950 text-white p-4 sm:p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-lg">
                     <h2 className="text-xl text-white tracking-tight flex items-center gap-2">
                       <Key className="h-5 w-5 text-amber-500" />
                       <span>Access Credentials Manager</span>
@@ -7546,7 +7543,7 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* List of active logins */}
-                  <div className="bg-white border border-slate-200/60 rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col">
+                  <div className="bg-white border border-slate-200/60 rounded-3xl p-4 sm:p-5 shadow-sm overflow-hidden flex flex-col">
                     <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-slate-100/60">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
@@ -7769,7 +7766,7 @@ Stewardship, Accuracy, Legacy.
               {activeTab === "clients" && isAdmin && (
                 <div className="space-y-6">
                   {/* Header card with Add Client Action on top right */}
-                  <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="bg-white p-4 sm:p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex items-start gap-4">
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/60">
                         <Users className="h-6 w-6 text-primary" />
@@ -7813,7 +7810,7 @@ Stewardship, Accuracy, Legacy.
                   </div>
 
                   {/* Active Client Registry and Filter */}
-                  <div className="bg-white border border-slate-100/60 rounded-3xl p-6 sm:p-8 shadow-sm text-left">
+                  <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm text-left">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100/60 pb-3 mb-5 gap-3">
                       <div>
                         <h3 className="text-sm font-semibold text-primary tracking-tight flex items-center gap-1.5">
@@ -8017,7 +8014,7 @@ Stewardship, Accuracy, Legacy.
 
               {/* INVOICES AND BILLING PORTAL VIEW */}
               {activeTab === "invoices" && (
-                <div className="bg-white p-4 sm:p-6 md:p-6 lg:p-8 rounded-3xl border border-slate-100/60 shadow-sm text-left overflow-hidden">
+                <div className="bg-white p-4 sm:p-4 sm:p-5 md:p-4 sm:p-5 lg:p-5 sm:p-4 sm:p-5 rounded-3xl border border-slate-100/60 shadow-sm text-left overflow-hidden">
                   <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 shrink-0">
@@ -8066,11 +8063,11 @@ Stewardship, Accuracy, Legacy.
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 15 }}
                 transition={{ type: "spring", duration: 0.5, bounce: 0 }}
-                className="bg-white rounded-[2rem] shadow-2xl p-6 sm:p-8 w-full max-w-md max-h-[90vh] overflow-y-auto relative"
+                className="bg-white rounded-[2rem] shadow-2xl p-4 sm:p-4 sm:p-5 w-full max-w-md max-h-[90vh] overflow-y-auto relative"
               >
                 <button
                   onClick={() => setShowAddLoginModal(false)}
-                  className="absolute right-6 top-6 p-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-full transition-colors"
+                  className="absolute right-6 top-4 sm:p-5 p-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-full transition-colors"
                   title="Close"
                 >
                   <X className="w-4 h-4" />
@@ -8244,7 +8241,7 @@ Stewardship, Accuracy, Legacy.
                     <X className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="p-6 md:p-8 overflow-y-auto space-y-5 flex-1">
+                <div className="p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 overflow-y-auto space-y-5 flex-1">
                   {opsModalType === "app" && (
                     <form onSubmit={handleCreateApp} className="space-y-5">
                       <div>
@@ -8569,7 +8566,7 @@ Stewardship, Accuracy, Legacy.
                 <form
                   id="add-new-client-form"
                   onSubmit={handleAddNewClientInModal}
-                  className="p-6 md:p-8 space-y-5 text-left flex-1 overflow-y-auto"
+                  className="p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 space-y-5 text-left flex-1 overflow-y-auto"
                 >
                   <div>
                     <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
@@ -8885,7 +8882,7 @@ Stewardship, Accuracy, Legacy.
                 <form
                   id="new-request-submission-form"
                   onSubmit={handleSubmitNewRequest}
-                  className="p-6 md:p-8 space-y-5"
+                  className="p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 space-y-5"
                 >
                   {/* Select Request Type */}
                   <div>
@@ -9159,7 +9156,7 @@ Stewardship, Accuracy, Legacy.
                 </div>
 
                 {/* Body Content */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6 scrollbar-thin">
                   {/* General Info Card */}
                   <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
                     <div className="flex justify-between items-start gap-4">
@@ -9206,7 +9203,7 @@ Stewardship, Accuracy, Legacy.
                         const file = e.dataTransfer.files[0];
                         if (file) handleUploadFilingAttachment(file, selectedFilingForDrawer);
                       }}
-                      className="border-2 border-dashed border-slate-200 hover:border-indigo-500 bg-slate-50/50 hover:bg-indigo-50/20 rounded-2xl p-6 transition-all text-center group cursor-pointer relative"
+                      className="border-2 border-dashed border-slate-200 hover:border-indigo-500 bg-slate-50/50 hover:bg-indigo-50/20 rounded-2xl p-4 sm:p-5 transition-all text-center group cursor-pointer relative"
                     >
                       <input
                         type="file"

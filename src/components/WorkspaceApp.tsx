@@ -3905,9 +3905,9 @@ export default function WorkspaceApp() {
         onClose={() => setShowProfileModal(false)}
         isAdmin={true}
       />
-      <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-24 md:pb-6 relative h-full">
+      <main className="flex-1 overflow-y-auto bg-white flex flex-col items-center pb-12 md:pb-4 relative h-full">
         {/* Header container */}
-        <div className="w-[98%] mx-auto px-6 py-5 md:py-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+        <div className="w-full px-4 md:px-6 lg:px-8 py-3 md:py-4 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
           <div className="flex flex-wrap items-center gap-3">
             {(activeAppTab === "tasks" || activeAppTab === "payables") && (
               <button
@@ -4316,7 +4316,7 @@ export default function WorkspaceApp() {
 
         {/* Smart auto-categorization keywords study tip modal overlay */}
         {showSmartTips && (
-          <div className="w-[98%] mx-auto px-6 mt-1 flex justify-end">
+          <div className="w-full px-4 md:px-6 lg:px-8 mt-1 flex justify-end">
             <div className="w-full max-w-[360px] bg-white border border-yellow-200 rounded-2xl shadow-2xl p-4 z-50 text-left animate-in fade-in slide-in-from-top-3 duration-200">
               <div className="flex items-center justify-between mb-2 pb-1 border-b border-yellow-50">
                 <h4 className="text-xs font-medium text-gray-800 flex items-center">
@@ -4375,7 +4375,7 @@ export default function WorkspaceApp() {
 
         {/* Progress Tracker popup overlay */}
         {isProgressBannerExpanded && (
-          <div className="w-[98%] mx-auto px-6 mt-1 flex justify-end absolute right-0 z-50">
+          <div className="w-full px-4 md:px-6 lg:px-8 mt-1 flex justify-end absolute right-0 z-50">
             <div className="w-full max-w-[360px] bg-white border border-[#1a2b58]/10 rounded-2xl shadow-2xl p-4.5 text-left animate-in fade-in slide-in-from-top-3 duration-200">
               {(() => {
                 const totalViewCount = allActiveViewTodos.length;
@@ -4541,7 +4541,7 @@ export default function WorkspaceApp() {
         )}
 
         {/* WORKSPACE SECTIONS RENDER ROUTERS */}
-        <div className="w-[98%] mx-auto px-6 py-6 flex-1">
+        <div className="w-full px-4 md:px-6 lg:px-8 py-6 flex-1">
           {activeAppTab === "dashboard" && (
             <DashboardWidgets
               todos={todos}
