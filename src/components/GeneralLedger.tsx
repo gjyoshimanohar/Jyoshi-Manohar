@@ -1,7 +1,10 @@
+import * as XLSX from 'xlsx';
 import React, { useMemo, useState } from 'react';
 import { FinanceRecord, PaymentAccount } from '../types';
-import { FileSpreadsheet, Search, Filter } from 'lucide-react';
+import { FileSpreadsheet, Search, Filter, Calendar, Download } from 'lucide-react';
 import { format } from 'date-fns';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Props {
   allRecords: FinanceRecord[];
@@ -34,6 +37,13 @@ interface GLAccount {
 export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm = '' }: Props) {
   const [searchTerm, setSearchTerm] = useState(defaultSearchTerm);
   const [selectedType, setSelectedType] = useState<GLAccountType | 'All'>('All');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportTargetAccount, setExportTargetAccount] = useState<GLAccount | null>(null);
+  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf'>('excel');
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
 
   React.useEffect(() => {
     setSearchTerm(defaultSearchTerm);
@@ -192,17 +202,6 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
     const result = Array.from(glAccounts.values());
     result.forEach(acc => {
       acc.entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      
-      let currentBalance = 0;
-      acc.entries.forEach(entry => {
-        if (acc.type === 'Asset' || acc.type === 'Expense') {
-          currentBalance += (entry.debit - entry.credit);
-        } else {
-          currentBalance += (entry.credit - entry.debit);
-        }
-        entry.balance = currentBalance;
-      });
-      acc.closingBalance = currentBalance;
     });
 
     return result.sort((a, b) => {
@@ -215,13 +214,193 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
   }, [allRecords, accounts]);
 
   const filteredGlData = useMemo(() => {
-    return glData.filter(acc => {
-      if (selectedType !== 'All' && acc.type !== selectedType) return false;
-      if (searchTerm && !acc.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-      if (acc.entries.length === 0) return false; // Hide unused accounts
-      return true;
-    });
-  }, [glData, selectedType, searchTerm]);
+    const sDate = startDate ? new Date(startDate).getTime() : 0;
+    const eDate = endDate ? new Date(endDate).getTime() : Infinity;
+
+    return glData
+      .filter(acc => {
+        if (selectedType !== 'All' && acc.type !== selectedType) return false;
+        if (searchTerm && !acc.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+        return true;
+      })
+      .map(acc => {
+        let periodOpeningBalance = 0;
+        let periodDebit = 0;
+        let periodCredit = 0;
+        const filteredEntries = [];
+
+        acc.entries.forEach(entry => {
+          const t = new Date(entry.date).getTime();
+          if (t < sDate) {
+            if (acc.type === 'Asset' || acc.type === 'Expense') {
+              periodOpeningBalance += (entry.debit - entry.credit);
+            } else {
+              periodOpeningBalance += (entry.credit - entry.debit);
+            }
+          } else if (t >= sDate && t <= eDate) {
+            filteredEntries.push({ ...entry });
+            periodDebit += entry.debit;
+            periodCredit += entry.credit;
+          }
+        });
+
+        if (startDate) {
+          filteredEntries.unshift({
+            id: `period-open-${acc.id}`,
+            date: startDate,
+            description: 'Opening Balance',
+            reference: '-',
+            debit: 0,
+            credit: 0,
+            balance: periodOpeningBalance
+          });
+        }
+
+        let currentBalance = startDate ? periodOpeningBalance : 0;
+        const newEntries = filteredEntries.map(entry => {
+          if (entry.id.startsWith('period-open-')) {
+            return entry;
+          }
+          if (acc.type === 'Asset' || acc.type === 'Expense') {
+            currentBalance += (entry.debit - entry.credit);
+          } else {
+            currentBalance += (entry.credit - entry.debit);
+          }
+          return { ...entry, balance: currentBalance };
+        });
+
+        return {
+          ...acc,
+          entries: newEntries,
+          totalDebit: periodDebit,
+          totalCredit: periodCredit,
+          closingBalance: currentBalance
+        };
+      })
+      .filter(acc => acc.entries.length > 0);
+  }, [glData, selectedType, searchTerm, startDate, endDate]);
+
+  const handleDownloadPDF = (account: GLAccount, sDateStr: string, eDateStr: string) => {
+    try {
+      const doc = new jsPDF();
+      
+      const sDate = sDateStr ? new Date(sDateStr).getTime() : 0;
+      const eDate = eDateStr ? new Date(eDateStr).getTime() : Infinity;
+      
+      const filteredEntries = account.entries.filter(t => {
+        if (t.id.startsWith('period-open-')) return true;
+        const time = new Date(t.date).getTime();
+        return time >= sDate && time <= eDate;
+      });
+      
+      doc.setFontSize(20);
+      doc.setTextColor(15, 23, 42);
+      doc.text(account.name, 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Account Type: ${account.type}`, 14, 30);
+      doc.text(`Generated on: ${format(new Date(), 'MMM dd, yyyy')}`, 14, 36);
+
+      if (sDateStr || eDateStr) {
+         doc.text(`Period: ${sDateStr ? format(new Date(sDateStr), 'MMM dd, yyyy') : 'All Time'} - ${eDateStr ? format(new Date(eDateStr), 'MMM dd, yyyy') : 'Current'}`, 14, 42);
+      }
+      
+      doc.setDrawColor(200);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(120, 16, 75, 28, 'FD');
+      
+      doc.setFontSize(9);
+      doc.text('Total Debit:', 125, 22);
+      doc.text(`Rs. ${account.totalDebit.toLocaleString('en-IN')}`, 190, 22, { align: 'right' });
+      
+      doc.text('Total Credit:', 125, 28);
+      doc.text(`Rs. ${account.totalCredit.toLocaleString('en-IN')}`, 190, 28, { align: 'right' });
+      
+      doc.setFont(undefined, 'bold');
+      doc.text('Closing Balance:', 125, 36);
+      doc.text(`Rs. ${account.closingBalance.toLocaleString('en-IN')}`, 190, 36, { align: 'right' });
+
+      doc.setFont(undefined, 'normal');
+
+      const tableData = filteredEntries.map(t => [
+        t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '-',
+        t.description,
+        t.reference,
+        t.debit > 0 ? `Rs. ${t.debit.toLocaleString('en-IN')}` : '-',
+        t.credit > 0 ? `Rs. ${t.credit.toLocaleString('en-IN')}` : '-',
+        `Rs. ${t.balance.toLocaleString('en-IN')}`
+      ]);
+
+      autoTable(doc, {
+        startY: 50,
+        head: [['Date', 'Description', 'Reference', 'Debit (Dr)', 'Credit (Cr)', 'Balance']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [15, 23, 42] },
+        styles: { fontSize: 9 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+
+      doc.save(`Statement_${account.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+    }
+  };
+
+
+  const handleDownloadExcel = (account: GLAccount, sDateStr: string, eDateStr: string) => {
+    try {
+      const sDate = sDateStr ? new Date(sDateStr).getTime() : 0;
+      const eDate = eDateStr ? new Date(eDateStr).getTime() : Infinity;
+      
+      const filteredEntries = account.entries.filter(t => {
+        if (t.id.startsWith('period-open-')) return true;
+        const time = new Date(t.date).getTime();
+        return time >= sDate && time <= eDate;
+      });
+
+      const headerRow = [
+        ["Account Name", account.name],
+        ["Account Type", account.type],
+        ["Generated on", format(new Date(), 'MMM dd, yyyy')],
+        ["Period", sDateStr || eDateStr ? `${sDateStr ? format(new Date(sDateStr), 'MMM dd, yyyy') : 'All Time'} - ${eDateStr ? format(new Date(eDateStr), 'MMM dd, yyyy') : 'Current'}` : "All Time"],
+        [],
+        ["Total Debit", account.totalDebit],
+        ["Total Credit", account.totalCredit],
+        ["Closing Balance", account.closingBalance],
+        [],
+        ["Date", "Description", "Reference", "Debit (Dr)", "Credit (Cr)", "Balance"]
+      ];
+
+      const dataRows = filteredEntries.map(t => [
+        t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '-',
+        t.description,
+        t.reference,
+        t.debit > 0 ? t.debit : '',
+        t.credit > 0 ? t.credit : '',
+        t.balance
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([...headerRow, ...dataRows]);
+      
+      ws['!cols'] = [
+        { wch: 12 },
+        { wch: 40 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Ledger Statement");
+
+      XLSX.writeFile(wb, `Statement_${account.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+    } catch (err) {
+      console.error("Error generating Excel:", err);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -234,7 +413,7 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full">
           <input
             type="text"
@@ -245,19 +424,41 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value as any)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-indigo-500 outline-none w-full md:w-auto"
-          >
-            <option value="All">All Types</option>
-            <option value="Asset">Assets</option>
-            <option value="Liability">Liabilities</option>
-            <option value="Revenue">Revenue</option>
-            <option value="Expense">Expenses</option>
-          </select>
+        
+        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 flex-1 sm:flex-none">
+             <Calendar className="w-4 h-4 text-slate-400" />
+             <input
+               type="date"
+               value={startDate}
+               onChange={(e) => setStartDate(e.target.value)}
+               className="bg-transparent text-sm outline-none text-slate-600 w-full sm:w-auto"
+               title="Start Date"
+             />
+             <span className="text-slate-400 text-xs">to</span>
+             <input
+               type="date"
+               value={endDate}
+               onChange={(e) => setEndDate(e.target.value)}
+               className="bg-transparent text-sm outline-none text-slate-600 w-full sm:w-auto"
+               title="End Date"
+             />
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 sm:flex-none">
+            <Filter className="w-4 h-4 text-slate-400 hidden sm:block" />
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value as any)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:border-indigo-500 outline-none w-full"
+            >
+              <option value="All">All Types</option>
+              <option value="Asset">Assets</option>
+              <option value="Liability">Liabilities</option>
+              <option value="Revenue">Revenue</option>
+              <option value="Expense">Expenses</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -269,7 +470,7 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
         ) : (
           filteredGlData.map(account => (
             <div key={account.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-              <div className="bg-slate-50/80 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
+              <div className="bg-slate-50/80 px-5 py-4 border-b border-slate-200 flex justify-between items-center flex-wrap gap-4">
                 <div>
                   <h4 className="font-bold text-slate-800 text-base">{account.name}</h4>
                   <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mt-1 inline-block
@@ -280,14 +481,30 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
                     {account.type}
                   </span>
                 </div>
-                <div className="text-right">
-                  <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Closing Balance</span>
-                  <span className={`font-extrabold text-lg ${account.closingBalance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                    ₹{account.closingBalance.toLocaleString('en-IN')}
-                    <span className="text-xs font-normal text-slate-500 ml-1">
-                      {account.type === 'Asset' || account.type === 'Expense' ? 'Dr' : 'Cr'}
+                
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Closing Balance</span>
+                    <span className={`font-extrabold text-lg ${account.closingBalance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                      ₹{account.closingBalance.toLocaleString('en-IN')}
+                      <span className="text-xs font-normal text-slate-500 ml-1">
+                        {account.type === 'Asset' || account.type === 'Expense' ? 'Dr' : 'Cr'}
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setExportTargetAccount(account as GLAccount);
+                      setExportStartDate(startDate);
+                      setExportEndDate(endDate);
+                      setExportFormat('excel');
+                      setExportModalOpen(true);
+                    }}
+                    className="p-2 bg-white border border-slate-200 text-slate-600 hover:text-primary hover:border-primary/30 hover:bg-primary/5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
+                    title="Export Statement"
+                  >
+                    <Download className="w-4 h-4" /> Export
+                  </button>
                 </div>
               </div>
               <div className="overflow-x-auto">
@@ -304,7 +521,7 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {account.entries.map((entry, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={idx} className={`hover:bg-slate-50/50 transition-colors ${entry.id.startsWith('period-open-') ? 'bg-slate-50/50 font-medium' : ''}`}>
                         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                           {entry.date ? format(new Date(entry.date), 'MMM dd, yyyy') : '-'}
                         </td>
@@ -342,6 +559,104 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
           ))
         )}
       </div>
+
+      {exportModalOpen && exportTargetAccount && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100 flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center">
+                <Download className="w-4 h-4 mr-2 text-primary" />
+                Export Ledger Statement
+              </h3>
+              <button
+                onClick={() => setExportModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Export Format</h4>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="exportFormat"
+                      value="excel"
+                      checked={exportFormat === 'excel'}
+                      onChange={() => setExportFormat('excel')}
+                      className="w-4 h-4 text-emerald-600 border-slate-300 focus:ring-emerald-500"
+                    />
+                    <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-900 flex items-center">
+                      <FileSpreadsheet className="w-4 h-4 mr-1 text-emerald-600" /> Excel
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="exportFormat"
+                      value="pdf"
+                      checked={exportFormat === 'pdf'}
+                      onChange={() => setExportFormat('pdf')}
+                      className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-900 flex items-center">
+                      <Download className="w-4 h-4 mr-1 text-indigo-600" /> PDF
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Export Filters (Date Range)</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={exportStartDate}
+                      onChange={(e) => setExportStartDate(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={exportEndDate}
+                      onChange={(e) => setExportEndDate(e.target.value)}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-2">Leave blank to export all available records.</p>
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button
+                onClick={() => setExportModalOpen(false)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (exportFormat === 'excel') handleDownloadExcel(exportTargetAccount, exportStartDate, exportEndDate);
+                  else handleDownloadPDF(exportTargetAccount, exportStartDate, exportEndDate);
+                  setExportModalOpen(false);
+                }}
+                className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition shadow-sm flex items-center"
+              >
+                <Download className="w-4 h-4 mr-1.5" /> Generate Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+
 }

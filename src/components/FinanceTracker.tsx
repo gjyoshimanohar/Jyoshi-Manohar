@@ -3435,7 +3435,7 @@ export default function FinanceTracker() {
                                     <Edit3 className="w-4 h-4" />
                                   </button>
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); handleExportAccountLedger(acc); }}
+                                    onClick={(e) => { e.stopPropagation(); setGlInitialSearch(acc.name); setActiveTab("gl"); }}
                                     className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                     title="Export Ledger"
                                   >
@@ -3530,7 +3530,7 @@ export default function FinanceTracker() {
                                 <Edit3 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleExportAccountLedger(acc); }}
+                                onClick={(e) => { e.stopPropagation(); setGlInitialSearch(acc.name); setActiveTab("gl"); }}
                                 className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg transition-all shadow-2xs hover:scale-105 active:scale-95"
                                 title="Export Ledger"
                               >
