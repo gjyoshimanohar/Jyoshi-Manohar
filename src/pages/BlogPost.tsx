@@ -156,7 +156,7 @@ export default function BlogPost() {
  transition={{ delay: 0.3 }}
  className="prose prose-lg lg:prose-xl prose-slate max-w-none prose-headings: prose-headings:capitalize prose-headings:tracking-tighter prose-a:text-secondary mb-12"
  >
- {post.format === 'markdown' ? (
+ {post.format === 'markdown' || (!post.format && post.content && !post.content.trim().startsWith('<')) ? (
  <div className="markdown-body leading-[1.8] text-black editor-content" style={{ backgroundColor: 'transparent', border: 'none', padding: 0 }}>
  <Markdown>{post.content}</Markdown>
  </div>

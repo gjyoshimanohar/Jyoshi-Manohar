@@ -2759,7 +2759,7 @@ export default function FinanceTracker() {
   };
   
   return (
-    <div className="w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="w-full max-w-[1600px] mx-auto p-1 sm:p-2 lg:p-3 px-0 sm:px-1 space-y-4">
 
     { /* Pending Receivables Summary Bar */ }
       {totalReceivables > 0 && (
@@ -2832,7 +2832,7 @@ export default function FinanceTracker() {
       </div>
 
       {/* Responsive Sidebar Layout */}
-      <div className="flex flex-col md:flex-row gap-6 lg:gap-8 items-start relative">
+      <div className="flex flex-col md:flex-row gap-4 lg:gap-5 items-start relative">
         
         {/* Mobile Backdrop Overlay (only < md) */}
         <div 
@@ -3012,7 +3012,7 @@ export default function FinanceTracker() {
         </aside>
 
         {/* Dynamic Content Area */}
-        <div className="flex-grow w-full min-w-0 space-y-6 relative">
+        <div className="flex-grow w-full min-w-0 space-y-4 relative">
           <div className="absolute -top-1 right-0 flex items-center gap-2 z-10 bg-white/80 backdrop-blur-sm pl-2 pb-1 rounded-bl-lg">
             <button
               onClick={() => setIsDailyStandupOpen(true)}

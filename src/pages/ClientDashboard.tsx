@@ -3873,8 +3873,8 @@ Stewardship, Accuracy, Legacy.
         onClose={() => setShowProfileModal(false)}
         isAdmin={isAdmin}
       />
-      <main className="min-h-screen pt-24 pb-12 bg-[#FDFDFD]">
-        <div className="w-full px-2 sm:px-4 md:px-6 lg:px-8">
+      <main className="min-h-screen pt-20 pb-8 bg-[#FDFDFD]">
+        <div className="w-full px-1 sm:px-3 lg:px-4">
           <Breadcrumb items={[
             { label: 'Home', to: '/' },
             { label: 'Portal' }
@@ -3899,7 +3899,7 @@ Stewardship, Accuracy, Legacy.
           </AnimatePresence>
 
           {/* Dashboard Title Ribbon */}
-          <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-30">
+          <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-30">
             <div className="flex items-start gap-4">
               <div>
                 <div className="flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary text-[10px] uppercase font-bold tracking-widest rounded-full w-fit border border-primary/10">
@@ -4250,11 +4250,11 @@ Stewardship, Accuracy, Legacy.
 
           {/* Grid and Tabs layout */}
           <div
-            className={`flex flex-col lg:flex-row gap-5 sm:p-4 sm:p-5 transition-all duration-300 items-start`}
+            className={`flex flex-col lg:flex-row gap-5 py-2 px-0 transition-all duration-300 items-start`}
           >
             {/* Navigation drawer rail (Desktop) */}
             <div
-              className={`w-full ${isSidebarOpen ? "lg:w-[300px]" : "lg:w-fit"} shrink-0 flex flex-col gap-3 transition-all duration-300`}
+              className={`w-full ${isSidebarOpen ? "lg:w-[300px]" : "lg:w-fit"} shrink-0 flex flex-col gap-3 transition-all duration-300 ml-0 pl-0`}
             >
               {/* Toggle Button Always Visible */}
               <div className="flex justify-start mb-1 h-10 w-full shrink-0">

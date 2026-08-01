@@ -65,12 +65,16 @@ export default function BlogList() {
 
         <header className="mb-10">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <div className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full mb-4 shadow-sm flex w-fit">
-              <span>Thought Leadership</span>
+            <div className="block mb-4">
+              <div className="inline-flex items-center space-x-2 bg-primary/5 border border-primary/10 text-primary font-medium tracking-widest uppercase text-xs px-4 py-2 rounded-full shadow-sm">
+                <span>Thought Leadership</span>
+              </div>
             </div>
-            <h1 className="text-5xl md:text-[90px] leading-[0.95] text-primary uppercase font-bold tracking-tighter mb-6">
-              <span className="text-3xl md:text-6xl align-baseline mr-1 md:mr-2">THE</span>
-              HUB
+            <h1 className="text-5xl md:text-[80px] text-primary uppercase font-extrabold tracking-tighter mb-6 flex items-start">
+              <span className="text-[0.3em] font-extrabold tracking-wider text-primary leading-none mr-1 sm:mr-2 pt-[0.08em]">
+                THE
+              </span>
+              <span className="leading-none">LEDGERS</span>
             </h1>
             <p className="space-y-6 text-base lg:text-lg text-slate-700 font-medium leading-relaxed text-left max-w-2xl">
               Explore our latest financial analyses, or download in-depth whitepapers and industry tax guides to stay ahead.

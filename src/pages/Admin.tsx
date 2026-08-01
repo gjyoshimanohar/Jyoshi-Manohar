@@ -28,6 +28,8 @@ import {
   Image as ImageIcon,
   Loader2,
   LayoutDashboard,
+  FileText,
+  Code2,
 } from "lucide-react";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../lib/firebase";
@@ -316,19 +318,22 @@ export default function Admin() {
     <>
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
       <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
-      <main className="pt-32 pb-24 bg-accent min-h-screen text-left">
-      <div className="w-full px-2 sm:px-4 md:px-6 lg:px-8">
+      <main className="pt-20 pb-10 bg-accent min-h-screen text-left">
+      <div className="w-full px-3 sm:px-5 lg:px-6">
         <Breadcrumb items={[
           { label: 'Home', to: '/' },
           { label: 'Admin Panel' }
         ]} />
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:p-5 mb-8">
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:p-4 mb-4">
           <div>
-            <p className="text-primary font-medium tracking-widest capitalize text-base mb-6">
+            <p className="text-primary font-medium tracking-widest capitalize text-base mb-2">
               Control Center
             </p>
-            <h1 className="text-4xl lg:text-5xl text-primary tracking-tighter leading-none">
-              Management
+            <h1 className="text-3xl lg:text-4xl text-primary uppercase font-extrabold tracking-tighter leading-none inline-flex items-start">
+              <span className="text-[0.32em] font-extrabold tracking-wider text-primary leading-none mr-1 pt-[0.08em]">
+                THE
+              </span>
+              <span className="leading-none">LEDGERS</span>
             </h1>
           </div>
           <div className="flex items-center space-x-4">
@@ -371,7 +376,7 @@ export default function Admin() {
             )}
             {activeAdminTab === "blogs" && (
               <button
-                onClick={() => setEditingPost({})}
+                onClick={() => setEditingPost({ format: "html" })}
                 className="flex items-center space-x-2 bg-primary text-white px-6 py-3 uppercase text-xs tracking-widest hover:bg-secondary transition-all rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5"
               >
                 <Plus className="h-4 w-4" />
@@ -383,7 +388,7 @@ export default function Admin() {
         </header>
 
         {/* Tab Selection Bar */}
-        <div className="flex border-b border-gray-200 mb-8 overflow-x-auto">
+        <div className="flex border-b border-gray-200 mb-4 overflow-x-auto">
           <button
             onClick={() => {
               setActiveAdminTab("finances");
@@ -558,65 +563,113 @@ export default function Admin() {
                   </div>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-xs uppercase tracking-widest text-black">
-                      Content
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        id="editor-image-upload"
-                        disabled={uploadingImage}
-                      />
-                      <label
-                        htmlFor="editor-image-upload"
-                        className="text-xs font-semibold uppercase tracking-widest text-primary hover:text-secondary cursor-pointer flex items-center space-x-2"
-                      >
-                        {uploadingImage ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>Uploading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <ImageIcon className="h-4 w-4" />
-                            <span>Insert Image</span>
-                          </>
-                        )}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="text-xs font-bold uppercase tracking-widest text-primary">
+                        Editor Mode:
                       </label>
+                      <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-xs">
+                        <button
+                          type="button"
+                          onClick={() => setEditingPost({ ...editingPost, format: 'html' })}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                            (!editingPost.format || editingPost.format === 'html')
+                              ? 'bg-primary text-white shadow-xs'
+                              : 'text-slate-600 hover:text-black'
+                          }`}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>Document Writer</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPost({ ...editingPost, format: 'markdown' })}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+                            editingPost.format === 'markdown'
+                              ? 'bg-primary text-white shadow-xs'
+                              : 'text-slate-600 hover:text-black'
+                          }`}
+                        >
+                          <Code2 className="h-3.5 w-3.5" />
+                          <span>Markup Content (Markdown)</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {(!editingPost.format || editingPost.format === 'html') && (
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          id="editor-image-upload"
+                          disabled={uploadingImage}
+                        />
+                        <label
+                          htmlFor="editor-image-upload"
+                          className="text-xs font-semibold uppercase tracking-widest text-primary hover:text-secondary cursor-pointer flex items-center space-x-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs"
+                        >
+                          {uploadingImage ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="h-4 w-4" />
+                              <span>Insert Image</span>
+                            </>
+                          )}
+                        </label>
+                      </div>
+                    )}
                   </div>
+
                   <div className="prose max-w-none text-left">
-                    {SunEditor && (
-                      <SunEditor
-                        setContents={editingPost.content || ""}
-                        onChange={(content) =>
-                          setEditingPost({ ...editingPost, content })
-                        }
-                        setOptions={{
-                          buttonList: [
-                            ["undo", "redo"],
-                            ["font", "fontSize", "formatBlock"],
-                            ["paragraphStyle", "blockquote"],
-                            [
-                              "bold",
-                              "underline",
-                              "italic",
-                              "strike",
-                              "subscript",
-                              "superscript",
+                    {editingPost.format === 'markdown' ? (
+                      <div>
+                        <textarea
+                          value={editingPost.content || ""}
+                          onChange={(e) =>
+                            setEditingPost({ ...editingPost, content: e.target.value })
+                          }
+                          className="w-full bg-accent border border-slate-300 p-4 font-mono text-sm text-primary focus:ring-2 focus:ring-primary outline-none min-h-[380px] rounded-2xl"
+                          placeholder="# Heading 1&#10;&#10;Write your markdown content here...&#10;&#10;### Key Points&#10;- Point 1&#10;- Point 2&#10;&#10;**Bold text** or [links](https://example.com)"
+                        />
+                        <p className="mt-2 text-xs text-slate-500 font-sans">
+                          Markdown formatting supported: Headings (<code className="bg-slate-200 px-1 rounded">#</code>, <code className="bg-slate-200 px-1 rounded">##</code>), Bold (<code className="bg-slate-200 px-1 rounded">**text**</code>), Italic (<code className="bg-slate-200 px-1 rounded">*text*</code>), Lists (<code className="bg-slate-200 px-1 rounded">- item</code>), Quotes (<code className="bg-slate-200 px-1 rounded">&gt; quote</code>).
+                        </p>
+                      </div>
+                    ) : (
+                      SunEditor && (
+                        <SunEditor
+                          setContents={editingPost.content || ""}
+                          onChange={(content) =>
+                            setEditingPost({ ...editingPost, content })
+                          }
+                          setOptions={{
+                            buttonList: [
+                              ["undo", "redo"],
+                              ["font", "fontSize", "formatBlock"],
+                              ["paragraphStyle", "blockquote"],
+                              [
+                                "bold",
+                                "underline",
+                                "italic",
+                                "strike",
+                                "subscript",
+                                "superscript",
+                              ],
+                              ["fontColor", "hiliteColor"],
+                              ["outdent", "indent"],
+                              ["align", "horizontalRule", "list", "lineHeight"],
+                              ["table", "link", "image", "video"],
+                              ["fullScreen", "showBlocks", "codeView"],
                             ],
-                            ["fontColor", "hiliteColor"],
-                            ["outdent", "indent"],
-                            ["align", "horizontalRule", "list", "lineHeight"],
-                            ["table", "link", "image", "video"],
-                            ["fullScreen", "showBlocks", "codeView"],
-                          ],
-                        }}
-                      />
+                          }}
+                        />
+                      )
                     )}
                   </div>
                 </div>
@@ -670,7 +723,10 @@ export default function Admin() {
                     </div>
                     <div className="flex items-center space-x-4">
                       <button
-                        onClick={() => setEditingPost(post)}
+                        onClick={() => setEditingPost({
+                          ...post,
+                          format: post.format || (post.content && post.content.trim().startsWith('<') ? 'html' : 'markdown')
+                        })}
                         className="p-3 text-black hover:text-primary transition-colors flex items-center space-x-2 border border-transparent hover:border-slate-200"
                       >
                         <ChevronRight className="h-5 w-5" />
