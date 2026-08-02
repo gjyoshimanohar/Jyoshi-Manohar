@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from "react";
 import { format, isAfter, isBefore, parseISO, startOfYear, endOfMonth } from "date-fns";
 import { Download, Calendar as CalendarIcon, Printer, FileText, ChevronRight, ChevronDown, IndianRupee, TrendingUp, TrendingDown, BookOpen, CheckCircle2 } from "lucide-react";
 import { FinanceRecord, PaymentAccount } from "../types";
+import { CategoryBadge } from "./FinanceTracker";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { DayPicker, DateRange } from "react-day-picker";
@@ -247,8 +248,8 @@ export default function FinancialReports({ records, accounts }: FinancialReports
                 <div className="pl-7 space-y-3">
                   {Object.entries(incomeByCategory).sort((a, b) => b[1] - a[1]).map(([category, amount]) => (
                     <div key={category} className="flex justify-between items-center py-2 border-b border-slate-100/50 hover:bg-slate-50/50 transition-colors px-2 rounded-lg">
-                      <span className="text-slate-600 font-medium">{category || 'Uncategorized'}</span>
-                      <span className="text-slate-900">{formatCurrency(amount)}</span>
+                      <CategoryBadge category={category} />
+                      <span className="text-slate-900 font-mono tabular-nums font-bold">{formatCurrency(amount)}</span>
                     </div>
                   ))}
                   {Object.keys(incomeByCategory).length === 0 && (
@@ -256,7 +257,7 @@ export default function FinancialReports({ records, accounts }: FinancialReports
                   )}
                   <div className="flex justify-between items-center pt-4 pb-2 px-2 font-bold bg-emerald-50/50 rounded-lg mt-2">
                     <span className="text-emerald-900">Total Revenue</span>
-                    <span className="text-emerald-700">{formatCurrency(totalIncome)}</span>
+                    <span className="text-emerald-700 font-mono tabular-nums">{formatCurrency(totalIncome)}</span>
                   </div>
                 </div>
               )}
@@ -281,8 +282,8 @@ export default function FinancialReports({ records, accounts }: FinancialReports
                 <div className="pl-7 space-y-3">
                   {Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]).map(([category, amount]) => (
                     <div key={category} className="flex justify-between items-center py-2 border-b border-slate-100/50 hover:bg-slate-50/50 transition-colors px-2 rounded-lg">
-                      <span className="text-slate-600 font-medium">{category || 'Uncategorized'}</span>
-                      <span className="text-slate-900">{formatCurrency(amount)}</span>
+                      <CategoryBadge category={category} />
+                      <span className="text-slate-900 font-mono tabular-nums font-bold">{formatCurrency(amount)}</span>
                     </div>
                   ))}
                   {Object.keys(expenseByCategory).length === 0 && (
@@ -290,7 +291,7 @@ export default function FinancialReports({ records, accounts }: FinancialReports
                   )}
                   <div className="flex justify-between items-center pt-4 pb-2 px-2 font-bold bg-rose-50/50 rounded-lg mt-2">
                     <span className="text-rose-900">Total Expenses</span>
-                    <span className="text-rose-700">{formatCurrency(totalExpense)}</span>
+                    <span className="text-rose-700 font-mono tabular-nums">{formatCurrency(totalExpense)}</span>
                   </div>
                 </div>
               )}

@@ -98,7 +98,14 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
     });
 
     // Process all paid transactions
-    const paidRecords = allRecords.filter(r => r.status === 'paid').sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const paidRecords = allRecords.filter(r => r.status === 'paid').sort((a, b) => {
+      const dateComp = (a.date || "").localeCompare(b.date || "");
+      if (dateComp !== 0) return dateComp;
+      const timeA = a.createdAt || 0;
+      const timeB = b.createdAt || 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.id || "").localeCompare(b.id || "");
+    });
 
     paidRecords.forEach(rec => {
       if (rec.type === 'income') {

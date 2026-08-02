@@ -71,7 +71,15 @@ export const financeService = {
     try {
       const q = query(collection(db, COLLECTION_NAME), orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinanceRecord));
+      const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinanceRecord));
+      return records.sort((a, b) => {
+        const dateComp = (b.date || "").localeCompare(a.date || "");
+        if (dateComp !== 0) return dateComp;
+        const timeA = a.createdAt || 0;
+        const timeB = b.createdAt || 0;
+        if (timeA !== timeB) return timeB - timeA;
+        return (b.id || "").localeCompare(a.id || "");
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
       return [];

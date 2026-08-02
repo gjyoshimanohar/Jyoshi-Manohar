@@ -27,6 +27,36 @@ const getCurrencySymbol = (code?: string) => {
   }
 };
 
+const CustomGlassTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="backdrop-blur-md bg-slate-900/90 text-white rounded-xl p-3 shadow-2xl border border-slate-700/60 min-w-[150px] transition-all z-50">
+      {label && (
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 border-b border-slate-800 pb-1">
+          {label}
+        </p>
+      )}
+      <div className="space-y-1.5">
+        {payload.map((entry: any, index: number) => {
+          const val = typeof entry.value === "number" ? `₹${entry.value.toLocaleString("en-IN")}` : entry.value;
+          return (
+            <div key={`item-${index}`} className="flex items-center justify-between text-xs gap-3">
+              <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_6px_currentColor]"
+                  style={{ backgroundColor: entry.color || entry.fill }}
+                />
+                {entry.name}:
+              </span>
+              <span className="font-bold text-white tracking-tight">{val}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export interface ClientType {
   uid: string;
   email: string;
@@ -1465,24 +1495,21 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorInvoiced" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02}/>
                       </linearGradient>
                       <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.02}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                      formatter={(value: number) => [`₹${value.toLocaleString()}`]}
-                    />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomGlassTooltip />} />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <Area type="monotone" name={isAdmin ? "Total Invoiced" : "Total Billed"} dataKey="invoiced" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorInvoiced)" />
-                    <Area type="monotone" name={isAdmin ? "Total Paid" : "Payments Made"} dataKey="paid" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorPaid)" />
+                    <Area type="monotone" name={isAdmin ? "Total Invoiced" : "Total Billed"} dataKey="invoiced" stroke="#6366f1" strokeWidth={2.5} fillOpacity={1} fill="url(#colorInvoiced)" />
+                    <Area type="monotone" name={isAdmin ? "Total Paid" : "Payments Made"} dataKey="paid" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPaid)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -1492,15 +1519,17 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={agingData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }} barSize={32}>
+                    <defs>
+                      <linearGradient id="barAging" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f43f5e" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#be123c" stopOpacity={0.8} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                      formatter={(value: number) => [`₹${value.toLocaleString()}`, 'Outstanding']}
-                      cursor={{ fill: '#f9fafb' }}
-                    />
-                    <Bar dataKey="amount" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomGlassTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                    <Bar name="Outstanding Amount" dataKey="amount" fill="url(#barAging)" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1570,19 +1599,16 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                   <AreaChart data={itcData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorITC" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.02}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                      formatter={(value: number) => [`₹${value.toLocaleString()}`]}
-                    />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomGlassTooltip />} />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <Area type="monotone" name="Monthly ITC Gained" dataKey="Monthly ITC" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorITC)" />
+                    <Area type="monotone" name="Monthly ITC Gained" dataKey="Monthly ITC" stroke="#3b82f6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorITC)" />
                     <Area type="monotone" name="Cumulative Claimable ITC" dataKey="Cumulative ITC" stroke="#1d4ed8" strokeWidth={2.5} fillOpacity={0} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -1620,20 +1646,17 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                   <AreaChart data={outflowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorOutflow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.02}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                      formatter={(value: number) => [`₹${value.toLocaleString()}`]}
-                    />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomGlassTooltip />} />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <Area type="monotone" name="Total Monthly Outflow" dataKey="Total Outflow" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorOutflow)" />
-                    <Area type="monotone" name="Direct Expenses" dataKey="Expenses" stroke="#f97316" strokeWidth={1.5} fillOpacity={0} />
+                    <Area type="monotone" name="Total Monthly Outflow" dataKey="Total Outflow" stroke="#f43f5e" strokeWidth={2.5} fillOpacity={1} fill="url(#colorOutflow)" />
+                    <Area type="monotone" name="Direct Expenses" dataKey="Expenses" stroke="#f97316" strokeWidth={2} fillOpacity={0} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -1826,9 +1849,25 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
       {/* MAIN DATA TABLE LIST */}
       <div className="no-print bg-white rounded-2xl border border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.03)] overflow-hidden">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <div className="w-8 h-8 border-4 border-t-indigo-600 border-gray-100 rounded-full animate-spin mb-4" />
-            <span className="text-sm font-medium">Fetching real-time invoices...</span>
+          <div className="p-6 space-y-3.5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-50/70 animate-pulse border border-slate-100/80">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-200/80 shrink-0" />
+                  <div className="space-y-2">
+                    <div className="w-32 h-3.5 bg-slate-200/80 rounded-md" />
+                    <div className="w-24 h-3 bg-slate-200/50 rounded-md" />
+                  </div>
+                </div>
+                <div className="hidden sm:block space-y-1.5">
+                  <div className="w-28 h-3.5 bg-slate-200/70 rounded-md" />
+                  <div className="w-20 h-2.5 bg-slate-200/40 rounded-md" />
+                </div>
+                <div className="w-24 h-4 bg-slate-200/80 rounded-md font-mono" />
+                <div className="w-20 h-6 bg-slate-200/70 rounded-full" />
+                <div className="w-28 h-8 bg-slate-200/60 rounded-lg" />
+              </div>
+            ))}
           </div>
         ) : filteredInvoices.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -1882,7 +1921,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                       
                       {visibleInvoices.map(invoice => {
                         return (
-                          <tr key={invoice.id} className="hover:bg-slate-50/80 transition-colors cursor-pointer group">
+                          <tr key={invoice.id} className="hover:bg-slate-50/90 transition-all duration-200 cursor-pointer group relative">
                             <td className="px-6 py-4 font-mono font-bold text-slate-900">
                               {invoice.invoiceNumber}
                             </td>
@@ -1905,50 +1944,88 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                               {getStatusBadge(invoice.status, invoice.dueDate)}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
+                              {/* Floating Contextual Quick-Action Toolbar */}
+                              <div className="flex items-center justify-end gap-1.5 bg-slate-50/90 sm:bg-white sm:shadow-xs sm:border sm:border-slate-200/60 p-1 rounded-xl opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 transform sm:translate-x-1 group-hover:translate-x-0 w-fit ml-auto">
+                                {/* Quick Download PDF */}
+                                <button 
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedInvoice(invoice);
+                                    setViewTemplateId(invoice.templateId || 'standard');
+                                    setIsViewOpen(true);
+                                    setTimeout(() => window.print(), 350);
+                                  }}
+                                  className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all active:scale-95 cursor-pointer"
+                                  title="Quick Download / Print PDF"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* WhatsApp Reminder */}
+                                {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedInvoice(invoice);
+                                      setReminderChannel('whatsapp');
+                                      openReminderModal(invoice);
+                                    }}
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all active:scale-95 cursor-pointer"
+                                    title="Send WhatsApp Reminder"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
                                 {/* View */}
                                 <button 
+                                  type="button"
                                   onClick={() => { 
                                     setSelectedInvoice(invoice); 
                                     setViewTemplateId(invoice.templateId || 'standard'); 
                                     setIsViewOpen(true); 
                                   }}
-                                  className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-all active:scale-95 cursor-pointer"
                                   title="View Invoice Sheet"
                                 >
-                                  <Eye className="w-4 h-4" />
+                                  <Eye className="w-3.5 h-3.5" />
                                 </button>
 
-                                {/* Edit (only drafts or sent) */}
+                                {/* Edit */}
                                 {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
                                   <button 
+                                    type="button"
                                     onClick={() => handleEdit(invoice)}
-                                    className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                    className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all active:scale-95 cursor-pointer"
                                     title="Modify invoice details"
                                   >
-                                    <Edit2 className="w-4 h-4" />
+                                    <Edit2 className="w-3.5 h-3.5" />
                                   </button>
                                 )}
 
-                                {/* Mark as Paid / Unpaid */}
+                                {/* Mark as Paid */}
                                 {isAdmin && invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
                                   <button 
+                                    type="button"
                                     onClick={() => handleUpdateStatus(invoice, 'paid')}
-                                    className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                                    className="p-1.5 text-emerald-600 hover:bg-emerald-100/80 rounded-lg transition-all active:scale-95 cursor-pointer"
                                     title="Mark Invoice as Paid"
                                   >
-                                    <Check className="w-4 h-4 font-bold" />
+                                    <Check className="w-3.5 h-3.5 font-bold" />
                                   </button>
                                 )}
 
                                 {/* Delete */}
                                 {isAdmin && (
                                   <button 
+                                    type="button"
                                     onClick={() => handleDelete(invoice.id)}
-                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-all active:scale-95 cursor-pointer"
                                     title="Delete invoice record"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 )}
                               </div>

@@ -29,6 +29,35 @@ import {
   Pie,
 } from "recharts";
 
+const CustomGlassTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="backdrop-blur-md bg-slate-900/90 text-white rounded-xl p-3 shadow-2xl border border-slate-700/60 min-w-[150px] transition-all z-50">
+      {label && (
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 border-b border-slate-800 pb-1">
+          {label}
+        </p>
+      )}
+      <div className="space-y-1.5">
+        {payload.map((entry: any, index: number) => {
+          return (
+            <div key={`item-${index}`} className="flex items-center justify-between text-xs gap-3">
+              <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_6px_currentColor]"
+                  style={{ backgroundColor: entry.color || entry.fill }}
+                />
+                {entry.name}:
+              </span>
+              <span className="font-bold text-white tracking-tight">{entry.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 interface TrendsCategoryAnalyticsProps {
   tasksInPeriod: Todo[];
   allTodos: Todo[];
@@ -310,20 +339,22 @@ export const TrendsCategoryAnalytics: React.FC<TrendsCategoryAnalyticsProps> = (
           ) : chartView === "bar" ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="barCompl" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                  </linearGradient>
+                  <linearGradient id="barPend" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.8} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
-                <Tooltip
-                  cursor={{ fill: "#f8fafc" }}
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid #e2e8f0",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                  }}
-                />
-                <Bar dataKey="completed" name="Completed Tasks" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={32} />
-                <Bar dataKey="pending" name="Pending Tasks" fill="#a5b4fc" radius={[6, 6, 0, 0]} maxBarSize={32} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }} />
+                <Tooltip content={<CustomGlassTooltip />} cursor={{ fill: "#f1f5f9" }} />
+                <Bar dataKey="completed" name="Completed Tasks" fill="url(#barCompl)" radius={[6, 6, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="pending" name="Pending Tasks" fill="url(#barPend)" radius={[6, 6, 0, 0]} maxBarSize={32} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -344,7 +375,7 @@ export const TrendsCategoryAnalytics: React.FC<TrendsCategoryAnalyticsProps> = (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip content={<CustomGlassTooltip />} />
               </PieChart>
             </ResponsiveContainer>
           )}

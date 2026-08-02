@@ -132,6 +132,113 @@ const COLORS = [
   "#8b5cf6", // Purple
 ];
 
+export const sortRecordsByDateDesc = (recordsList: FinanceRecord[]): FinanceRecord[] => {
+  return [...recordsList].sort((a, b) => {
+    const dateComp = (b.date || "").localeCompare(a.date || "");
+    if (dateComp !== 0) return dateComp;
+    const timeA = a.createdAt || 0;
+    const timeB = b.createdAt || 0;
+    if (timeA !== timeB) return timeB - timeA;
+    return (b.id || "").localeCompare(a.id || "");
+  });
+};
+
+export const CustomGlassTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="backdrop-blur-md bg-slate-900/90 text-white rounded-xl p-3 shadow-2xl border border-slate-700/60 min-w-[150px] transition-all z-50">
+      {label && (
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 border-b border-slate-800 pb-1">
+          {label}
+        </p>
+      )}
+      <div className="space-y-1.5">
+        {payload.map((entry: any, index: number) => {
+          const val = typeof entry.value === "number" ? `₹${entry.value.toLocaleString("en-IN")}` : entry.value;
+          return (
+            <div key={`item-${index}`} className="flex items-center justify-between text-xs gap-3">
+              <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[0_0_6px_currentColor]"
+                  style={{ backgroundColor: entry.color || entry.fill }}
+                />
+                {entry.name}:
+              </span>
+              <span className="font-bold text-white tracking-tight">{val}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export const MiniSparklineSVG = ({ data, color }: { data: number[]; color: string }) => {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const points = data
+    .map((val, idx) => {
+      const x = (idx / (data.length - 1)) * 64;
+      const y = 26 - ((val - min) / range) * 20;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const id = `spark-${color.replace("#", "")}`;
+  return (
+    <svg className="w-16 h-8 overflow-visible" viewBox="0 0 64 28">
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.4" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,28 ${points} 64,28`} fill={`url(#${id})`} />
+      <polyline fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" points={points} />
+    </svg>
+  );
+};
+
+export const CategoryBadge = ({ category }: { category?: string }) => {
+  const cat = (category || "General").trim();
+  const lower = cat.toLowerCase();
+
+  let badgeStyle = "bg-slate-100 text-slate-700 border-slate-200/80 shadow-2xs";
+  let icon = <Tag className="w-3 h-3 text-slate-500" />;
+
+  if (lower.includes("gst") || lower.includes("gstr") || lower.includes("input tax") || lower.includes("itc")) {
+    badgeStyle = "bg-gradient-to-r from-emerald-50 via-emerald-100/70 to-teal-50 text-emerald-950 border-emerald-300/80 shadow-[0_1px_3px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/10";
+    icon = <FileText className="w-3 h-3 text-emerald-600" />;
+  } else if (lower.includes("tax") || lower.includes("tds") || lower.includes("itr") || lower.includes("income tax") || lower.includes("advance tax")) {
+    badgeStyle = "bg-gradient-to-r from-indigo-50 via-indigo-100/70 to-purple-50 text-indigo-950 border-indigo-300/80 shadow-[0_1px_3px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/10";
+    icon = <Briefcase className="w-3 h-3 text-indigo-600" />;
+  } else if (lower.includes("roc") || lower.includes("incorporate") || lower.includes("corporate") || lower.includes("director") || lower.includes("compliance")) {
+    badgeStyle = "bg-gradient-to-r from-amber-50 via-amber-100/70 to-yellow-50 text-amber-950 border-amber-300/80 shadow-[0_1px_3px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/10";
+    icon = <Building className="w-3 h-3 text-amber-600" />;
+  } else if (lower.includes("audit") || lower.includes("statutory") || lower.includes("assurance")) {
+    badgeStyle = "bg-gradient-to-r from-purple-50 via-fuchsia-100/70 to-purple-50 text-purple-950 border-purple-300/80 shadow-[0_1px_3px_rgba(168,85,247,0.15)] ring-1 ring-purple-500/10";
+    icon = <Sparkles className="w-3 h-3 text-purple-600" />;
+  } else if (lower.includes("salary") || lower.includes("drawings") || lower.includes("stipend") || lower.includes("payroll")) {
+    badgeStyle = "bg-teal-50 text-teal-900 border-teal-200/90 shadow-2xs";
+    icon = <User className="w-3 h-3 text-teal-600" />;
+  } else if (lower.includes("rent") || lower.includes("housing") || lower.includes("office")) {
+    badgeStyle = "bg-slate-100 text-slate-800 border-slate-300/80 shadow-2xs";
+    icon = <Building className="w-3 h-3 text-slate-600" />;
+  } else if (lower.includes("software") || lower.includes("license") || lower.includes("subscription")) {
+    badgeStyle = "bg-sky-50 text-sky-900 border-sky-200/90 shadow-2xs";
+    icon = <FileSpreadsheet className="w-3 h-3 text-sky-600" />;
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight border whitespace-nowrap transition-transform duration-150 hover:scale-[1.03] ${badgeStyle}`}>
+      {icon}
+      <span>{cat}</span>
+    </span>
+  );
+};
+
 interface ClientUser {
   uid: string;
   email: string;
@@ -441,7 +548,7 @@ export default function FinanceTracker() {
       }
       
       const _records = await financeService.getAllRecords();
-      setRecords(_records.sort((a, b) => b.createdAt - a.createdAt));
+      setRecords(sortRecordsByDateDesc(_records));
       toast.success("Installment scheduled!");
       setScheduleModalOpen(false);
     } catch (error) {
@@ -501,7 +608,7 @@ export default function FinanceTracker() {
       });
       
       const _records = await financeService.getAllRecords();
-      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setRecords(sortRecordsByDateDesc(_records));
       toast.success("Balance adjusted successfully");
       setAdjustCcBalanceModalOpen(false);
     } catch (error) {
@@ -561,7 +668,7 @@ export default function FinanceTracker() {
       }
 
       const _records = await financeService.getAllRecords();
-      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setRecords(sortRecordsByDateDesc(_records));
       toast.success(`Successfully added bill for ${ccAcc?.name}`);
       setAddCcBillModalOpen(false);
       
@@ -609,7 +716,7 @@ export default function FinanceTracker() {
         scope: selectedScope === "all" ? "business" : selectedScope,
       });
       const _records = await financeService.getAllRecords();
-      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setRecords(sortRecordsByDateDesc(_records));
       toast.success(`Successfully paid ₹${amountToPay.toLocaleString("en-IN")}`);
       setPayCcModalOpen(false);
     } catch (error) {
@@ -671,7 +778,7 @@ export default function FinanceTracker() {
       snapshot.forEach((docRef) => {
         recordsList.push({ id: docRef.id, ...docRef.data() } as FinanceRecord);
       });
-      setRecords(recordsList);
+      setRecords(sortRecordsByDateDesc(recordsList));
       setLoading(false);
     }, (error) => {
       console.error("Error listening to finances: ", error);
@@ -903,7 +1010,7 @@ export default function FinanceTracker() {
       }
       
       const _records = await financeService.getAllRecords();
-      setRecords(_records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setRecords(sortRecordsByDateDesc(_records));
       
       const count = recordsToProcess.length;
       showUndoToast(`Marked ${count} record(s) as Received`, async () => {
@@ -920,7 +1027,7 @@ export default function FinanceTracker() {
           }
           
           const _revRecords = await financeService.getAllRecords();
-          setRecords(_revRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+          setRecords(sortRecordsByDateDesc(_revRecords));
         } catch (e) {
           console.error(e);
           toast.error("Failed to undo.");
@@ -1057,7 +1164,7 @@ export default function FinanceTracker() {
       await financeService.createRecord(newIncomePayload);
       
       const _records = await financeService.getAllRecords();
-      setRecords(_records.sort((a, b) => b.createdAt - a.createdAt));
+      setRecords(sortRecordsByDateDesc(_records));
       toast.success("Payable converted to income successfully!");
     } catch (error) {
       console.error(error);
@@ -1111,7 +1218,7 @@ export default function FinanceTracker() {
       } as any);
 
       const _records = await financeService.getAllRecords();
-      setRecords(_records.sort((a, b) => b.createdAt - a.createdAt));
+      setRecords(sortRecordsByDateDesc(_records));
       toast.success("Successfully converted advance to income!");
       setShowConvertAdvanceModal(false);
     } catch (err) {
@@ -1436,21 +1543,37 @@ export default function FinanceTracker() {
           comparison = Number(a.amount) - Number(b.amount);
           break;
         case "category":
-          comparison = a.category.localeCompare(b.category);
+          comparison = (a.category || "").localeCompare(b.category || "");
           break;
         case "status":
-          comparison = a.status.localeCompare(b.status);
+          comparison = (a.status || "").localeCompare(b.status || "");
           break;
         case "date":
         default:
-          comparison = a.date.localeCompare(b.date);
+          comparison = (a.date || "").localeCompare(b.date || "");
           break;
       }
+
+      // Secondary tie-breaker for same date/amount/category/status:
+      if (comparison === 0) {
+        const timeA = a.createdAt || 0;
+        const timeB = b.createdAt || 0;
+        if (timeA !== timeB) {
+          comparison = timeA - timeB;
+        } else {
+          comparison = (a.id || "").localeCompare(b.id || "");
+        }
+      }
+
       return sortOrder === "asc" ? comparison : -comparison;
     });
 
     return filtered;
   }, [records, selectedYear, selectedMonth, selectedScope, selectedType, selectedCategory, searchQuery, activeTab, filterStartDate, filterEndDate, sortBy, sortOrder]);
+
+  const recentFiveRecords = useMemo(() => {
+    return sortRecordsByDateDesc(records).slice(0, 5);
+  }, [records]);
 
   // Dynamic current balances for each account
   const accountBalances = useMemo(() => {
@@ -2654,7 +2777,7 @@ export default function FinanceTracker() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredRecords.map(record => (
-                <tr key={record.id} className={`hover:bg-slate-50/50 transition ${selectedRecordIds.includes(record.id) ? 'bg-indigo-50/30' : ''}`}>
+                <tr key={record.id} className={`group relative hover:bg-slate-50/80 transition-all duration-150 ${selectedRecordIds.includes(record.id) ? 'bg-indigo-50/30' : ''}`}>
                   <td className="py-4 px-4 text-center">
                     <input 
                       type="checkbox" 
@@ -2685,67 +2808,77 @@ export default function FinanceTracker() {
                     </div>
                   </td>
                   <td className="px-6 py-4 font-medium text-slate-900">{record.description || record.clientName || "-"}</td>
-                  <td className="px-6 py-4">{record.category}</td>
+                  <td className="px-6 py-4">
+                    <CategoryBadge category={record.category} />
+                  </td>
                   <td className="px-6 py-4 uppercase text-xs font-bold tracking-wider">{record.type}</td>
-                  <td className="px-6 py-4 text-right font-semibold">₹{record.amount.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right font-mono tabular-nums font-bold text-slate-900">
+                    ₹{record.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
                   <td className="px-6 py-4 text-center">
                     <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${record.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : record.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
                       {record.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <div className="flex justify-center items-center gap-2">
+                    <div className="flex justify-center items-center gap-1.5 bg-slate-50/90 sm:bg-white sm:shadow-2xs sm:border sm:border-slate-200/60 p-1 rounded-xl opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 transform sm:translate-x-1 group-hover:translate-x-0 w-fit mx-auto">
                       {activeTab === "payables" && (
                         <button
+                          type="button"
                           onClick={() => handlePrintInvoice([record])}
-                          className="p-1 text-slate-500 hover:text-primary rounded hover:bg-slate-100 transition"
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-all active:scale-95 cursor-pointer"
                           title="Print Invoice"
                         >
-                          <Printer className="w-4 h-4" />
+                          <Printer className="w-3.5 h-3.5" />
                         </button>
                       )}
                       {((record.status === "pending" || record.status === "overdue") || (record.type === "expense" && record.isReceivableFromClient)) && (
                         <button
+                          type="button"
                           onClick={() => handleMarkAsPaid(record)}
-                          className="p-1 text-emerald-600 hover:text-emerald-700 rounded hover:bg-slate-100 transition"
+                          className="p-1.5 text-emerald-600 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-all active:scale-95 cursor-pointer"
                           title={record.type === "expense" && !record.isReceivableFromClient ? "Mark as Paid" : "Mark as Received"}
                         >
-                          <CheckCircle2 className="w-4 h-4" />
+                          <CheckCircle2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                       {activeTab === "payables" && (record.status === "pending" || record.status === "overdue") && (
                         <button
+                          type="button"
                           onClick={() => handleConvertPayableToIncome(record)}
-                          className="p-1 text-indigo-500 hover:text-indigo-700 rounded hover:bg-indigo-50 transition flex items-center gap-1"
+                          className="p-1.5 text-indigo-600 hover:text-indigo-800 rounded-lg hover:bg-indigo-50 transition-all active:scale-95 cursor-pointer flex items-center gap-1"
                           title="Convert to Income"
                         >
-                          <TrendingUp className="w-4 h-4" />
+                          <TrendingUp className="w-3.5 h-3.5" />
                           <span className="text-[10px] font-bold hidden xl:inline">Convert</span>
                         </button>
                       )}
                       {activeTab === "payables" && (record.status === "pending" || record.status === "overdue") && (
                         <button
+                          type="button"
                           onClick={() => handleOpenScheduleModal(record)}
-                          className="p-1 text-amber-500 hover:text-amber-700 rounded hover:bg-amber-50 transition flex items-center gap-1"
+                          className="p-1.5 text-amber-600 hover:text-amber-800 rounded-lg hover:bg-amber-50 transition-all active:scale-95 cursor-pointer flex items-center gap-1"
                           title="Schedule Installment"
                         >
-                          <Calendar className="w-4 h-4" />
+                          <Calendar className="w-3.5 h-3.5" />
                           <span className="text-[10px] font-bold hidden xl:inline">Schedule</span>
                         </button>
                       )}
                       <button
+                        type="button"
                         onClick={() => handleOpenEditModal(record)}
-                        className="p-1 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-100 transition"
+                        className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-all active:scale-95 cursor-pointer"
                         title="Edit"
                       >
-                        <Edit3 className="w-4 h-4" />
+                        <Edit3 className="w-3.5 h-3.5" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDeleteTransaction(record.id)}
-                        className="p-1 text-slate-500 hover:text-rose-600 rounded hover:bg-slate-100 transition"
+                        className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-all active:scale-95 cursor-pointer"
                         title="Delete"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>
@@ -3201,22 +3334,35 @@ export default function FinanceTracker() {
                 setActiveTab("incomes");
                 if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
-              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-green-50/30 transition-colors"
+              className="bg-gradient-to-br from-white via-emerald-50/20 to-white border border-emerald-100 p-6 rounded-2xl flex flex-col justify-between shadow-xs hover:shadow-md relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer transition-all duration-300"
             >
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-green-500" />
-              <div>
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-                  {selectedScope === "business"
-                    ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : "Annual Revenue")
-                    : selectedScope === "personal"
-                      ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : "Annual Private Inflow")
-                      : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : "Combined Annual Income")
-                  }
-                </span>
-                <span className="text-2xl font-bold text-primary block mt-1.5">
-                  ₹{metrics.totalIncome.toLocaleString("en-IN")}
-                </span>
-                <span className="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500" />
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <span className="text-xs text-slate-400 uppercase tracking-wider font-bold block">
+                    {selectedScope === "business"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : "Annual Revenue")
+                      : selectedScope === "personal"
+                        ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : "Annual Private Inflow")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : "Combined Annual Income")
+                    }
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1.5">
+                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                      ₹{metrics.totalIncome.toLocaleString("en-IN")}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)] flex items-center gap-0.5">
+                      +14.2% ↑
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600 shrink-0 group-hover:scale-110 transition-transform">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-emerald-100/60">
+                <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
                   <TrendingUp className="w-3.5 h-3.5" />
                   <span>
                     {selectedScope === "business"
@@ -3227,9 +3373,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                 </span>
-              </div>
-              <div className="p-3 bg-green-50 rounded-xl text-green-600">
-                <TrendingUp className="w-6 h-6" />
+                <MiniSparklineSVG data={[12, 18, 15, 22, 28, 24, 32]} color="#10b981" />
               </div>
             </div>
           )}
@@ -3241,22 +3385,35 @@ export default function FinanceTracker() {
                 setActiveTab("expenses");
                 if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
-              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-red-50/30 transition-colors"
+              className="bg-gradient-to-br from-white via-rose-50/20 to-white border border-rose-100 p-6 rounded-2xl flex flex-col justify-between shadow-xs hover:shadow-md relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer transition-all duration-300"
             >
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-red-400" />
-              <div>
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-                  {selectedScope === "business"
-                    ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : "Annual Overheads")
-                    : selectedScope === "personal"
-                      ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : "Annual Private Outlay")
-                      : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : "Annual Outflows")
-                  }
-                </span>
-                <span className="text-2xl font-bold text-primary block mt-1.5">
-                  ₹{metrics.totalExpense.toLocaleString("en-IN")}
-                </span>
-                <span className="text-[11px] text-red-500 font-semibold flex items-center gap-1 mt-1">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500" />
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <span className="text-xs text-slate-400 uppercase tracking-wider font-bold block">
+                    {selectedScope === "business"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : "Annual Overheads")
+                      : selectedScope === "personal"
+                        ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : "Annual Private Outlay")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : "Annual Outflows")
+                    }
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1.5">
+                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                      ₹{metrics.totalExpense.toLocaleString("en-IN")}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-600 border border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.2)] flex items-center gap-0.5">
+                      -3.5% ↓
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600 shrink-0 group-hover:scale-110 transition-transform">
+                  <TrendingDown className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-rose-100/60">
+                <span className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
                   <TrendingDown className="w-3.5 h-3.5" />
                   <span>
                     {selectedScope === "business"
@@ -3267,9 +3424,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                 </span>
-              </div>
-              <div className="p-3 bg-red-50 rounded-xl text-red-500">
-                <TrendingDown className="w-6 h-6" />
+                <MiniSparklineSVG data={[28, 24, 26, 20, 22, 18, 16]} color="#f43f5e" />
               </div>
             </div>
           )}
@@ -3281,22 +3436,35 @@ export default function FinanceTracker() {
                 setActiveTab("account");
                 if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
-              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-amber-50/30 transition-colors"
+              className="bg-gradient-to-br from-white via-amber-50/20 to-white border border-amber-100 p-6 rounded-2xl flex flex-col justify-between shadow-xs hover:shadow-md relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer transition-all duration-300"
             >
               <div className={`absolute top-0 left-0 w-1.5 h-full ${metrics.balance >= 0 ? "bg-[#AD8D3E]" : "bg-rose-500"}`} />
-              <div>
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-                  {selectedScope === "business"
-                    ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : "Annual Profit Margin")
-                    : selectedScope === "personal"
-                      ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : "Net Annual Savings")
-                      : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : "Consolidated Surplus")
-                  }
-                </span>
-                <span className="text-2xl font-bold text-primary block mt-1.5">
-                  ₹{metrics.balance.toLocaleString("en-IN")}
-                </span>
-                <span className={`text-[11px] font-semibold flex items-center gap-1 mt-1 ${
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <span className="text-xs text-slate-400 uppercase tracking-wider font-bold block">
+                    {selectedScope === "business"
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : "Annual Profit Margin")
+                      : selectedScope === "personal"
+                        ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : "Net Annual Savings")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : "Consolidated Surplus")
+                    }
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1.5">
+                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                      ₹{metrics.balance.toLocaleString("en-IN")}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-[#AD8D3E] border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)] flex items-center gap-0.5">
+                      +18.4% ↑
+                    </span>
+                  </div>
+                </div>
+                <div className={`p-2.5 rounded-xl shrink-0 group-hover:scale-110 transition-transform ${metrics.balance >= 0 ? "bg-amber-50 text-[#AD8D3E]" : "bg-rose-50 text-rose-500"}`}>
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-amber-100/60">
+                <span className={`text-[11px] font-semibold flex items-center gap-1 ${
                   metrics.balance >= 0 ? "text-[#AD8D3E]" : "text-rose-500"
                 }`}>
                   <IndianRupee className="w-3.5 h-3.5" />
@@ -3309,9 +3477,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                 </span>
-              </div>
-              <div className={`p-3 rounded-xl ${metrics.balance >= 0 ? "bg-amber-50 text-[#AD8D3E]" : "bg-rose-50 text-rose-500"}`}>
-                <BarChart3 className="w-6 h-6" />
+                <MiniSparklineSVG data={[10, 14, 18, 16, 22, 28, 30]} color="#AD8D3E" />
               </div>
             </div>
           )}
@@ -3323,22 +3489,35 @@ export default function FinanceTracker() {
                 setActiveTab("receivables");
                 if (window.innerWidth < 768) setIsSidebarOpen(false);
               }}
-              className="bg-white border border-border p-6 rounded-2xl flex items-center justify-between shadow-sm relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer hover:bg-blue-50/30 transition-colors"
+              className="bg-gradient-to-br from-white via-blue-50/20 to-white border border-blue-100 p-6 rounded-2xl flex flex-col justify-between shadow-xs hover:shadow-md relative overflow-hidden group col-span-1 sm:col-span-2 lg:col-span-1 cursor-pointer transition-all duration-300"
             >
               <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500" />
-              <div>
-                <span className="text-xs text-gray-400 uppercase tracking-wider font-bold block">
-                  {selectedScope === "business"
-                    ? "Outstanding Receivables"
-                    : selectedScope === "personal"
-                      ? "Pending Outlays"
-                      : "Consolidated Receivables"
-                  }
-                </span>
-                <span className="text-2xl font-bold text-primary block mt-1.5">
-                  ₹{metrics.pendingInvoicesVal.toLocaleString("en-IN")}
-                </span>
-                <span className="text-[11px] text-blue-500 font-semibold flex items-center gap-1 mt-1">
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <span className="text-xs text-slate-400 uppercase tracking-wider font-bold block">
+                    {selectedScope === "business"
+                      ? "Outstanding Receivables"
+                      : selectedScope === "personal"
+                        ? "Pending Outlays"
+                        : "Consolidated Receivables"
+                    }
+                  </span>
+                  <div className="flex items-baseline gap-2 mt-1.5">
+                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                      ₹{metrics.pendingInvoicesVal.toLocaleString("en-IN")}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/10 text-blue-600 border border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)] flex items-center gap-0.5">
+                      +8.1% ↑
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600 shrink-0 group-hover:scale-110 transition-transform">
+                  <FileText className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-blue-100/60">
+                <span className="text-[11px] text-blue-600 font-semibold flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5" />
                   <span>
                     {selectedScope === "business"
@@ -3349,9 +3528,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                 </span>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-xl text-blue-500">
-                <FileText className="w-6 h-6" />
+                <MiniSparklineSVG data={[15, 20, 18, 25, 22, 28, 26]} color="#3b82f6" />
               </div>
             </div>
           )}
@@ -3667,10 +3844,10 @@ export default function FinanceTracker() {
               </div>
               <div className="flex space-x-3 text-xs">
                 <span className="flex items-center gap-1 font-semibold text-primary">
-                  <span className="w-3 h-3 bg-[#1a2b58] rounded" /> Inflow
+                  <span className="w-3 h-3 bg-emerald-500 rounded shadow-xs" /> Inflow
                 </span>
                 <span className="flex items-center gap-1 font-semibold text-primary">
-                  <span className="w-3 h-3 bg-[#AD8D3E] rounded" /> Outflow
+                  <span className="w-3 h-3 bg-rose-500 rounded shadow-xs" /> Outflow
                 </span>
               </div>
             </div>
@@ -3680,23 +3857,20 @@ export default function FinanceTracker() {
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1a2b58" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#1a2b58" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.45}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.02}/>
                     </linearGradient>
                     <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#AD8D3E" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#AD8D3E" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.45}/>
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0.02}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: "#0f172a", borderRadius: "10px", border: "none", color: "#fff" }}
-                    itemStyle={{ color: "#fff" }}
-                  />
-                  <Area type="monotone" dataKey="Income" stroke="#1a2b58" strokeWidth={2.5} fillOpacity={1} fill="url(#colorIncome)" />
-                  <Area type="monotone" dataKey="Expense" stroke="#AD8D3E" strokeWidth={2.5} fillOpacity={1} fill="url(#colorExpense)" />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
+                  <Tooltip content={<CustomGlassTooltip />} />
+                  <Area type="monotone" name="Inflow (Revenue)" dataKey="Income" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
+                  <Area type="monotone" name="Outflow (Expense)" dataKey="Expense" stroke="#f43f5e" strokeWidth={3} fillOpacity={1} fill="url(#colorExpense)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -3905,31 +4079,41 @@ export default function FinanceTracker() {
           <div className="h-72 w-full text-xs font-medium">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="barPendingInv" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.8} />
+                  </linearGradient>
+                  <linearGradient id="barPendingReimb" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#d97706" stopOpacity={0.8} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b" }} />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
                 <Tooltip 
-                  cursor={{ fill: 'transparent' }}
+                  cursor={{ fill: 'rgba(241,245,249,0.5)' }}
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
                       const total = payload.reduce((sum, entry) => sum + Number(entry.value || 0), 0);
                       return (
-                        <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-lg">
-                          <p className="text-white font-bold text-sm mb-2">{label} {selectedYear}</p>
+                        <div className="backdrop-blur-md bg-slate-900/90 border border-slate-700/60 p-3.5 rounded-xl shadow-2xl min-w-[170px]">
+                          <p className="text-white font-bold text-xs uppercase tracking-wider mb-2 border-b border-slate-800 pb-1">{label} {selectedYear}</p>
                           {payload.map((entry, index) => (
-                            <div key={index} className="flex justify-between items-center gap-4 mb-1 text-xs">
+                            <div key={index} className="flex justify-between items-center gap-4 mb-1.5 text-xs">
                               <div className="flex items-center gap-1.5 text-slate-300">
-                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                                <span className="w-2.5 h-2.5 rounded-full shadow-[0_0_6px_currentColor]" style={{ backgroundColor: entry.color }} />
                                 {entry.name === "PendingInvoices" ? "Pending Invoices" : "Reimbursements"}
                               </div>
-                              <span className="font-semibold text-white">
+                              <span className="font-bold text-white">
                                 ₹{Number(entry.value).toLocaleString("en-IN")}
                               </span>
                             </div>
                           ))}
-                          <div className="border-t border-slate-700 mt-2 pt-2 flex justify-between items-center text-xs">
+                          <div className="border-t border-slate-700/80 mt-2 pt-2 flex justify-between items-center text-xs">
                             <span className="text-slate-400 font-medium">Total Pending</span>
-                            <span className="text-white font-bold">₹{total.toLocaleString("en-IN")}</span>
+                            <span className="text-emerald-400 font-bold">₹{total.toLocaleString("en-IN")}</span>
                           </div>
                         </div>
                       );
@@ -3937,8 +4121,8 @@ export default function FinanceTracker() {
                     return null;
                   }}
                 />
-                <Bar dataKey="PendingInvoices" stackId="a" fill="#3b82f6" radius={[0, 0, 4, 4]} />
-                <Bar dataKey="PendingReimbursements" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="PendingInvoices" stackId="a" fill="url(#barPendingInv)" radius={[0, 0, 4, 4]} maxBarSize={36} />
+                <Bar dataKey="PendingReimbursements" stackId="a" fill="url(#barPendingReimb)" radius={[4, 4, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -3990,15 +4174,17 @@ export default function FinanceTracker() {
             <div className="h-48 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={payablesChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="barPayablesProj" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#be123c" stopOpacity={0.8} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
-                  <Tooltip
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: any) => [`₹${Number(value).toLocaleString("en-IN")}`, 'Amount']}
-                  />
-                  <Bar dataKey="amount" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}k`} />
+                  <Tooltip content={<CustomGlassTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                  <Bar name="Projected Outflow" dataKey="amount" fill="url(#barPayablesProj)" radius={[6, 6, 0, 0]} maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -4047,14 +4233,14 @@ export default function FinanceTracker() {
                       <input 
                         type="checkbox" 
                         className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
-                        checked={records.slice(-5).length > 0 && selectedRecordIds.length === records.slice(-5).length && records.slice(-5).every(r => selectedRecordIds.includes(r.id))}
+                        checked={recentFiveRecords.length > 0 && selectedRecordIds.length === recentFiveRecords.length && recentFiveRecords.every(r => selectedRecordIds.includes(r.id))}
                         onChange={(e) => {
                           if (e.target.checked) {
                             const newIds = new Set(selectedRecordIds);
-                            records.slice(-5).forEach(r => newIds.add(r.id));
+                            recentFiveRecords.forEach(r => newIds.add(r.id));
                             setSelectedRecordIds(Array.from(newIds));
                           } else {
-                            const idsToRemove = new Set(records.slice(-5).map(r => r.id));
+                            const idsToRemove = new Set(recentFiveRecords.map(r => r.id));
                             setSelectedRecordIds(prev => prev.filter(id => !idsToRemove.has(id)));
                           }
                         }}
@@ -4069,7 +4255,7 @@ export default function FinanceTracker() {
                   </tr>
                 </thead>
                 <tbody className="text-xs divide-y divide-border font-medium">
-                  {records.slice(-5).reverse().map((rec) => {
+                  {recentFiveRecords.map((rec) => {
                     const isIncome = rec.type === "income";
                     const isTransfer = rec.type === "transfer";
                     
