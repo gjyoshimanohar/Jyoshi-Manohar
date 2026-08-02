@@ -274,7 +274,7 @@ export default function TaskTemplatesModal({
           </div>
 
           {/* Tab Content Area */}
-          <div className="p-6 overflow-y-auto flex-1">
+          <div className="p-6 overflow-y-auto no-scrollbar flex-1">
             {activeTab === 'list' ? (
               templates.length === 0 ? (
                 <div className="text-center py-12 px-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">

@@ -8063,7 +8063,7 @@ Stewardship, Accuracy, Legacy.
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 15 }}
                 transition={{ type: "spring", duration: 0.5, bounce: 0 }}
-                className="bg-white rounded-[2rem] shadow-2xl p-4 sm:p-4 sm:p-5 w-full max-w-md max-h-[90vh] overflow-y-auto relative"
+                className="bg-white rounded-[2rem] shadow-2xl p-4 sm:p-4 sm:p-5 w-full max-w-md max-h-[90vh] overflow-y-auto no-scrollbar relative"
               >
                 <button
                   onClick={() => setShowAddLoginModal(false)}
@@ -8241,7 +8241,7 @@ Stewardship, Accuracy, Legacy.
                     <X className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 overflow-y-auto space-y-5 flex-1">
+                <div className="p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 overflow-y-auto no-scrollbar space-y-5 flex-1">
                   {opsModalType === "app" && (
                     <form onSubmit={handleCreateApp} className="space-y-5">
                       <div>
@@ -8566,7 +8566,7 @@ Stewardship, Accuracy, Legacy.
                 <form
                   id="add-new-client-form"
                   onSubmit={handleAddNewClientInModal}
-                  className="p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 space-y-5 text-left flex-1 overflow-y-auto"
+                  className="p-4 sm:p-5 md:p-5 sm:p-4 sm:p-5 space-y-5 text-left flex-1 overflow-y-auto no-scrollbar"
                 >
                   <div>
                     <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
@@ -9156,7 +9156,7 @@ Stewardship, Accuracy, Legacy.
                 </div>
 
                 {/* Body Content */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6 scrollbar-thin">
+                <div className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-5 space-y-6">
                   {/* General Info Card */}
                   <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
                     <div className="flex justify-between items-start gap-4">

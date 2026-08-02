@@ -201,44 +201,6 @@ export const MiniSparklineSVG = ({ data, color }: { data: number[]; color: strin
   );
 };
 
-export const CategoryBadge = ({ category }: { category?: string }) => {
-  const cat = (category || "General").trim();
-  const lower = cat.toLowerCase();
-
-  let badgeStyle = "bg-slate-100 text-slate-700 border-slate-200/80 shadow-2xs";
-  let icon = <Tag className="w-3 h-3 text-slate-500" />;
-
-  if (lower.includes("gst") || lower.includes("gstr") || lower.includes("input tax") || lower.includes("itc")) {
-    badgeStyle = "bg-gradient-to-r from-emerald-50 via-emerald-100/70 to-teal-50 text-emerald-950 border-emerald-300/80 shadow-[0_1px_3px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/10";
-    icon = <FileText className="w-3 h-3 text-emerald-600" />;
-  } else if (lower.includes("tax") || lower.includes("tds") || lower.includes("itr") || lower.includes("income tax") || lower.includes("advance tax")) {
-    badgeStyle = "bg-gradient-to-r from-indigo-50 via-indigo-100/70 to-purple-50 text-indigo-950 border-indigo-300/80 shadow-[0_1px_3px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/10";
-    icon = <Briefcase className="w-3 h-3 text-indigo-600" />;
-  } else if (lower.includes("roc") || lower.includes("incorporate") || lower.includes("corporate") || lower.includes("director") || lower.includes("compliance")) {
-    badgeStyle = "bg-gradient-to-r from-amber-50 via-amber-100/70 to-yellow-50 text-amber-950 border-amber-300/80 shadow-[0_1px_3px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/10";
-    icon = <Building className="w-3 h-3 text-amber-600" />;
-  } else if (lower.includes("audit") || lower.includes("statutory") || lower.includes("assurance")) {
-    badgeStyle = "bg-gradient-to-r from-purple-50 via-fuchsia-100/70 to-purple-50 text-purple-950 border-purple-300/80 shadow-[0_1px_3px_rgba(168,85,247,0.15)] ring-1 ring-purple-500/10";
-    icon = <Sparkles className="w-3 h-3 text-purple-600" />;
-  } else if (lower.includes("salary") || lower.includes("drawings") || lower.includes("stipend") || lower.includes("payroll")) {
-    badgeStyle = "bg-teal-50 text-teal-900 border-teal-200/90 shadow-2xs";
-    icon = <User className="w-3 h-3 text-teal-600" />;
-  } else if (lower.includes("rent") || lower.includes("housing") || lower.includes("office")) {
-    badgeStyle = "bg-slate-100 text-slate-800 border-slate-300/80 shadow-2xs";
-    icon = <Building className="w-3 h-3 text-slate-600" />;
-  } else if (lower.includes("software") || lower.includes("license") || lower.includes("subscription")) {
-    badgeStyle = "bg-sky-50 text-sky-900 border-sky-200/90 shadow-2xs";
-    icon = <FileSpreadsheet className="w-3 h-3 text-sky-600" />;
-  }
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-tight border whitespace-nowrap transition-transform duration-150 hover:scale-[1.03] ${badgeStyle}`}>
-      {icon}
-      <span>{cat}</span>
-    </span>
-  );
-};
-
 interface ClientUser {
   uid: string;
   email: string;
@@ -2808,13 +2770,9 @@ export default function FinanceTracker() {
                     </div>
                   </td>
                   <td className="px-6 py-4 font-medium text-slate-900">{record.description || record.clientName || "-"}</td>
-                  <td className="px-6 py-4">
-                    <CategoryBadge category={record.category} />
-                  </td>
+                  <td className="px-6 py-4">{record.category}</td>
                   <td className="px-6 py-4 uppercase text-xs font-bold tracking-wider">{record.type}</td>
-                  <td className="px-6 py-4 text-right font-mono tabular-nums font-bold text-slate-900">
-                    ₹{record.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
+                  <td className="px-6 py-4 text-right font-semibold">₹{record.amount.toLocaleString()}</td>
                   <td className="px-6 py-4 text-center">
                     <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${record.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : record.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
                       {record.status}
@@ -3348,7 +3306,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
-                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                    <span className="text-2xl font-bold text-primary block">
                       ₹{metrics.totalIncome.toLocaleString("en-IN")}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)] flex items-center gap-0.5">
@@ -3399,7 +3357,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
-                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                    <span className="text-2xl font-bold text-primary block">
                       ₹{metrics.totalExpense.toLocaleString("en-IN")}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-600 border border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.2)] flex items-center gap-0.5">
@@ -3450,7 +3408,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
-                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                    <span className="text-2xl font-bold text-primary block">
                       ₹{metrics.balance.toLocaleString("en-IN")}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-[#AD8D3E] border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)] flex items-center gap-0.5">
@@ -3503,7 +3461,7 @@ export default function FinanceTracker() {
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
-                    <span className="text-2xl font-bold font-mono tabular-nums text-primary block">
+                    <span className="text-2xl font-bold text-primary block">
                       ₹{metrics.pendingInvoicesVal.toLocaleString("en-IN")}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/10 text-blue-600 border border-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)] flex items-center gap-0.5">
@@ -5608,7 +5566,7 @@ export default function FinanceTracker() {
           />
 
           {/* Dialog Body */}
-          <div className="relative bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[90vh] overflow-y-auto no-scrollbar">
             
             {/* Header */}
             <div className="flex justify-between items-center border-b border-border pb-4 mb-6">
@@ -6032,7 +5990,7 @@ export default function FinanceTracker() {
           />
 
           {/* Dialog Body */}
-          <div className="relative bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[85vh] overflow-y-auto">
+          <div className="relative bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[85vh] overflow-y-auto no-scrollbar">
             {/* Header */}
             <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
               <h3 className="text-lg font-bold text-primary flex items-center gap-2">
@@ -6205,7 +6163,7 @@ export default function FinanceTracker() {
             onClick={() => setShowConvertAdvanceModal(false)}
             className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity" 
           />
-          <div className="relative bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[85vh] overflow-y-auto">
+          <div className="relative bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-scale-up text-left flex flex-col max-h-[85vh] overflow-y-auto no-scrollbar">
             <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
               <h3 className="text-lg font-bold text-primary flex items-center gap-2">
                 <ArrowLeftRight className="w-5 h-5 text-indigo-600" />

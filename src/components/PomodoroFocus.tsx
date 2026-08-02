@@ -186,6 +186,8 @@ export default function PomodoroFocus({
         }
       });
       setClients(clientList);
+    }, (err) => {
+      console.warn("Error fetching clients in PomodoroFocus:", err);
     });
     return () => unsub();
   }, []);

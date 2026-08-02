@@ -572,7 +572,7 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
 
       {exportModalOpen && exportTargetAccount && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100 flex flex-col">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center">
                 <Download className="w-4 h-4 mr-2 text-primary" />

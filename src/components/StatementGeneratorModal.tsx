@@ -200,7 +200,7 @@ export default function StatementGeneratorModal({ isOpen, onClose, invoices, cli
 
   return (
     <div className={isEmbedded ? "w-full h-full" : "fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"}>
-      <div className={`bg-white rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isEmbedded ? "border border-slate-200" : "shadow-xl"}`}>
+      <div className={`bg-white rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${isEmbedded ? "border border-slate-200" : "shadow-xl"} max-h-[90vh] overflow-y-auto no-scrollbar`}>
         <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">

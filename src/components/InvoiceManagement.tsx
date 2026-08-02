@@ -2050,7 +2050,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
 
       {/* VIEW INVOICE DETAILED PANEL MODAL */}
       {isViewOpen && selectedInvoice && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-[999] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 z-[999] overflow-y-auto no-scrollbar">
           <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-4xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-4 sm:my-8 max-h-[92vh]">
             {/* Header controls */}
             <div className="no-print bg-slate-50 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
@@ -2593,7 +2593,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               </button>
             </div>
 
-            <form onSubmit={handleSaveInvoice} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-slate-700">
+            <form onSubmit={handleSaveInvoice} className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-6 text-xs text-slate-700">
               {/* Top metadata */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
@@ -3171,7 +3171,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+            <div className="flex-1 overflow-y-auto no-scrollbar p-6 flex flex-col gap-6">
               {/* Product Form */}
               <form onSubmit={async (e) => {
                 e.preventDefault();
@@ -3396,7 +3396,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               )}
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[85vh]">
+            <div className="p-6 overflow-y-auto no-scrollbar max-h-[85vh]">
               {checkoutSimulating ? (
                 <div className="flex flex-col items-center justify-center py-10">
                   <div className="w-12 h-12 border-4 border-t-indigo-600 border-indigo-100 rounded-full animate-spin mb-4" />
@@ -3691,7 +3691,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               </button>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+            <div className="p-6 space-y-4 overflow-y-auto no-scrollbar max-h-[70vh]">
               {/* Channel Toggle */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Preferred Dispatch Channel</label>
@@ -3809,7 +3809,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
 
       {/* ZOHO TEMPLATES SHOWCASE MODAL */}
       {isTemplateShowcaseOpen && (
-        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center z-[10001] p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center z-[10001] p-4 overflow-y-auto no-scrollbar">
           <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col my-4 max-h-[90vh]">
             {/* Modal Header */}
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
@@ -3830,7 +3830,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 md:p-8 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-50/50">
+            <div className="p-6 md:p-8 overflow-y-auto no-scrollbar flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-50/50">
               
               {/* Left Column: Template Cards (5 cols) */}
               <div className="lg:col-span-5 space-y-3.5">
@@ -3938,7 +3938,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                 </div>
 
                 {/* THE MOCKUP CONTAINER */}
-                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-hidden flex-1 text-left select-none relative max-h-[480px] overflow-y-auto">
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm overflow-hidden flex-1 text-left select-none relative max-h-[480px] overflow-y-auto no-scrollbar">
                   
                   {/* Standard Mockup */}
                   {previewTemplateId === 'standard' && (
@@ -4259,7 +4259,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
 
       {/* COMBINED EXPORT REPORT MODAL */}
       {isExportModalOpen && (
-        <div id="export-report-modal" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-[999] overflow-y-auto">
+        <div id="export-report-modal" className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-[999] overflow-y-auto no-scrollbar">
           <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col my-4">
             {/* Modal Header */}
             <div className="bg-slate-900 text-white p-5 sm:p-6 flex items-center justify-between border-b border-slate-800">
@@ -4282,7 +4282,7 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 sm:p-6 space-y-5 text-xs text-slate-700 max-h-[75vh] overflow-y-auto">
+            <div className="p-5 sm:p-6 space-y-5 text-xs text-slate-700 max-h-[75vh] overflow-y-auto no-scrollbar">
               
               {/* 1. REPORT MODE / FORMAT SELECTION */}
               <div>

@@ -294,7 +294,7 @@ export default function CalendarSyncModal({
           </div>
 
           {/* Main Events List */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-3 bg-slate-50/50">
+          <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-3 bg-slate-50/50">
             {filteredEvents.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-sm">
                 No schedule items found under this category filter.

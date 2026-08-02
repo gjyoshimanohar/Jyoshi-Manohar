@@ -362,7 +362,7 @@ export default function DailyStandupModal({
           )}
 
           {/* Main Content Area */}
-          <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+          <div className="flex-1 overflow-y-auto no-scrollbar p-6 bg-slate-50/50">
             {isGenerating ? (
               <div className="py-16 flex flex-col items-center justify-center gap-4 text-center">
                 <div className="relative">
@@ -445,7 +445,7 @@ export default function DailyStandupModal({
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-100"
+            className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-100 max-h-[85vh] overflow-y-auto no-scrollbar"
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">

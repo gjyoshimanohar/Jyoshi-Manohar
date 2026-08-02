@@ -188,7 +188,7 @@ export const ManageCategoriesModal: React.FC<ManageCategoriesModalProps> = ({
           </div>
 
           {/* Body Content */}
-          <div className="p-6 overflow-y-auto space-y-6 flex-1">
+          <div className="p-6 overflow-y-auto no-scrollbar space-y-6 flex-1">
             {/* Scope Selection Pills */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">

@@ -6,6 +6,7 @@ import CalendarSyncModal from "./CalendarSyncModal";
 import DailyStandupModal from "./DailyStandupModal";
 import {
   Check,
+  CheckSquare,
   Trash2,
   Sun,
   Plus,
@@ -724,6 +725,13 @@ export default function WorkspaceApp() {
   const [autoProjectNotice, setAutoProjectNotice] = useState<string | null>(
     null,
   );
+
+  // Bulk Select Mode state
+  const [isBulkSelectMode, setIsBulkSelectMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [isBulkMoveModalOpen, setIsBulkMoveModalOpen] = useState(false);
+  const [bulkMoveTargetProjectId, setBulkMoveTargetProjectId] = useState<string>("");
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   // Edit Project State
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -1941,6 +1949,131 @@ export default function WorkspaceApp() {
     await todoService.restoreTodo(todoId);
   };
 
+  // Bulk Selection Action Handlers
+  const toggleSelectTask = (id: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllVisible = () => {
+    const visibleIds = allActiveViewTodos.map((t) => t.id);
+    if (selectedTaskIds.size === visibleIds.length && visibleIds.length > 0) {
+      setSelectedTaskIds(new Set());
+    } else {
+      setSelectedTaskIds(new Set(visibleIds));
+    }
+  };
+
+  const handleBulkToggleComplete = async (completedStatus: boolean) => {
+    if (selectedTaskIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      const ids = Array.from(selectedTaskIds);
+      const now = Date.now();
+      await Promise.all(
+        ids.map((id) =>
+          todoService.updateTodo(id, {
+            completed: completedStatus,
+            completedAt: completedStatus ? now : null,
+          })
+        )
+      );
+      toast.success(
+        `Marked ${ids.length} task${ids.length > 1 ? "s" : ""} as ${
+          completedStatus ? "completed" : "pending"
+        }`
+      );
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      toast.error("Failed to update selected tasks");
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkMoveToProject = async () => {
+    if (selectedTaskIds.size === 0 || !bulkMoveTargetProjectId) return;
+    setIsBulkProcessing(true);
+    try {
+      const ids = Array.from(selectedTaskIds);
+      const proj = projects.find((p) => p.id === bulkMoveTargetProjectId);
+      await Promise.all(
+        ids.map((id) =>
+          todoService.updateTodo(id, {
+            projectId: bulkMoveTargetProjectId,
+          })
+        )
+      );
+      toast.success(
+        `Moved ${ids.length} task${ids.length > 1 ? "s" : ""} to ${
+          proj ? proj.name : "selected project"
+        }`
+      );
+      setIsBulkMoveModalOpen(false);
+      setBulkMoveTargetProjectId("");
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      toast.error("Failed to move selected tasks");
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkDeleteTasks = async () => {
+    if (selectedTaskIds.size === 0) return;
+    const count = selectedTaskIds.size;
+    if (
+      !window.confirm(
+        `Are you sure you want to ${
+          viewMode === "trash" ? "permanently delete" : "move to trash"
+        } ${count} selected task${count > 1 ? "s" : ""}?`
+      )
+    ) {
+      return;
+    }
+    setIsBulkProcessing(true);
+    try {
+      const ids = Array.from(selectedTaskIds);
+      if (viewMode === "trash") {
+        await Promise.all(ids.map((id) => todoService.deleteTodo(id)));
+      } else {
+        await Promise.all(ids.map((id) => todoService.softDeleteTodo(id)));
+      }
+      toast.success(
+        `${viewMode === "trash" ? "Permanently deleted" : "Moved to trash"} ${count} task${count > 1 ? "s" : ""}`
+      );
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      toast.error("Failed to delete selected tasks");
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkSetPriority = async (priority: number) => {
+    if (selectedTaskIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      const ids = Array.from(selectedTaskIds);
+      await Promise.all(
+        ids.map((id) => todoService.updateTodo(id, { priority }))
+      );
+      toast.success(`Set priority for ${ids.length} task${ids.length > 1 ? "s" : ""}`);
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      toast.error("Failed to update priority");
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
 
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -2532,6 +2665,7 @@ export default function WorkspaceApp() {
 
     const isDragged = draggedTaskId === todo.id;
     const isDragOver = dragOverTaskId === todo.id;
+    const isSelectedInBulk = selectedTaskIds.has(todo.id);
 
     const isTouchDevice = typeof window !== 'undefined' && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
     return (
@@ -2609,6 +2743,8 @@ export default function WorkspaceApp() {
         transition={{ duration: 0.3, delay: (index ?? 0) * 0.05, ease: "easeOut" }}
         onContextMenu={(e) => handleTaskContextMenu(e, todo)}
         className={`group flex items-center justify-between py-2.5 border-b border-[#f4f4f4]/60 hover:bg-[#fafafa]/80 transition-all px-1 select-none relative ${
+          isSelectedInBulk ? "bg-indigo-50/90 border-indigo-200 ring-1 ring-indigo-300/60 rounded-lg" : ""
+        } ${
           isDragged
             ? "opacity-40 bg-indigo-50/40 border-dashed border-indigo-300 scale-[0.99]"
             : ""
@@ -2640,7 +2776,25 @@ export default function WorkspaceApp() {
         }`}
       >
         <div className="flex items-center min-w-0 flex-1">
-          {currentViewType === "list" && viewMode !== "trash" && (
+          {isBulkSelectMode && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSelectTask(todo.id);
+              }}
+              className={`mr-2.5 w-4.5 h-4.5 flex shrink-0 items-center justify-center rounded-md border-2 transition-all cursor-pointer ${
+                isSelectedInBulk
+                  ? "bg-[#1a2b58] border-[#1a2b58] text-white shadow-2xs"
+                  : "border-gray-300 bg-white hover:border-[#1a2b58]"
+              }`}
+              title={isSelectedInBulk ? "Deselect task" : "Select task"}
+            >
+              {isSelectedInBulk && <Check className="w-3 h-3 stroke-[3]" />}
+            </button>
+          )}
+
+          {!isBulkSelectMode && currentViewType === "list" && viewMode !== "trash" && (
             <div
               className="mr-1 text-gray-300 group-hover:text-gray-500 hover:text-indigo-600 transition-colors cursor-grab active:cursor-grabbing p-0.5 rounded shrink-0 opacity-0 group-hover:opacity-100"
               title="Drag to reorder task priority"
@@ -2658,7 +2812,13 @@ export default function WorkspaceApp() {
 
           <div
             className="min-w-0 flex-1 cursor-pointer pr-4"
-            onClick={() => setSelectedTodoId(todo.id)}
+            onClick={() => {
+              if (isBulkSelectMode) {
+                toggleSelectTask(todo.id);
+              } else {
+                setSelectedTodoId(todo.id);
+              }
+            }}
           >
             <span className="text-xs sm:text-sm text-[#202020] font-normal leading-relaxed flex items-center gap-1.5">
               {todo.repeatInterval && (
@@ -4045,6 +4205,32 @@ export default function WorkspaceApp() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Bulk Select Mode Button */}
+            {currentViewType === "list" && (
+              <button
+                onClick={() => {
+                  setIsBulkSelectMode(!isBulkSelectMode);
+                  if (isBulkSelectMode) {
+                    setSelectedTaskIds(new Set());
+                  }
+                }}
+                className={`p-1.5 border rounded-lg shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer font-bold ${
+                  isBulkSelectMode
+                    ? "bg-[#1a2b58] border-[#1a2b58] text-white shadow-sm"
+                    : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                }`}
+                title={isBulkSelectMode ? "Exit Bulk Select Mode" : "Bulk Select Tasks"}
+              >
+                <CheckSquare className="w-4 h-4" />
+                <span className="text-xs hidden sm:inline">Bulk Select</span>
+                {selectedTaskIds.size > 0 && (
+                  <span className="bg-amber-400 text-slate-900 rounded-full text-[10px] px-1.5 py-0.2 font-extrabold ml-0.5">
+                    {selectedTaskIds.size}
+                  </span>
+                )}
+              </button>
             )}
 
             {/* Task Templates button */}
@@ -7268,6 +7454,139 @@ export default function WorkspaceApp() {
                         </div>
                       )}
 
+                      {/* BULK SELECTION ACTION BAR */}
+                      {currentViewType === "list" && isBulkSelectMode && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className="mb-5 p-3.5 bg-[#1a2b58] text-white rounded-2xl shadow-lg border border-[#2d427b] flex flex-wrap items-center justify-between gap-3 sticky top-2 z-30"
+                        >
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={handleSelectAllVisible}
+                              className="flex items-center gap-2 text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-all border border-white/15 cursor-pointer"
+                            >
+                              <CheckSquare className="w-4 h-4 text-amber-300" />
+                              <span>
+                                {selectedTaskIds.size === allActiveViewTodos.length && allActiveViewTodos.length > 0
+                                  ? "Deselect All"
+                                  : `Select All (${allActiveViewTodos.length})`}
+                              </span>
+                            </button>
+
+                            <span className="text-xs font-medium text-slate-200">
+                              <strong className="text-amber-300 font-bold">{selectedTaskIds.size}</strong> task{selectedTaskIds.size === 1 ? "" : "s"} selected
+                            </span>
+                          </div>
+
+                          <div className="flex items-center flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                              onClick={() => handleBulkToggleComplete(true)}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                              title="Mark selected as completed"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Complete</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                              onClick={() => handleBulkToggleComplete(false)}
+                              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white border border-white/20 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                              title="Mark selected as active"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              <span>Pending</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                              onClick={() => {
+                                setBulkMoveTargetProjectId(projects[0]?.id || "");
+                                setIsBulkMoveModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 bg-indigo-500/80 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-indigo-400/40 shadow-xs cursor-pointer"
+                              title="Move selected tasks to another project"
+                            >
+                              <Folder className="w-3.5 h-3.5 text-indigo-200" />
+                              <span>Move</span>
+                            </button>
+
+                            <div className="relative group">
+                              <button
+                                type="button"
+                                disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white border border-white/20 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Flag className="w-3.5 h-3.5 text-amber-300" />
+                                <span>Priority</span>
+                                <ChevronDown className="w-3 h-3 text-slate-300" />
+                              </button>
+
+                              <div className="absolute right-0 top-full mt-1 w-36 bg-white text-slate-800 border border-slate-200 rounded-xl shadow-xl py-1 hidden group-hover:block z-50">
+                                <button
+                                  type="button"
+                                  onClick={() => handleBulkSetPriority(1)}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-red-50 text-red-600 font-bold flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Flag className="w-3 h-3 fill-red-500" /> High (P1)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleBulkSetPriority(2)}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-orange-50 text-orange-600 font-semibold flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Flag className="w-3 h-3 fill-orange-400" /> Medium (P2)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleBulkSetPriority(3)}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 text-blue-600 font-semibold flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Flag className="w-3 h-3 fill-blue-400" /> Low (P3)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleBulkSetPriority(4)}
+                                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 text-gray-500 flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <Flag className="w-3 h-3" /> None
+                                </button>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                              onClick={handleBulkDeleteTasks}
+                              className="px-3 py-1.5 bg-rose-600/90 hover:bg-rose-600 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                              title="Delete selected tasks"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsBulkSelectMode(false);
+                                setSelectedTaskIds(new Set());
+                              }}
+                              className="p-1.5 hover:bg-white/20 text-slate-300 hover:text-white rounded-xl transition-all ml-1 cursor-pointer"
+                              title="Exit bulk selection mode"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+
                       {/* GROUP A: "Countdown" collapsible section (only shown if countdown tasks exist and not in trash/completed view) */}
                       {allActiveViewTodos.filter(
                         (t) =>
@@ -8702,7 +9021,7 @@ export default function WorkspaceApp() {
                     </div>
 
                     {detailTab === "details" ? (
-                      <div className="flex-1 overflow-y-auto p-6 text-left">
+                      <div className="flex-1 overflow-y-auto no-scrollbar p-6 text-left">
                         <div className="flex items-start">
                           <button
                             onClick={() => handleToggleTodo(todo)}
@@ -10465,7 +10784,7 @@ export default function WorkspaceApp() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex-1 overflow-y-auto p-6 text-left">
+                      <div className="flex-1 overflow-y-auto no-scrollbar p-6 text-left">
                         {/* Activity Tab Feed */}
                         {!todo.activities || todo.activities.length === 0 ? (
                           <div className="h-full flex flex-col items-center justify-center text-center py-12 px-4">
@@ -10997,7 +11316,7 @@ export default function WorkspaceApp() {
               animate={{ opacity: 1, scale: 1 }}
 
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl border border-gray-150 max-w-md w-full overflow-hidden text-left p-6 md:p-8"
+              className="bg-white rounded-3xl shadow-2xl border border-gray-150 max-w-md w-full overflow-hidden text-left p-6 md:p-8 max-h-[90vh] overflow-y-auto no-scrollbar"
             >
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
                 <h3 className="text-base font-bold text-gray-800 uppercase tracking-widest font-mono flex items-center gap-2">
@@ -11109,7 +11428,7 @@ export default function WorkspaceApp() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden font-sans"
+              className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden font-sans max-h-[90vh] overflow-y-auto no-scrollbar"
             >
               <div className="bg-[#1a2b58] text-white p-4 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -11624,6 +11943,92 @@ export default function WorkspaceApp() {
         onClose={() => setIsDailyStandupOpen(false)}
         tasks={todos}
       />
+
+      {/* Bulk Move Modal */}
+      <AnimatePresence>
+        {isBulkMoveModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto no-scrollbar"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+                <div className="flex items-center gap-2">
+                  <Folder className="w-5 h-5 text-[#1a2b58]" />
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Move {selectedTaskIds.size} Selected Task{selectedTaskIds.size === 1 ? "" : "s"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkMoveModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-500 mb-4">
+                Choose a target project to move all selected tasks to:
+              </p>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar pr-1">
+                {projects.map((project) => (
+                  <button
+                    type="button"
+                    key={project.id}
+                    onClick={() => setBulkMoveTargetProjectId(project.id)}
+                    className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
+                      bulkMoveTargetProjectId === project.id
+                        ? "border-[#1a2b58] bg-[#ebf3ff]/60 ring-2 ring-[#1a2b58]/20 font-bold"
+                        : "border-slate-100 hover:border-slate-200 bg-slate-50/50 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0 shadow-xs"
+                        style={{ backgroundColor: project.color || "#4f46e5" }}
+                      />
+                      <span className="text-xs font-semibold text-slate-800">
+                        {project.name}
+                      </span>
+                    </div>
+                    {bulkMoveTargetProjectId === project.id && (
+                      <Check className="w-4 h-4 text-[#1a2b58]" />
+                    )}
+                  </button>
+                ))}
+                {projects.length === 0 && (
+                  <div className="text-xs text-slate-400 py-4 text-center">
+                    No projects found. Please create a project first.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-5 border-t border-slate-100 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkMoveModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!bulkMoveTargetProjectId || isBulkProcessing}
+                  onClick={handleBulkMoveToProject}
+                  className="px-5 py-2 bg-[#1a2b58] hover:bg-primary text-white text-xs font-bold rounded-xl shadow-md transition disabled:opacity-40 flex items-center gap-2 cursor-pointer"
+                >
+                  {isBulkProcessing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Confirm Move</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       {/* Compliance Deadline Modal */}
       <AnimatePresence>
         {selectedComplianceTask && (

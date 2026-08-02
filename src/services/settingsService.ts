@@ -16,6 +16,8 @@ export const settingsService = {
       } else {
         callback(null);
       }
+    }, (err) => {
+      console.warn("Error subscribing to invoice settings:", err);
     });
   },
 

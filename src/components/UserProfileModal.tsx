@@ -147,7 +147,7 @@ isOpen, onClose, isAdmin = false }: UserProfileModalProps) {
               </div>
             </div>
 
-            <div className="p-6 overflow-y-auto bg-white flex-1">
+            <div className="p-6 overflow-y-auto no-scrollbar bg-white flex-1">
               {loading ? (
                 <div className="flex justify-center items-center py-10">
                   <Loader2 className="w-8 h-8 text-primary animate-spin" />

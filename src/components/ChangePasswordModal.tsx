@@ -72,7 +72,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
+            className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden max-h-[90vh] flex flex-col"
           >
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div className="flex items-center space-x-2">
@@ -87,7 +87,7 @@ export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordM
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto no-scrollbar flex-1">
               {error && (
                 <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs font-medium flex gap-2 items-start border border-red-100">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />

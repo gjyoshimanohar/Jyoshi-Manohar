@@ -33,6 +33,8 @@ export default function ProfileDropdown({ onLogout, onChangePassword, onViewProf
           setProfileName(data.firstName + (data.lastName ? ' ' + data.lastName : ''));
         }
       }
+    }, (err) => {
+      console.warn("Error fetching profile in ProfileDropdown:", err);
     });
     return () => unsubscribe();
   }, [user]);

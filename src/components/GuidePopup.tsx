@@ -79,7 +79,7 @@ export default function GuidePopup({ onClose }: GuidePopupProps) {
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/45 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col border border-slate-100/80 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col border border-slate-100/80 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto no-scrollbar">
         
         {/* Progress Bar Header */}
         <div className="w-full bg-slate-100 h-1.5 flex">
