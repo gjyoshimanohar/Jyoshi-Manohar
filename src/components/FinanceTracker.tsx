@@ -226,6 +226,15 @@ const getAccountTypeInfo = (type: string) => {
   }
 };
 
+export function CategoryBadge({ category, className }: { category: string; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50/80 text-primary border border-indigo-100/80 ${className || ''}`}>
+      <Tag className="w-3 h-3 shrink-0 text-indigo-500" />
+      {category}
+    </span>
+  );
+}
+
 export default function FinanceTracker() {
   const [records, setRecords] = useState<FinanceRecord[]>([]);
   const [clients, setClients] = useState<ClientUser[]>([]);
