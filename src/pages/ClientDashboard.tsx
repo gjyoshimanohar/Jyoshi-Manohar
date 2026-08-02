@@ -215,22 +215,22 @@ interface PortalNotification {
 }
 
 const MONTH_PERIOD_OPTIONS = [
-  "April 2026",
-  "May 2026",
-  "June 2026",
-  "July 2026",
-  "August 2026",
-  "September 2026",
-  "October 2026",
-  "November 2026",
-  "December 2026",
-  "January 2027",
-  "February 2027",
-  "March 2027",
-  "Q1 FY27 (Apr-Jun)",
-  "Q2 FY27 (Jul-Sep)",
-  "Q3 FY27 (Oct-Dec)",
-  "Q4 FY27 (Jan-Mar)",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+  "January",
+  "February",
+  "March",
+  "Q1 (Apr-Jun)",
+  "Q2 (Jul-Sep)",
+  "Q3 (Oct-Dec)",
+  "Q4 (Jan-Mar)",
   "Annual Return",
   "Custom Period..."
 ];
@@ -243,6 +243,58 @@ const FY_OPTIONS = [
   "2023-24",
   "Custom FY..."
 ];
+
+const cleanPeriodName = (periodStr?: string): string => {
+  if (!periodStr) return "";
+  return periodStr.replace(/\s+\d{4}$/, "").trim();
+};
+
+const MONTH_MAP: Record<string, { monthIndex: number; isNextYear: boolean }> = {
+  "April": { monthIndex: 3, isNextYear: false },
+  "May": { monthIndex: 4, isNextYear: false },
+  "June": { monthIndex: 5, isNextYear: false },
+  "July": { monthIndex: 6, isNextYear: false },
+  "August": { monthIndex: 7, isNextYear: false },
+  "September": { monthIndex: 8, isNextYear: false },
+  "October": { monthIndex: 9, isNextYear: false },
+  "November": { monthIndex: 10, isNextYear: false },
+  "December": { monthIndex: 11, isNextYear: false },
+  "January": { monthIndex: 0, isNextYear: true },
+  "February": { monthIndex: 1, isNextYear: true },
+  "March": { monthIndex: 2, isNextYear: true },
+  "Q1 (Apr-Jun)": { monthIndex: 5, isNextYear: false },
+  "Q2 (Jul-Sep)": { monthIndex: 8, isNextYear: false },
+  "Q3 (Oct-Dec)": { monthIndex: 11, isNextYear: false },
+  "Q4 (Jan-Mar)": { monthIndex: 2, isNextYear: true },
+  "Annual Return": { monthIndex: 8, isNextYear: true },
+};
+
+const syncDueDateFromMonthAndFY = (period: string, fy: string, currentDueDate: string): string => {
+  if (!fy || !fy.includes("-")) return currentDueDate;
+  const cleanPeriod = cleanPeriodName(period);
+  const info = MONTH_MAP[cleanPeriod];
+  if (!info) return currentDueDate;
+
+  const startYear = parseInt(fy.split("-")[0], 10);
+  if (isNaN(startYear)) return currentDueDate;
+
+  const targetYear = info.isNextYear ? startYear + 1 : startYear;
+  const monthNum = (info.monthIndex + 1).toString().padStart(2, "0");
+
+  let dayNum = "20";
+  if (currentDueDate) {
+    try {
+      const d = new Date(currentDueDate);
+      if (!isNaN(d.getTime())) {
+        dayNum = d.getDate().toString().padStart(2, "0");
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return `${targetYear}-${monthNum}-${dayNum}`;
+};
 
 // Helper function to assemble and download the autofill browser extension
 const downloadBrowserExtension = async () => {
@@ -536,7 +588,7 @@ export default function ClientDashboard() {
   const [newFilingTitle, setNewFilingTitle] = useState("");
   const [newFilingService, setNewFilingService] = useState("GST");
   const [newFilingFY, setNewFilingFY] = useState("2026-27");
-  const [newFilingPeriod, setNewFilingPeriod] = useState("August 2026");
+  const [newFilingPeriod, setNewFilingPeriod] = useState("August");
   const [newFilingCustomPeriod, setNewFilingCustomPeriod] = useState("");
   const [newFilingCustomFY, setNewFilingCustomFY] = useState("");
   const [newFilingDueDate, setNewFilingDueDate] = useState("");
@@ -1671,12 +1723,12 @@ export default function ClientDashboard() {
           {
             userId: activeUser.uid,
             userEmail: activeUser.email || "",
-            title: "GSTR-1 GST Monthly Outward Supplies (May 2026)",
+            title: "GSTR-1 GST Monthly Outward Supplies (May)",
             serviceType: "GST",
             dueDate: Date.now() + 5 * 24 * 60 * 60 * 1000, // early June 11
             status: "In Progress",
             financialYear: "2026-27",
-            period: "May 2026",
+            period: "May",
           },
           {
             userId: activeUser.uid,
@@ -1686,17 +1738,17 @@ export default function ClientDashboard() {
             dueDate: Date.now() + 9 * 24 * 60 * 60 * 1000, // June 15
             status: "Pending Client Action",
             financialYear: "2026-27",
-            period: "Q1 FY27",
+            period: "Q1 (Apr-Jun)",
           },
           {
             userId: activeUser.uid,
             userEmail: activeUser.email || "",
-            title: "GSTR-3B Monthly Tax Computation (April 2026)",
+            title: "GSTR-3B Monthly Tax Computation (April)",
             serviceType: "GST",
             dueDate: Date.now() - 16 * 24 * 60 * 60 * 1000, // May 20
             status: "Filed",
             financialYear: "2026-27",
-            period: "April 2026",
+            period: "April",
             arn: "ARN-GST209930812",
             filedDate: "2026-05-18",
           },
@@ -2263,7 +2315,7 @@ Stewardship, Accuracy, Legacy.
     }
   };
 
-  // Auto suggest period and financial year based on due date selected
+  // Linked handlers for Month, FY, and Statutory Due Date
   const handleDueDateChange = (dateStr: string) => {
     setNewFilingDueDate(dateStr);
     if (!dateStr) return;
@@ -2276,7 +2328,7 @@ Stewardship, Accuracy, Legacy.
         ];
         const monthIndex = d.getMonth();
         const year = d.getFullYear();
-        const autoPeriod = `${monthNames[monthIndex]} ${year}`;
+        const autoPeriod = monthNames[monthIndex]; // Month name without year
         
         let fyStartYear = year;
         if (monthIndex < 3) {
@@ -2290,6 +2342,23 @@ Stewardship, Accuracy, Legacy.
       }
     } catch (e) {
       // ignore
+    }
+  };
+
+  const handleMonthChange = (val: string) => {
+    setNewFilingPeriod(val);
+    const cleanVal = cleanPeriodName(val);
+    const newDueDate = syncDueDateFromMonthAndFY(cleanVal, newFilingFY, newFilingDueDate);
+    if (newDueDate) {
+      setNewFilingDueDate(newDueDate);
+    }
+  };
+
+  const handleFYChange = (val: string) => {
+    setNewFilingFY(val);
+    const newDueDate = syncDueDateFromMonthAndFY(newFilingPeriod, val, newFilingDueDate);
+    if (newDueDate) {
+      setNewFilingDueDate(newDueDate);
     }
   };
 
@@ -6627,7 +6696,7 @@ Stewardship, Accuracy, Legacy.
                                       </div>
                                     ) : (
                                       <div className="group flex items-center gap-1.5">
-                                        <span className="font-bold text-slate-800">{filing.period}</span>{" "}
+                                        <span className="font-bold text-slate-800">{cleanPeriodName(filing.period)}</span>{" "}
                                         <span className="text-[10px] text-slate-400 font-medium">
                                           ({filing.financialYear})
                                         </span>
@@ -6636,7 +6705,7 @@ Stewardship, Accuracy, Legacy.
                                             type="button"
                                             onClick={() => {
                                               setEditingFilingPeriodId(filing.id);
-                                              setTempEditingPeriod(filing.period);
+                                              setTempEditingPeriod(cleanPeriodName(filing.period));
                                               setTempEditingFY(filing.financialYear);
                                             }}
                                             title="Click to edit month, period or financial year"
@@ -8670,7 +8739,7 @@ Stewardship, Accuracy, Legacy.
                           </label>
                           <CustomSelect
                             value={newFilingPeriod}
-                            onChange={(val) => setNewFilingPeriod(val)}
+                            onChange={(val) => handleMonthChange(val)}
                             className="w-full bg-white border border-indigo-200 rounded-xl py-2.5 px-3.5 text-xs font-semibold text-primary shadow-2xs"
                             options={MONTH_PERIOD_OPTIONS}
                           />
@@ -8679,7 +8748,7 @@ Stewardship, Accuracy, Legacy.
                               type="text"
                               value={newFilingCustomPeriod}
                               onChange={(e) => setNewFilingCustomPeriod(e.target.value)}
-                              placeholder="Enter custom month/period (e.g. May 2026)"
+                              placeholder="Enter custom month/period (e.g. May)"
                               className="mt-2 w-full bg-white border border-indigo-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                               required
                             />
@@ -8692,7 +8761,7 @@ Stewardship, Accuracy, Legacy.
                           </label>
                           <CustomSelect
                             value={newFilingFY}
-                            onChange={(val) => setNewFilingFY(val)}
+                            onChange={(val) => handleFYChange(val)}
                             className="w-full bg-white border border-indigo-200 rounded-xl py-2.5 px-3.5 text-xs font-semibold text-primary shadow-2xs"
                             options={FY_OPTIONS}
                           />
@@ -9375,7 +9444,7 @@ Stewardship, Accuracy, Legacy.
                         </h4>
                         <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <p className="text-xs text-slate-700 font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                            FY: {selectedFilingForDrawer.financialYear} ({selectedFilingForDrawer.period})
+                            FY: {selectedFilingForDrawer.financialYear} ({cleanPeriodName(selectedFilingForDrawer.period)})
                           </p>
                           {isAdmin && (
                             <button
@@ -9386,7 +9455,7 @@ Stewardship, Accuracy, Legacy.
                                     ? null
                                     : selectedFilingForDrawer.id
                                 );
-                                setTempEditingPeriod(selectedFilingForDrawer.period);
+                                setTempEditingPeriod(cleanPeriodName(selectedFilingForDrawer.period));
                                 setTempEditingFY(selectedFilingForDrawer.financialYear);
                               }}
                               className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline flex items-center gap-1 cursor-pointer"
