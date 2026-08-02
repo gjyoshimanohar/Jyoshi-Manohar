@@ -214,6 +214,36 @@ interface PortalNotification {
   relatedClientId?: string;
 }
 
+const MONTH_PERIOD_OPTIONS = [
+  "April 2026",
+  "May 2026",
+  "June 2026",
+  "July 2026",
+  "August 2026",
+  "September 2026",
+  "October 2026",
+  "November 2026",
+  "December 2026",
+  "January 2027",
+  "February 2027",
+  "March 2027",
+  "Q1 FY27 (Apr-Jun)",
+  "Q2 FY27 (Jul-Sep)",
+  "Q3 FY27 (Oct-Dec)",
+  "Q4 FY27 (Jan-Mar)",
+  "Annual Return",
+  "Custom Period..."
+];
+
+const FY_OPTIONS = [
+  "2026-27",
+  "2025-26",
+  "2024-25",
+  "2027-28",
+  "2023-24",
+  "Custom FY..."
+];
+
 // Helper function to assemble and download the autofill browser extension
 const downloadBrowserExtension = async () => {
   const zip = new JSZip();
@@ -505,12 +535,18 @@ export default function ClientDashboard() {
 
   const [newFilingTitle, setNewFilingTitle] = useState("");
   const [newFilingService, setNewFilingService] = useState("GST");
-  const [newFilingFY, setNewFilingFY] = useState("2025-26");
-  const [newFilingPeriod, setNewFilingPeriod] = useState("May 2026");
+  const [newFilingFY, setNewFilingFY] = useState("2026-27");
+  const [newFilingPeriod, setNewFilingPeriod] = useState("August 2026");
+  const [newFilingCustomPeriod, setNewFilingCustomPeriod] = useState("");
+  const [newFilingCustomFY, setNewFilingCustomFY] = useState("");
   const [newFilingDueDate, setNewFilingDueDate] = useState("");
   const [newFilingStatus, setNewFilingStatus] =
     useState<ComplianceFiling["status"]>("Upcoming");
   const [newFilingARN, setNewFilingARN] = useState("");
+
+  const [editingFilingPeriodId, setEditingFilingPeriodId] = useState<string | null>(null);
+  const [tempEditingPeriod, setTempEditingPeriod] = useState("");
+  const [tempEditingFY, setTempEditingFY] = useState("");
 
   // Milestone inline editing and addition states
   const [addingStepForAppId, setAddingStepForAppId] = useState<string | null>(
@@ -2227,6 +2263,62 @@ Stewardship, Accuracy, Legacy.
     }
   };
 
+  // Auto suggest period and financial year based on due date selected
+  const handleDueDateChange = (dateStr: string) => {
+    setNewFilingDueDate(dateStr);
+    if (!dateStr) return;
+    try {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        const monthNames = [
+          "January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December"
+        ];
+        const monthIndex = d.getMonth();
+        const year = d.getFullYear();
+        const autoPeriod = `${monthNames[monthIndex]} ${year}`;
+        
+        let fyStartYear = year;
+        if (monthIndex < 3) {
+          fyStartYear = year - 1;
+        }
+        const fyEndYear = (fyStartYear + 1).toString().slice(-2);
+        const autoFY = `${fyStartYear}-${fyEndYear}`;
+
+        setNewFilingPeriod(autoPeriod);
+        setNewFilingFY(autoFY);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handleSaveFilingPeriod = async (filingId: string, overridePeriod?: string, overrideFY?: string) => {
+    const targetPeriod = overridePeriod !== undefined ? overridePeriod : tempEditingPeriod;
+    const targetFY = overrideFY !== undefined ? overrideFY : tempEditingFY;
+    try {
+      if (!targetPeriod || !targetFY) {
+        toast.error("Please provide a valid period and financial year.");
+        return;
+      }
+      await updateDoc(doc(db, "compliance_filings", filingId), {
+        period: targetPeriod,
+        financialYear: targetFY,
+      });
+      setEditingFilingPeriodId(null);
+      if (selectedFilingForDrawer && selectedFilingForDrawer.id === filingId) {
+        setSelectedFilingForDrawer({
+          ...selectedFilingForDrawer,
+          period: targetPeriod,
+          financialYear: targetFY,
+        });
+      }
+      toast.success("Compliance month & year updated successfully!");
+    } catch (err: any) {
+      toast.error("Failed to update period: " + err.message);
+    }
+  };
+
   // Create Compliance Filing (Admin Flow)
   const handleCreateFiling = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2247,6 +2339,15 @@ Stewardship, Accuracy, Legacy.
         ? new Date(newFilingDueDate).getTime()
         : Date.now() + 30 * 24 * 60 * 60 * 1000;
 
+      const finalPeriod =
+        newFilingPeriod === "Custom Period..."
+          ? newFilingCustomPeriod || "Custom Period"
+          : newFilingPeriod;
+      const finalFY =
+        newFilingFY === "Custom FY..."
+          ? newFilingCustomFY || "2026-27"
+          : newFilingFY;
+
       const newFiling: any = {
         userId: targetClient,
         userEmail: parentUserEmail,
@@ -2254,8 +2355,8 @@ Stewardship, Accuracy, Legacy.
         serviceType: newFilingService,
         dueDate: timestampDueDate,
         status: newFilingStatus,
-        financialYear: newFilingFY,
-        period: newFilingPeriod,
+        financialYear: finalFY,
+        period: finalPeriod,
         arn: newFilingARN || "",
         filedDate:
           newFilingStatus === "Filed"
@@ -2264,7 +2365,7 @@ Stewardship, Accuracy, Legacy.
         history: [
           {
             timestamp: Date.now(),
-            text: `Compliance calendar scheduled in state "${newFilingStatus}"`,
+            text: `Compliance calendar scheduled for ${finalPeriod} (${finalFY}) in state "${newFilingStatus}"`,
             actor: "CA Manohar Desk"
           }
         ],
@@ -2293,7 +2394,7 @@ Stewardship, Accuracy, Legacy.
         const clientName = clients.find((c) => c.uid === targetClient)?.displayName || parentUserEmail;
         const taskRef = await addDoc(collection(db, "todos"), {
           title: `Compliance: ${newFilingTitle}`,
-          description: `Compliance calendar tracking for ${newFilingService}. FY: ${newFilingFY}, Period: ${newFilingPeriod}`,
+          description: `Compliance calendar tracking for ${newFilingService}. FY: ${finalFY}, Period: ${finalPeriod}`,
           completed: false,
           userId: taskUserId,
           projectId: targetProjectId,
@@ -2316,7 +2417,7 @@ Stewardship, Accuracy, Legacy.
           userId: targetClient,
           userEmail: parentUserEmail,
           title: "New Compliance Tracker Item",
-          message: `CA Admin scheduled a new compliance tracker item: [${newFilingTitle}] (${newFilingService})`,
+          message: `CA Admin scheduled a new compliance tracker item: [${newFilingTitle}] (${newFilingService}) - ${finalPeriod}`,
           createdAt: Date.now(),
           read: false,
           type: "request",
@@ -2330,6 +2431,8 @@ Stewardship, Accuracy, Legacy.
 
       setNewFilingTitle("");
       setNewFilingARN("");
+      setNewFilingCustomPeriod("");
+      setNewFilingCustomFY("");
       if (opsModalType) setOpsModalType(null);
       setFeedback({
         message:
@@ -6483,10 +6586,67 @@ Stewardship, Accuracy, Legacy.
                                     </div>
                                   </td>
                                   <td className="py-4 text-xs font-semibold text-slate-700">
-                                    {filing.period}{" "}
-                                    <span className="text-[10px] text-slate-400 px-1 hover:underline">
-                                      ({filing.financialYear})
-                                    </span>
+                                    {editingFilingPeriodId === filing.id ? (
+                                      <div className="flex flex-col gap-1.5 z-10 relative bg-white p-2 rounded-xl border border-indigo-200 shadow-md">
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+                                          <select
+                                            value={tempEditingPeriod}
+                                            onChange={(e) => setTempEditingPeriod(e.target.value)}
+                                            className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                                          >
+                                            {MONTH_PERIOD_OPTIONS.filter((o) => o !== "Custom Period...").map((opt) => (
+                                              <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                          </select>
+                                          <select
+                                            value={tempEditingFY}
+                                            onChange={(e) => setTempEditingFY(e.target.value)}
+                                            className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                                          >
+                                            {FY_OPTIONS.filter((o) => o !== "Custom FY...").map((opt) => (
+                                              <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 pt-0.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveFilingPeriod(filing.id)}
+                                            className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition cursor-pointer"
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingFilingPeriodId(null)}
+                                            className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-medium hover:bg-slate-200 transition cursor-pointer"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="group flex items-center gap-1.5">
+                                        <span className="font-bold text-slate-800">{filing.period}</span>{" "}
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                          ({filing.financialYear})
+                                        </span>
+                                        {isAdmin && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingFilingPeriodId(filing.id);
+                                              setTempEditingPeriod(filing.period);
+                                              setTempEditingFY(filing.financialYear);
+                                            }}
+                                            title="Click to edit month, period or financial year"
+                                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-indigo-50 rounded-lg text-indigo-600 transition cursor-pointer"
+                                          >
+                                            <Calendar className="h-3.5 w-3.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
                                   </td>
                                   <td className="py-4 text-xs font-mono font-medium text-slate-600">
                                     {new Date(
@@ -8494,12 +8654,58 @@ Stewardship, Accuracy, Legacy.
                           <input
                             type="date"
                             value={newFilingDueDate}
-                            onChange={(e) =>
-                              setNewFilingDueDate(e.target.value)
-                            }
+                            onChange={(e) => handleDueDateChange(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary"
                             required
                           />
+                        </div>
+                      </div>
+
+                      {/* Explicit Month/Period and Financial Year Selection */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100">
+                        <div>
+                          <label className="block text-[10px] text-indigo-900 font-bold uppercase tracking-wider mb-2 flex items-center justify-between">
+                            <span>Applicable Month / Period *</span>
+                            <span className="text-[9px] text-indigo-600 font-semibold">Select Month/Qtr</span>
+                          </label>
+                          <CustomSelect
+                            value={newFilingPeriod}
+                            onChange={(val) => setNewFilingPeriod(val)}
+                            className="w-full bg-white border border-indigo-200 rounded-xl py-2.5 px-3.5 text-xs font-semibold text-primary shadow-2xs"
+                            options={MONTH_PERIOD_OPTIONS}
+                          />
+                          {newFilingPeriod === "Custom Period..." && (
+                            <input
+                              type="text"
+                              value={newFilingCustomPeriod}
+                              onChange={(e) => setNewFilingCustomPeriod(e.target.value)}
+                              placeholder="Enter custom month/period (e.g. May 2026)"
+                              className="mt-2 w-full bg-white border border-indigo-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              required
+                            />
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-indigo-900 font-bold uppercase tracking-wider mb-2">
+                            Financial Year (FY) *
+                          </label>
+                          <CustomSelect
+                            value={newFilingFY}
+                            onChange={(val) => setNewFilingFY(val)}
+                            className="w-full bg-white border border-indigo-200 rounded-xl py-2.5 px-3.5 text-xs font-semibold text-primary shadow-2xs"
+                            options={FY_OPTIONS}
+                          />
+                          {newFilingFY === "Custom FY..." && (
+                            <input
+                              type="text"
+                              value={newFilingCustomFY}
+                              onChange={(e) => setNewFilingCustomFY(e.target.value)}
+                              placeholder="Enter custom FY (e.g. 2026-27)"
+                              className="mt-2 w-full bg-white border border-indigo-200 rounded-xl py-2 px-3 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              required
+                            />
+                          )}
                         </div>
                       </div>
                       <div className="pt-4 flex justify-end">
@@ -9167,9 +9373,78 @@ Stewardship, Accuracy, Legacy.
                         <h4 className="text-base font-bold text-slate-900 mt-2 leading-snug">
                           {selectedFilingForDrawer.title}
                         </h4>
-                        <p className="text-xs text-slate-500 mt-1 font-medium">
-                          FY: {selectedFilingForDrawer.financialYear} ({selectedFilingForDrawer.period})
-                        </p>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <p className="text-xs text-slate-700 font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                            FY: {selectedFilingForDrawer.financialYear} ({selectedFilingForDrawer.period})
+                          </p>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingFilingPeriodId(
+                                  editingFilingPeriodId === selectedFilingForDrawer.id
+                                    ? null
+                                    : selectedFilingForDrawer.id
+                                );
+                                setTempEditingPeriod(selectedFilingForDrawer.period);
+                                setTempEditingFY(selectedFilingForDrawer.financialYear);
+                              }}
+                              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Calendar className="h-3 w-3" /> Change Month/Period
+                            </button>
+                          )}
+                        </div>
+
+                        {editingFilingPeriodId === selectedFilingForDrawer.id && (
+                          <div className="mt-3 p-3 bg-white rounded-xl border border-indigo-200 shadow-xs space-y-2.5">
+                            <label className="block text-[10px] font-bold text-indigo-900 uppercase tracking-wider">
+                              Select Relates-To Month / Period & FY
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="block text-[9px] text-slate-400 font-bold uppercase mb-1">Month / Period</span>
+                                <select
+                                  value={tempEditingPeriod}
+                                  onChange={(e) => setTempEditingPeriod(e.target.value)}
+                                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                >
+                                  {MONTH_PERIOD_OPTIONS.filter((o) => o !== "Custom Period...").map((opt) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <span className="block text-[9px] text-slate-400 font-bold uppercase mb-1">Financial Year</span>
+                                <select
+                                  value={tempEditingFY}
+                                  onChange={(e) => setTempEditingFY(e.target.value)}
+                                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                >
+                                  {FY_OPTIONS.filter((o) => o !== "Custom FY...").map((opt) => (
+                                    <option key={opt} value={opt}>{opt}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingFilingPeriodId(null)}
+                                className="px-3 py-1 text-xs bg-slate-100 text-slate-600 font-semibold rounded-lg hover:bg-slate-200 cursor-pointer transition"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleSaveFilingPeriod(selectedFilingForDrawer.id)}
+                                className="px-3 py-1 text-xs bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 cursor-pointer transition shadow-xs"
+                              >
+                                Save Changes
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className={`px-2.5 py-1 text-[9px] uppercase font-bold tracking-wider rounded-full border ${getFilingStatusBadge(selectedFilingForDrawer.status)}`}>
