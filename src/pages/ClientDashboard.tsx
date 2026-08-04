@@ -9,6 +9,7 @@ import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from "date-f
 import { motion, AnimatePresence } from "motion/react";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import CustomSelect from "../components/CustomSelect";
+import CustomDatePicker from "../components/CustomDatePicker";
 import ChangePasswordModal from "../components/ChangePasswordModal";
 import ProfileDropdown from "../components/ProfileDropdown";
 import UserProfileModal from "../components/UserProfileModal";
@@ -8544,11 +8545,10 @@ Stewardship, Accuracy, Legacy.
                           <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
                             Estimated Completion (Optional)
                           </label>
-                          <input
-                            type="date"
+                          <CustomDatePicker
                             value={newAppEstComp}
-                            onChange={(e) => setNewAppEstComp(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary"
+                            onChange={setNewAppEstComp}
+                            placeholder="Select Estimated Completion Date"
                           />
                         </div>
                       </div>
@@ -8720,12 +8720,11 @@ Stewardship, Accuracy, Legacy.
                           <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">
                             Statutory Due Date *
                           </label>
-                          <input
-                            type="date"
-                            value={newFilingDueDate}
-                            onChange={(e) => handleDueDateChange(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 hover:border-slate-200 focus:ring-1 focus:ring-indigo-500 transition-all text-primary"
+                          <CustomDatePicker
                             required
+                            value={newFilingDueDate}
+                            onChange={(val) => handleDueDateChange(val)}
+                            placeholder="Select Statutory Due Date"
                           />
                         </div>
                       </div>

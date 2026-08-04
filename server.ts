@@ -116,7 +116,7 @@ Make sure the markdown is visually delightful, with beautiful dividers and clean
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         systemInstruction,
@@ -436,7 +436,7 @@ Required Briefing Structure:
     const prompt = `Please generate the ${briefingType} Standup Summary briefing based on the following real-time workspace data:\n\n${contextData}`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         systemInstruction,

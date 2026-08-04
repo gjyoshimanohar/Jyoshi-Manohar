@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { isToday, isThisWeek, isThisMonth, format, subDays, startOfDay } from 'date-fns';
 import CustomSelect from './CustomSelect';
+import CustomDatePicker from './CustomDatePicker';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { timesheetService } from '../services/timesheetService';
@@ -904,22 +905,20 @@ export default function PomodoroFocus({
                 <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-indigo-600" /> Filter Range:
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 min-w-[140px]">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
-                  <input
-                    type="date"
+                  <CustomDatePicker
                     value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    onChange={setCustomStartDate}
+                    placeholder="From date"
                   />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 min-w-[140px]">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
-                  <input
-                    type="date"
+                  <CustomDatePicker
                     value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    onChange={setCustomEndDate}
+                    placeholder="To date"
                   />
                 </div>
               </div>
@@ -1244,20 +1243,18 @@ export default function PomodoroFocus({
                             <div className="grid grid-cols-2 gap-2 pt-1">
                               <div>
                                 <span className="text-[10px] font-bold text-slate-400 block mb-0.5">START DATE</span>
-                                <input
-                                  type="date"
+                                <CustomDatePicker
                                   value={customStartDate}
-                                  onChange={(e) => setCustomStartDate(e.target.value)}
-                                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  onChange={setCustomStartDate}
+                                  placeholder="Start date"
                                 />
                               </div>
                               <div>
                                 <span className="text-[10px] font-bold text-slate-400 block mb-0.5">END DATE</span>
-                                <input
-                                  type="date"
+                                <CustomDatePicker
                                   value={customEndDate}
-                                  onChange={(e) => setCustomEndDate(e.target.value)}
-                                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                  onChange={setCustomEndDate}
+                                  placeholder="End date"
                                 />
                               </div>
                             </div>

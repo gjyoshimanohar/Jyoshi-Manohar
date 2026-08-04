@@ -11,7 +11,7 @@ let firestoreInstance;
 try {
   const customDbId = (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId;
   const settings = {
-    experimentalAutoDetectLongPolling: true,
+    experimentalForceLongPolling: true,
   };
   if (customDbId) {
     firestoreInstance = initializeFirestore(app, settings, customDbId);

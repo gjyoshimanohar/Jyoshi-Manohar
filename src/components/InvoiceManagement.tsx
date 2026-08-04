@@ -1,6 +1,7 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect, useMemo } from 'react';
 import CustomSelect from './CustomSelect';
+import CustomDatePicker from './CustomDatePicker';
 import StatementGeneratorModal from './StatementGeneratorModal';
 import { 
   Plus, Trash2, Eye, Edit2, Download, CheckCircle, Clock, 
@@ -2777,31 +2778,22 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Issue Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date"
-                      required
-                      value={issueDate}
-                      onChange={(e) => setIssueDate(e.target.value)}
-                      className="w-full border border-slate-200 pl-9 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/20 focus:border-[#1a2b58]"
-                    />
-                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
+                  <CustomDatePicker
+                    value={issueDate}
+                    onChange={setIssueDate}
+                    required
+                    placeholder="Issue Date"
+                  />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">Due Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date"
-                      required
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full border border-slate-200 pl-9 pr-3 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/20 focus:border-[#1a2b58]"
-                    />
-                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                  
+                  <CustomDatePicker
+                    value={dueDate}
+                    onChange={setDueDate}
+                    required
+                    placeholder="Due Date"
+                  />
                 </div>
               </div>
               
@@ -4376,30 +4368,28 @@ export default function InvoiceManagement({ isAdmin: propIsAdmin, clients }: Inv
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" /> Start Date
                     </label>
-                    <input
-                      type="date"
+                    <CustomDatePicker
                       id="export-start-date-input"
                       value={exportStartDate}
-                      onChange={(e) => {
-                        setExportStartDate(e.target.value);
+                      onChange={(val) => {
+                        setExportStartDate(val);
                         setExportDatePreset('custom');
                       }}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      placeholder="Start Date"
                     />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5 text-slate-400" /> End Date
                     </label>
-                    <input
-                      type="date"
+                    <CustomDatePicker
                       id="export-end-date-input"
                       value={exportEndDate}
-                      onChange={(e) => {
-                        setExportEndDate(e.target.value);
+                      onChange={(val) => {
+                        setExportEndDate(val);
                         setExportDatePreset('custom');
                       }}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      placeholder="End Date"
                     />
                   </div>
                 </div>

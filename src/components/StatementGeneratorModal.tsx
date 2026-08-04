@@ -3,6 +3,7 @@ import { X, Download, Calendar, Mail, FileText, CheckCircle2 } from 'lucide-reac
 import { format, isAfter, isBefore, parseISO } from 'date-fns';
 import { Invoice, InvoicePayment } from '../types';
 import CustomSelect from './CustomSelect';
+import CustomDatePicker from './CustomDatePicker';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -230,27 +231,19 @@ export default function StatementGeneratorModal({ isOpen, onClose, invoices, cli
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Start Date</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                />
-                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+              <CustomDatePicker
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start Date"
+              />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">End Date</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                />
-                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+              <CustomDatePicker
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End Date"
+              />
             </div>
           </div>
           

@@ -6,6 +6,7 @@ import GeneralLedger from "./GeneralLedger";
 import StatementsTab from "./StatementsTab";
 import FinancialReports from "./FinancialReports";
 import CustomSelect from "./CustomSelect";
+import CustomDatePicker from "./CustomDatePicker";
 import CalendarSyncModal from "./CalendarSyncModal";
 import DailyStandupModal from "./DailyStandupModal";
 import Markdown from "react-markdown";
@@ -4884,8 +4885,8 @@ export default function FinanceTracker() {
                         <style>{`
                           .rdp {
                             --rdp-cell-size: 32px;
-                            --rdp-accent-color: #0f172a;
-                            --rdp-background-color: #f1f5f9;
+                            --rdp-accent-color: #d97706;
+                            --rdp-background-color: #fef3c7;
                             margin: 0;
                           }
                           .rdp-day_selected {
@@ -5312,15 +5313,11 @@ export default function FinanceTracker() {
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Due Date
                   </label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      value={addCcBillDueDate}
-                      onChange={(e) => setAddCcBillDueDate(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-primary outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
-                    />
-                    <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
+                  <CustomDatePicker
+                    value={addCcBillDueDate}
+                    onChange={setAddCcBillDueDate}
+                    placeholder="Due Date"
+                  />
                 </div>
                 
                 <label className="flex items-start gap-3 p-3 mt-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors">
@@ -5704,12 +5701,11 @@ export default function FinanceTracker() {
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                     Filing / Invoicing Date *
                   </label>
-                  <input
-                    type="date"
+                  <CustomDatePicker
                     required
                     value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-3 px-4 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                    onChange={setFormDate}
+                    placeholder="Filing / Invoicing Date"
                   />
                 </div>
               </div>
@@ -6238,12 +6234,11 @@ export default function FinanceTracker() {
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   Date *
                 </label>
-                <input
-                  type="date"
+                <CustomDatePicker
                   required
                   value={convertAdvDate}
-                  onChange={(e) => setConvertAdvDate(e.target.value)}
-                  className="w-full bg-slate-50/50 border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm font-semibold text-primary outline-none focus:ring-1 focus:ring-primary focus:bg-white transition"
+                  onChange={setConvertAdvDate}
+                  placeholder="Select Date"
                 />
               </div>
               

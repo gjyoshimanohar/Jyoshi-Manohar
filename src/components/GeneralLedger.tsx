@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { FinanceRecord, PaymentAccount } from '../types';
 import { FileSpreadsheet, Search, Filter, Calendar, Download } from 'lucide-react';
 import CustomSelect from './CustomSelect';
+import CustomDatePicker from './CustomDatePicker';
 import { format } from 'date-fns';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -434,23 +435,22 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
         </div>
         
         <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 flex-1 sm:flex-none">
-             <Calendar className="w-4 h-4 text-slate-400" />
-             <input
-               type="date"
-               value={startDate}
-               onChange={(e) => setStartDate(e.target.value)}
-               className="bg-transparent text-sm outline-none text-slate-600 w-full sm:w-auto"
-               title="Start Date"
-             />
-             <span className="text-slate-400 text-xs">to</span>
-             <input
-               type="date"
-               value={endDate}
-               onChange={(e) => setEndDate(e.target.value)}
-               className="bg-transparent text-sm outline-none text-slate-600 w-full sm:w-auto"
-               title="End Date"
-             />
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 flex-1 sm:flex-none">
+            <div className="w-36">
+              <CustomDatePicker
+                value={startDate}
+                onChange={setStartDate}
+                placeholder="Start Date"
+              />
+            </div>
+            <span className="text-slate-400 text-xs font-bold">to</span>
+            <div className="w-36">
+              <CustomDatePicker
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="End Date"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-1 sm:flex-none">
@@ -624,27 +624,19 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Start Date</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={exportStartDate}
-                        onChange={(e) => setExportStartDate(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                      />
-                      <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
+                    <CustomDatePicker
+                      value={exportStartDate}
+                      onChange={setExportStartDate}
+                      placeholder="Start Date"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">End Date</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={exportEndDate}
-                        onChange={(e) => setExportEndDate(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                      />
-                      <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
+                    <CustomDatePicker
+                      value={exportEndDate}
+                      onChange={setExportEndDate}
+                      placeholder="End Date"
+                    />
                   </div>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2">Leave blank to export all available records.</p>

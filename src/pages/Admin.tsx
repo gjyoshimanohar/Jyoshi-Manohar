@@ -11,6 +11,7 @@ import {
 import { auth } from "../lib/firebase";
 import { blogService } from "../services/blogService";
 import ChangePasswordModal from "../components/ChangePasswordModal";
+import CustomDatePicker from "../components/CustomDatePicker";
 import Breadcrumb from "../components/Breadcrumb";
 import ProfileDropdown from "../components/ProfileDropdown";
 import UserProfileModal from "../components/UserProfileModal";
@@ -512,9 +513,8 @@ export default function Admin() {
                       <label className="block text-xs uppercase tracking-widest text-black mb-3">
                         Post Date
                       </label>
-                      <input
+                      <CustomDatePicker
                         required
-                        type="date"
                         value={(() => {
                           if (!editingPost.date) return "";
                           const d = new Date(editingPost.date);
@@ -522,8 +522,7 @@ export default function Admin() {
                             ? ""
                             : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
                         })()}
-                        onChange={(e) => {
-                          const dateVal = e.target.value;
+                        onChange={(dateVal) => {
                           if (dateVal) {
                             const formattedDate = new Date(
                               dateVal + "T12:00:00",
@@ -540,7 +539,7 @@ export default function Admin() {
                             setEditingPost({ ...editingPost, date: "" });
                           }
                         }}
-                        className="w-full bg-accent border-none p-4 font-medium text-primary focus:ring-2 focus:ring-primary outline-none"
+                        placeholder="Select Post Date"
                       />
                     </div>
                   </div>
