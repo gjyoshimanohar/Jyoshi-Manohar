@@ -3,6 +3,7 @@ import { Todo, Project } from '../types';
 import { Flag, Trash2, Plus, Calendar, RefreshCw, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { determineProjectByTitle } from '../utils/autoCategorize';
+import { parseTaskTitleInput } from '../utils/taskParser';
 
 interface EisenhowerMatrixProps {
  todos: Todo[];
@@ -59,28 +60,29 @@ export default function EisenhowerMatrix({ todos, todoService, onSelectTodoId, u
  ];
 
  const handleAddTask = async (priority: number) => {
- const title = newTitles[priority]?.trim();
- if (!title) return;
+   const rawTitle = newTitles[priority]?.trim();
+   if (!rawTitle) return;
 
- let targetProjectId = 'inbox';
- if (projects) {
- const { projectId, matchedProjectName } = determineProjectByTitle(title, projects, 'inbox');
- targetProjectId = projectId;
- if (matchedProjectName && onAutoCategorize) {
- onAutoCategorize(matchedProjectName);
- }
- }
+   const parsed = parseTaskTitleInput(rawTitle, projects || [], [], 'inbox');
+   const cleanedTitle = parsed.cleanTitle || rawTitle;
+   const targetProjectId = parsed.projectId || 'inbox';
+   const finalPriority = parsed.priority || priority;
 
- await todoService.createTodo({
- title,
- userId,
- completed: false,
- priority,
- projectId: targetProjectId,
- dueDate: Date.now(),
- });
+   if (parsed.projectName && onAutoCategorize) {
+     onAutoCategorize(parsed.projectName);
+   }
 
- setNewTitles(prev => ({ ...prev, [priority]: '' }));
+   await todoService.createTodo({
+     title: cleanedTitle,
+     userId,
+     completed: false,
+     priority: finalPriority,
+     projectId: targetProjectId,
+     tags: parsed.tags.length > 0 ? parsed.tags : undefined,
+     dueDate: Date.now(),
+   });
+
+   setNewTitles(prev => ({ ...prev, [priority]: '' }));
  };
 
  const handleDragStart = (e: React.DragEvent, id: string) => {

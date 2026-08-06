@@ -11,31 +11,13 @@ createRoot(document.getElementById('root')!).render(
 );
 
 
-// Unregister old or stale service workers and clear caches to prevent cached index.html from pointing to deleted dynamic js/css bundles (white blank screen)
+// Clean up stale service worker registrations safely without infinite reload loops
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then((registrations) => {
-    let hasUnregistered = false;
     for (const registration of registrations) {
-      registration.unregister().then((success) => {
-        if (success) {
-          console.log('Successfully unregistered stale service worker:', registration);
-          hasUnregistered = true;
-        }
-      });
-    }
-    if (hasUnregistered || registrations.length > 0) {
-      if ('caches' in (window as any)) {
-        (window as any).caches.keys().then((names: string[]) => {
-          Promise.all(names.map(name => (window as any).caches.delete(name))).then(() => {
-            console.log('Cleared all service worker caches');
-            (window as any).location.reload();
-          });
-        });
-      } else {
-        (window as any).location.reload();
-      }
+      registration.unregister();
     }
   }).catch((err) => {
-    console.error('Error getting service worker registrations:', err);
+    console.error('Error unregistering service workers:', err);
   });
 }

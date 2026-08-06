@@ -4387,8 +4387,27 @@ export default function FinanceTracker() {
         </div>
       )}
 
-      {activeTab === "coa" && <ChartOfAccounts allRecords={records} filteredRecords={filteredRecords} accounts={paymentAccounts} />}
-      {activeTab === "ap_ar" && <APARDashboard records={records} />}
+      {activeTab === "coa" && (
+        <ChartOfAccounts 
+          allRecords={records} 
+          filteredRecords={filteredRecords} 
+          accounts={paymentAccounts} 
+          onNavigateToGL={(searchTerm) => {
+            setGlInitialSearch(searchTerm);
+            setActiveTab("gl");
+          }}
+        />
+      )}
+      {activeTab === "ap_ar" && (
+        <APARDashboard 
+          records={records} 
+          accounts={paymentAccounts}
+          onRefreshRecords={async () => {
+            const _records = await financeService.getAllRecords();
+            setRecords(sortRecordsByDateDesc(_records));
+          }}
+        />
+      )}
       {activeTab === "gl" && <GeneralLedger allRecords={records} accounts={paymentAccounts} defaultSearchTerm={glInitialSearch} />}
       {activeTab === "statements" && <StatementsTab />}
 

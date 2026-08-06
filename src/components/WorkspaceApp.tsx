@@ -1,5 +1,5 @@
 import toast from "react-hot-toast";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence, Reorder } from "motion/react";
 import { useClickOutside } from "../hooks/useClickOutside";
 import CalendarSyncModal from "./CalendarSyncModal";
@@ -133,6 +133,7 @@ import EisenhowerMatrix from "./EisenhowerMatrix";
 import HabitsTracker from "./HabitsTracker";
 import GuidePopup from "./GuidePopup";
 import { determineProjectByTitle } from "../utils/autoCategorize";
+import { parseTaskTitleInput } from "../utils/taskParser";
 import ChangePasswordModal from "./ChangePasswordModal";
 import DependencyTree from "./DependencyTree";
 import DashboardWidgets from "./DashboardWidgets";
@@ -888,6 +889,13 @@ export default function WorkspaceApp() {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
 
+  const liveParsedTask = useMemo(() => {
+    if (!newTaskTitle.trim()) return null;
+    const currentBaseProjId =
+      viewMode === "project" && selectedProjectId ? selectedProjectId : "inbox";
+    return parseTaskTitleInput(newTaskTitle, projects, folders, currentBaseProjId);
+  }, [newTaskTitle, projects, folders, viewMode, selectedProjectId]);
+
   // Detail Modal Picker States
   const [showDetailDatePicker, setShowDetailDatePicker] = useState(false);
   const [showDetailPaymentDatePicker, setShowDetailPaymentDatePicker] = useState(false);
@@ -963,6 +971,7 @@ export default function WorkspaceApp() {
     setShowPriorityPicker(false);
     setShowRepeatPicker(false);
     setShowClientPicker(false);
+    setShowProjectPicker(false);
   });
 
   useClickOutside(detailPickersRef, () => {
@@ -1445,18 +1454,17 @@ export default function WorkspaceApp() {
     const currentBaseProjId =
       viewMode === "project" && selectedProjectId ? selectedProjectId : "inbox";
 
-    // Auto-detect hashtags: e.g. "FR Class #Study"
-    const hashtagRegex = /#(\w+)/g;
-    const detectedTags: string[] = [];
-    let match;
-    while ((match = hashtagRegex.exec(titleStr)) !== null) {
-      detectedTags.push(match[1]);
-    }
-    // Clean hashtags from titleStr
-    const cleanedTitle = titleStr.replace(hashtagRegex, "").trim();
+    // Comprehensive parsing for priorities (e.g. '!!' -> P1) and folder/project associations (e.g. '#ProjectName')
+    const parsed = parseTaskTitleInput(titleStr, projects, folders, currentBaseProjId);
 
-    const { projectId: targetProjectId, matchedProjectName } =
-      determineProjectByTitle(cleanedTitle, projects, currentBaseProjId);
+    const cleanedTitle = parsed.cleanTitle || titleStr.trim();
+    // Use manually picked priority if user changed dropdown, or parsed priority if present, or default 4
+    const finalPriority = newTaskPriority !== 4 ? newTaskPriority : (parsed.priority || 4);
+    // Use manually picked project if user changed dropdown, or parsed project, or current view base project
+    const targetProjectId = newTaskProject !== "inbox" ? newTaskProject : (parsed.projectId || currentBaseProjId);
+
+    const matchedProjObj = projects.find((p) => p.id === targetProjectId);
+    const matchedProjectName = parsed.projectName || matchedProjObj?.name;
 
     // Calculate due date based on user state or view mode fallback
     let dueDateVal: number | null = null;
@@ -1488,10 +1496,10 @@ export default function WorkspaceApp() {
       metadata: activeAppTab === "payables" ? { type: "payable" } : undefined,
       completed: false,
       projectId: targetProjectId,
-      priority: newTaskPriority,
+      priority: finalPriority,
       dueDate: dueDateVal,
       repeatInterval: newTaskRepeatInterval,
-      tags: detectedTags.length > 0 ? detectedTags : undefined,
+      tags: parsed.tags.length > 0 ? parsed.tags : undefined,
       clientId: newTaskClientId || undefined,
       clientName: newTaskClientId
         ? clients.find((c) => c.uid === newTaskClientId)?.displayName ||
@@ -1501,7 +1509,7 @@ export default function WorkspaceApp() {
 
     if (matchedProjectName && targetProjectId !== currentBaseProjId) {
       setAutoProjectNotice(
-        `Auto-categorized task to "${cleanedTitle !== titleStr ? cleanedTitle : matchedProjectName}"`,
+        `Auto-categorized task to "${matchedProjectName}"`,
       );
       setTimeout(() => setAutoProjectNotice(null), 4000);
     }
@@ -1511,12 +1519,14 @@ export default function WorkspaceApp() {
     setNewTaskDesc("");
     setNewTaskSubtasks([]);
     setNewTaskPriority(4);
+    setNewTaskProject("inbox");
     setNewTaskRepeatInterval(null);
     setNewTaskDueDate(undefined);
     setNewTaskClientId(null);
     setShowClientPicker(false);
     setShowDatePicker(false);
     setShowPriorityPicker(false);
+    setShowProjectPicker(false);
     setShowNotesField(false);
     setShowSubtasksField(false);
   };
@@ -6420,11 +6430,23 @@ export default function WorkspaceApp() {
                             <div className="relative flex-1 space-y-1.5">
                               <input
                                 type="text"
-                                placeholder={`+ Add task to "${viewMode === "project" ? projects.find((p) => p.id === selectedProjectId)?.name || "Inbox" : viewMode === "folder" ? folders.find((f) => f.id === selectedFolderId)?.name || "Folder" : "Inbox"}"... (Press Enter)`}
+                                placeholder={`+ Add task (e.g. "Review audit report !! #CA Final" or "Call client p2 #Work")...`}
                                 value={newTaskTitle}
                                 onChange={(e) => {
                                   const text = e.target.value;
                                   setNewTaskTitle(text);
+
+                                  const currentBaseProjId =
+                                    viewMode === "project" && selectedProjectId ? selectedProjectId : "inbox";
+                                  const parsed = parseTaskTitleInput(text, projects, folders, currentBaseProjId);
+
+                                  if (parsed.priority) {
+                                    setNewTaskPriority(parsed.priority);
+                                  }
+                                  if (parsed.projectId && parsed.projectId !== currentBaseProjId) {
+                                    setNewTaskProject(parsed.projectId);
+                                  }
+
                                   const lower = text.toLowerCase();
                                   if (/(daily|every day)/.test(lower))
                                     setNewTaskRepeatInterval("daily");
@@ -6487,6 +6509,30 @@ export default function WorkspaceApp() {
                                   </motion.div>
                                 )}
                               </AnimatePresence>
+
+                              {/* Live Auto-Parse Badge Row */}
+                              {liveParsedTask && (liveParsedTask.priority || liveParsedTask.projectName || liveParsedTask.folderName || liveParsedTask.tags.length > 0) && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] font-semibold text-gray-500 animate-in fade-in duration-150">
+                                  <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Auto-detected:</span>
+                                  {liveParsedTask.priority && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200/60 font-bold">
+                                      <Flag className="w-3 h-3 fill-current" />
+                                      P{liveParsedTask.priority} {liveParsedTask.priority === 1 ? 'Urgent' : liveParsedTask.priority === 2 ? 'High' : liveParsedTask.priority === 3 ? 'Medium' : 'Low'}
+                                    </span>
+                                  )}
+                                  {(liveParsedTask.projectName || liveParsedTask.folderName) && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60 font-bold">
+                                      <Folder className="w-3 h-3 text-indigo-600" />
+                                      {liveParsedTask.projectName || liveParsedTask.folderName}
+                                    </span>
+                                  )}
+                                  {liveParsedTask.tags.map((tag) => (
+                                    <span key={tag} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">
+                                      #{tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -6702,6 +6748,99 @@ export default function WorkspaceApp() {
                                   )}
                                 </AnimatePresence>
                               </div>
+                              {/* 2.5 Project / Folder Selector */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowProjectPicker(!showProjectPicker);
+                                    setShowPriorityPicker(false);
+                                    setShowDatePicker(false);
+                                    setShowRepeatPicker(false);
+                                    setShowClientPicker(false);
+                                  }}
+                                  className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all border ${
+                                    newTaskProject !== "inbox" || (liveParsedTask?.projectName || liveParsedTask?.folderName)
+                                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                      : "bg-gray-50 text-gray-600 border-gray-200/60 hover:bg-gray-100"
+                                  }`}
+                                  title="Assign to Project or Folder (or type #ProjectName in title)"
+                                >
+                                  <Folder className="w-3.5 h-3.5 shrink-0 text-indigo-600" />
+                                  <span className="truncate max-w-[120px]">
+                                    {newTaskProject !== "inbox"
+                                      ? projects.find((p) => p.id === newTaskProject)?.name || "Project"
+                                      : liveParsedTask?.projectName || liveParsedTask?.folderName || "Inbox"}
+                                  </span>
+                                  <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                                </button>
+                                <AnimatePresence>
+                                  {showProjectPicker && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                      transition={{ duration: 0.12 }}
+                                      className="absolute left-0 mt-2 z-50 bg-white border-none rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] p-1.5 w-52 max-h-60 overflow-y-auto"
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNewTaskProject("inbox");
+                                          setShowProjectPicker(false);
+                                        }}
+                                        className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${
+                                          newTaskProject === "inbox" ? "bg-primary/5 text-primary font-bold" : "hover:bg-gray-50 text-gray-700"
+                                        }`}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <Inbox className="w-3.5 h-3.5 text-gray-400" />
+                                          Inbox (Default)
+                                        </span>
+                                        {newTaskProject === "inbox" && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                                      </button>
+
+                                      <div className="mx-1 h-px bg-gray-100 my-1" />
+                                      <div className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                        Projects
+                                      </div>
+
+                                      {projects.map((proj) => {
+                                        const isSelected = newTaskProject === proj.id;
+                                        const parentFolder = proj.folderId ? folders.find((f) => f.id === proj.folderId) : null;
+                                        return (
+                                          <button
+                                            key={proj.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setNewTaskProject(proj.id);
+                                              setShowProjectPicker(false);
+                                            }}
+                                            className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-medium rounded-lg transition-colors ${
+                                              isSelected ? "bg-primary/5 text-primary font-bold" : "hover:bg-gray-50 text-gray-700"
+                                            }`}
+                                          >
+                                            <span className="flex items-center gap-2 truncate">
+                                              <span
+                                                className="w-2 h-2 rounded-full shrink-0"
+                                                style={{ backgroundColor: proj.color || "#6366f1" }}
+                                              />
+                                              <span className="truncate">{proj.name}</span>
+                                              {parentFolder && (
+                                                <span className="text-[10px] text-gray-400 font-normal truncate">
+                                                  ({parentFolder.name})
+                                                </span>
+                                              )}
+                                            </span>
+                                            {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                                          </button>
+                                        );
+                                      })}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+
                               {/* 3. Repeat Selector */}
                               <div className="relative">
                                 <button

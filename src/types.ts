@@ -179,6 +179,23 @@ export interface FinanceRecord {
   };
 }
 
+export interface RecurringSchedule {
+  id: string;
+  title: string;
+  vendorName?: string;
+  category: string;
+  amount: number;
+  frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+  nextDueDate: string; // YYYY-MM-DD
+  paymentAccountId?: string;
+  scope: 'business' | 'personal';
+  status: 'active' | 'paused';
+  notes?: string;
+  autoPost?: boolean;
+  lastGeneratedDate?: string;
+  createdAt: number;
+}
+
 export interface UserProfile {
   id: string; // same as auth.currentUser.uid
   firstName: string;

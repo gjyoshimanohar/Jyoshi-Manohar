@@ -1,14 +1,44 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FinanceRecord, PaymentAccount } from '../types';
-import { Landmark, TrendingUp, TrendingDown, Layers, Scale, IndianRupee } from 'lucide-react';
+import { Landmark, TrendingUp, TrendingDown, Layers, Scale, FileSpreadsheet, Download, X, Calendar, Search, ExternalLink, ArrowUpRight, BookOpen, FileText } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
+import CustomDatePicker from './CustomDatePicker';
 
 interface Props {
   allRecords: FinanceRecord[];
   filteredRecords: FinanceRecord[];
   accounts: PaymentAccount[];
+  onNavigateToGL?: (searchTerm: string) => void;
 }
 
-export default function ChartOfAccounts({ allRecords, filteredRecords, accounts }: Props) {
+type AccountCategoryType = 'Asset' | 'Liability' | 'Revenue' | 'Expense';
+
+interface SelectedItem {
+  name: string;
+  type: AccountCategoryType;
+  id?: string;
+  value: number;
+}
+
+interface ItemGLEntry {
+  id: string;
+  date: string;
+  description: string;
+  reference: string;
+  scope: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
+export default function ChartOfAccounts({ allRecords, filteredRecords, accounts, onNavigateToGL }: Props) {
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
   const { assets, liabilities, revenue, expenses, equity } = useMemo(() => {
     let totalAssets = 0;
     let totalLiabilities = 0;
@@ -18,7 +48,6 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts 
     
     const accountBalances: Record<string, number> = {};
     accounts.forEach(acc => {
-      // Liabilities are tracked as positive debt in FinanceTracker, but let's just compute the net balance
       accountBalances[acc.id] = acc.type === 'credit_card' || acc.type === 'loan' ? -acc.openingBalance : acc.openingBalance;
     });
     
@@ -42,13 +71,13 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts 
     const assetItems = assetAccounts.map(a => {
       const val = accountBalances[a.id];
       totalAssets += val;
-      return { name: a.name, value: val };
+      return { id: a.id, name: a.name, value: val, type: 'Asset' as AccountCategoryType };
     });
     
     const liabilityItems = liabilityAccounts.map(a => {
       const val = Math.abs(accountBalances[a.id]); // show debt as positive
       totalLiabilities += val;
-      return { name: a.name, value: val };
+      return { id: a.id, name: a.name, value: val, type: 'Liability' as AccountCategoryType };
     });
     
     const revByCategory: Record<string, number> = {};
@@ -67,8 +96,13 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts 
       }
     });
     
-    const revItems = Object.entries(revByCategory).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-    const expItems = Object.entries(expByCategory).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+    const revItems = Object.entries(revByCategory)
+      .map(([name, value]) => ({ name, value, type: 'Revenue' as AccountCategoryType }))
+      .sort((a,b) => b.value - a.value);
+
+    const expItems = Object.entries(expByCategory)
+      .map(([name, value]) => ({ name, value, type: 'Expense' as AccountCategoryType }))
+      .sort((a,b) => b.value - a.value);
     
     const equityVal = totalAssets - totalLiabilities;
     
@@ -81,6 +115,343 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts 
     };
   }, [allRecords, filteredRecords, accounts]);
 
+  // Compute ledger data for selected item
+  const selectedLedgerData = useMemo(() => {
+    if (!selectedItem) return { entries: [], totalDebit: 0, totalCredit: 0, closingBalance: 0 };
+
+    const entries: ItemGLEntry[] = [];
+    let totalDebit = 0;
+    let totalCredit = 0;
+
+    const isPhysicalAccount = selectedItem.type === 'Asset' || selectedItem.type === 'Liability';
+    const acc = isPhysicalAccount 
+      ? accounts.find(a => (selectedItem.id && a.id === selectedItem.id) || a.name.toLowerCase() === selectedItem.name.toLowerCase())
+      : null;
+
+    if (acc) {
+      // Add Opening Balance
+      if (acc.openingBalance > 0) {
+        if (selectedItem.type === 'Asset') {
+          entries.push({
+            id: `open-${acc.id}`,
+            date: new Date(acc.createdAt).toISOString().split('T')[0],
+            description: 'Opening Balance',
+            reference: 'OPENING',
+            scope: 'business',
+            debit: acc.openingBalance,
+            credit: 0,
+            balance: 0
+          });
+          totalDebit += acc.openingBalance;
+        } else {
+          entries.push({
+            id: `open-${acc.id}`,
+            date: new Date(acc.createdAt).toISOString().split('T')[0],
+            description: 'Opening Balance',
+            reference: 'OPENING',
+            scope: 'business',
+            debit: 0,
+            credit: acc.openingBalance,
+            balance: 0
+          });
+          totalCredit += acc.openingBalance;
+        }
+      }
+
+      // Process paid records for this account
+      const paidRecords = allRecords.filter(r => r.status === 'paid').sort((a, b) => {
+        const dComp = (a.date || "").localeCompare(b.date || "");
+        if (dComp !== 0) return dComp;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
+
+      paidRecords.forEach(rec => {
+        const isFrom = rec.paymentAccountId === acc.id;
+        const isTo = rec.transferToAccountId === acc.id;
+
+        if (!isFrom && !isTo) return;
+
+        if (rec.type === 'income') {
+          entries.push({
+            id: `${rec.id}-dr`,
+            date: rec.date,
+            description: rec.description || rec.category,
+            reference: rec.paymentMode || rec.id.slice(-6),
+            scope: rec.scope || 'business',
+            debit: rec.amount,
+            credit: 0,
+            balance: 0
+          });
+          totalDebit += rec.amount;
+        } else if (rec.type === 'expense') {
+          entries.push({
+            id: `${rec.id}-cr`,
+            date: rec.date,
+            description: rec.description || rec.category,
+            reference: rec.paymentMode || rec.id.slice(-6),
+            scope: rec.scope || 'business',
+            debit: 0,
+            credit: rec.amount,
+            balance: 0
+          });
+          totalCredit += rec.amount;
+        } else if (rec.type === 'transfer') {
+          if (isFrom) {
+            const toAcc = accounts.find(a => a.id === rec.transferToAccountId);
+            entries.push({
+              id: `${rec.id}-cr`,
+              date: rec.date,
+              description: `Transfer to ${toAcc?.name || 'Account'}`,
+              reference: 'TRANSFER',
+              scope: rec.scope || 'business',
+              debit: 0,
+              credit: rec.amount,
+              balance: 0
+            });
+            totalCredit += rec.amount;
+          }
+          if (isTo) {
+            const fromAcc = accounts.find(a => a.id === rec.paymentAccountId);
+            entries.push({
+              id: `${rec.id}-dr`,
+              date: rec.date,
+              description: `Transfer from ${fromAcc?.name || 'Account'}`,
+              reference: 'TRANSFER',
+              scope: rec.scope || 'business',
+              debit: rec.amount,
+              credit: 0,
+              balance: 0
+            });
+            totalDebit += rec.amount;
+          }
+        } else if (rec.type === 'journal') {
+          if (isFrom) {
+            entries.push({
+              id: `${rec.id}-cr`,
+              date: rec.date,
+              description: `${rec.description} (Journal Cr)`,
+              reference: 'JOURNAL',
+              scope: rec.scope || 'business',
+              debit: 0,
+              credit: rec.amount,
+              balance: 0
+            });
+            totalCredit += rec.amount;
+          }
+          if (isTo) {
+            entries.push({
+              id: `${rec.id}-dr`,
+              date: rec.date,
+              description: `${rec.description} (Journal Dr)`,
+              reference: 'JOURNAL',
+              scope: rec.scope || 'business',
+              debit: rec.amount,
+              credit: 0,
+              balance: 0
+            });
+            totalDebit += rec.amount;
+          }
+        }
+      });
+    } else {
+      // Category Ledger (Revenue or Expense) - combines BOTH income and expense records into a single unified statement
+      const catPaidRecords = allRecords
+        .filter(r => r.status === 'paid' && r.category?.toLowerCase() === selectedItem.name.toLowerCase())
+        .sort((a, b) => {
+          const dComp = (a.date || "").localeCompare(b.date || "");
+          if (dComp !== 0) return dComp;
+          return (a.createdAt || 0) - (b.createdAt || 0);
+        });
+
+      catPaidRecords.forEach(rec => {
+        if (rec.type === 'income') {
+          entries.push({
+            id: `${rec.id}-cr`,
+            date: rec.date,
+            description: rec.description || rec.category,
+            reference: rec.paymentMode || rec.id.slice(-6),
+            scope: rec.scope || 'business',
+            debit: 0,
+            credit: rec.amount,
+            balance: 0
+          });
+          totalCredit += rec.amount;
+        } else {
+          entries.push({
+            id: `${rec.id}-dr`,
+            date: rec.date,
+            description: rec.description || rec.category,
+            reference: rec.paymentMode || rec.id.slice(-6),
+            scope: rec.scope || 'business',
+            debit: rec.amount,
+            credit: 0,
+            balance: 0
+          });
+          totalDebit += rec.amount;
+        }
+      });
+    }
+
+    // Sort entries chronologically
+    entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Apply date range filter if provided
+    const sTime = startDate ? new Date(startDate).getTime() : 0;
+    const eTime = endDate ? new Date(endDate).getTime() : Infinity;
+
+    let runningBal = 0;
+    let filteredDebit = 0;
+    let filteredCredit = 0;
+
+    const isCategoryLedger = !['Asset', 'Liability'].includes(selectedItem.type);
+    const hasIncomeEntries = totalCredit > 0;
+
+    const calculatedEntries = entries.map(entry => {
+      if (selectedItem.type === 'Asset') {
+        runningBal += (entry.debit - entry.credit);
+      } else if (selectedItem.type === 'Liability') {
+        runningBal += (entry.credit - entry.debit);
+      } else if (selectedItem.type === 'Expense' && !hasIncomeEntries) {
+        // Pure expense category with no income entries
+        runningBal += (entry.debit - entry.credit);
+      } else {
+        // Revenue or Category with mixed Income/Expense (e.g. Raghuveer Account)
+        // Income (Credit) increases balance (+), Expense (Debit) decreases balance (-)
+        runningBal += (entry.credit - entry.debit);
+      }
+
+      return {
+        ...entry,
+        balance: runningBal
+      };
+    }).filter(entry => {
+      const t = new Date(entry.date).getTime();
+      const inRange = t >= sTime && t <= eTime;
+      if (inRange) {
+        filteredDebit += entry.debit;
+        filteredCredit += entry.credit;
+      }
+      return inRange;
+    });
+
+    return {
+      entries: calculatedEntries,
+      totalDebit: filteredDebit,
+      totalCredit: filteredCredit,
+      closingBalance: runningBal,
+      isCategoryLedger,
+      hasIncomeEntries
+    };
+  }, [selectedItem, allRecords, accounts, startDate, endDate]);
+
+  const handleDownloadExcel = () => {
+    if (!selectedItem) return;
+    try {
+      const headerRow = [
+        ["Account / Category Ledger", selectedItem.name],
+        ["Classification", selectedItem.type],
+        ["Generated Date", format(new Date(), 'MMM dd, yyyy HH:mm')],
+        ["Date Filter", startDate || endDate ? `${startDate || 'Start'} to ${endDate || 'Current'}` : "All Time"],
+        [],
+        ["Total Debit (Dr)", selectedLedgerData.totalDebit],
+        ["Total Credit (Cr)", selectedLedgerData.totalCredit],
+        ["Net / Closing Balance", selectedLedgerData.closingBalance],
+        [],
+        ["Date", "Description", "Reference / Mode", "Scope", "Debit (Dr)", "Credit (Cr)", "Balance"]
+      ];
+
+      const dataRows = selectedLedgerData.entries.map(t => [
+        t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '-',
+        t.description,
+        t.reference,
+        t.scope === 'personal' ? 'Private' : 'Corporate',
+        t.debit > 0 ? t.debit : '',
+        t.credit > 0 ? t.credit : '',
+        t.balance
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([...headerRow, ...dataRows]);
+      
+      ws['!cols'] = [
+        { wch: 14 },
+        { wch: 42 },
+        { wch: 18 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 16 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Item Ledger");
+
+      XLSX.writeFile(wb, `Ledger_${selectedItem.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+    } catch (err) {
+      console.error("Error generating Excel:", err);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!selectedItem) return;
+    try {
+      const doc = new jsPDF();
+
+      doc.setFontSize(18);
+      doc.setTextColor(26, 43, 88); // Primary dark blue
+      doc.text(selectedItem.name, 14, 20);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Type: ${selectedItem.type}`, 14, 27);
+      doc.text(`Generated: ${format(new Date(), 'MMM dd, yyyy HH:mm')}`, 14, 33);
+      if (startDate || endDate) {
+        doc.text(`Period: ${startDate || 'All'} to ${endDate || 'Current'}`, 14, 39);
+      }
+
+      // Summary Card Top Right
+      doc.setDrawColor(200);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(120, 14, 76, 28, 'FD');
+
+      doc.setFontSize(9);
+      doc.text('Total Debit:', 124, 20);
+      doc.text(`Rs. ${selectedLedgerData.totalDebit.toLocaleString('en-IN')}`, 192, 20, { align: 'right' });
+
+      doc.text('Total Credit:', 124, 26);
+      doc.text(`Rs. ${selectedLedgerData.totalCredit.toLocaleString('en-IN')}`, 192, 26, { align: 'right' });
+
+      doc.setFont(undefined, 'bold');
+      doc.text('Net Balance:', 124, 35);
+      doc.text(`Rs. ${selectedLedgerData.closingBalance.toLocaleString('en-IN')}`, 192, 35, { align: 'right' });
+
+      doc.setFont(undefined, 'normal');
+
+      const tableData = selectedLedgerData.entries.map(t => [
+        t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '-',
+        t.description,
+        t.reference,
+        t.scope === 'personal' ? 'Private' : 'Corporate',
+        t.debit > 0 ? `Rs. ${t.debit.toLocaleString('en-IN')}` : '-',
+        t.credit > 0 ? `Rs. ${t.credit.toLocaleString('en-IN')}` : '-',
+        `Rs. ${t.balance.toLocaleString('en-IN')}`
+      ]);
+
+      autoTable(doc, {
+        startY: 46,
+        head: [['Date', 'Description', 'Ref / Mode', 'Scope', 'Debit (Dr)', 'Credit (Cr)', 'Balance']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [26, 43, 88] },
+        styles: { fontSize: 8.5 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+
+      doc.save(`Ledger_${selectedItem.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    } catch (err) {
+      console.error("Error generating PDF:", err);
+    }
+  };
+
   const Section = ({ title, icon: Icon, total, items, colorClass }: any) => (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-100">
@@ -88,18 +459,40 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts 
           <div className={`p-2 rounded-lg ${colorClass.bg}`}>
             <Icon className={`w-5 h-5 ${colorClass.text}`} />
           </div>
-          <h3 className="font-bold text-slate-800">{title}</h3>
+          <div>
+            <h3 className="font-bold text-slate-800">{title}</h3>
+            <span className="text-[10px] text-slate-400 font-medium">Click any row to open ledger</span>
+          </div>
         </div>
         <span className="font-extrabold text-slate-800">₹{total.toLocaleString('en-IN')}</span>
       </div>
-      <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+      <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-2 custom-scrollbar">
         {items.length === 0 ? (
           <p className="text-sm text-slate-400 italic">No records found.</p>
         ) : (
           items.map((item: any, idx: number) => (
-            <div key={idx} className="flex justify-between items-center text-sm">
-              <span className="text-slate-600 font-medium">{item.name}</span>
-              <span className="text-slate-800 font-semibold">₹{item.value.toLocaleString('en-IN')}</span>
+            <div 
+              key={idx} 
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setSelectedItem(item);
+              }}
+              className="flex justify-between items-center p-2 rounded-xl border border-transparent hover:border-amber-200 hover:bg-amber-50/50 cursor-pointer transition-all group"
+              title={`Click to view ledger statement for ${item.name}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-slate-700 font-semibold text-sm group-hover:text-amber-900 transition-colors">
+                  {item.name}
+                </span>
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5">
+                  <BookOpen className="w-3 h-3" /> Ledger
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-800 font-bold text-sm">₹{item.value.toLocaleString('en-IN')}</span>
+                <ArrowUpRight className="w-4 h-4 text-slate-300 group-hover:text-amber-600 transition-colors" />
+              </div>
             </div>
           ))
         )}
@@ -111,8 +504,12 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts 
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
         <div>
-          <h3 className="text-lg font-bold text-primary tracking-tight">⚖️ Chart of Accounts</h3>
-          <p className="text-xs text-gray-500 mt-1">Double-entry accounting balances organized by Assets, Liabilities, Equity, Revenue, and Expenses.</p>
+          <h3 className="text-lg font-bold text-primary tracking-tight flex items-center gap-2">
+            <Scale className="w-5 h-5 text-amber-600" /> Chart of Accounts
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Double-entry accounting summary. Click any item to view its detailed ledger statement and download reports.
+          </p>
         </div>
       </div>
 
@@ -135,6 +532,204 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts 
         <Section title="Revenue (Income)" icon={TrendingUp} total={revenue.total} items={revenue.items} colorClass={{ bg: 'bg-blue-100', text: 'text-blue-700' }} />
         <Section title="Expenses" icon={TrendingDown} total={expenses.total} items={expenses.items} colorClass={{ bg: 'bg-amber-100', text: 'text-amber-700' }} />
       </div>
+
+      {/* Item Ledger Modal */}
+      {selectedItem && (
+        <div className="fixed inset-0 z-[999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="bg-[#1a2b58] text-white p-4 sm:p-5 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/10 rounded-xl">
+                  <FileSpreadsheet className="w-6 h-6 text-[#AD8D3E]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-white tracking-tight">{selectedItem.name}</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] uppercase font-extrabold bg-[#AD8D3E]/20 text-[#AD8D3E] border border-[#AD8D3E]/30">
+                      {selectedItem.type}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Account Ledger & Transaction History Statement
+                  </p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setSelectedItem(null)}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Actions & Date Filters */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
+                  <Calendar className="w-4 h-4 text-slate-400" /> Date Filter:
+                </div>
+                <div className="w-36">
+                  <CustomDatePicker
+                    value={startDate}
+                    onChange={(val) => setStartDate(val)}
+                    placeholder="From Date"
+                  />
+                </div>
+                <span className="text-slate-400 text-xs">to</span>
+                <div className="w-36">
+                  <CustomDatePicker
+                    value={endDate}
+                    onChange={(val) => setEndDate(val)}
+                    placeholder="To Date"
+                  />
+                </div>
+                {(startDate || endDate) && (
+                  <button 
+                    onClick={() => { setStartDate(''); setEndDate(''); }}
+                    className="text-xs text-amber-800 hover:underline font-bold px-1 cursor-pointer"
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+
+              {/* Export Buttons */}
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  onClick={handleDownloadExcel}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  title="Export Excel (.xlsx)"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Excel
+                </button>
+                <button
+                  onClick={handleDownloadPDF}
+                  className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  title="Export PDF Report (.pdf)"
+                >
+                  <Download className="w-4 h-4" /> PDF Report
+                </button>
+                {onNavigateToGL && (
+                  <button
+                    onClick={() => {
+                      const name = selectedItem.name;
+                      setSelectedItem(null);
+                      onNavigateToGL(name);
+                    }}
+                    className="bg-[#1a2b58] hover:bg-[#1a2b58]/90 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title="Open in General Ledger Tab"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Open in GL
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* KPI Summary Cards */}
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-slate-100 shrink-0 bg-white">
+              <div className="p-3 bg-rose-50/60 border border-rose-100 rounded-xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">Total Payments / Debit (Dr)</span>
+                <span className="text-lg font-bold text-rose-700 block mt-0.5">
+                  ₹{selectedLedgerData.totalDebit.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="p-3 bg-emerald-50/60 border border-emerald-100 rounded-xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">Total Receipts / Credit (Cr)</span>
+                <span className="text-lg font-bold text-emerald-700 block mt-0.5">
+                  ₹{selectedLedgerData.totalCredit.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 block">Closing / Net Balance</span>
+                <span className="text-lg font-extrabold text-amber-900 block mt-0.5">
+                  {selectedLedgerData.closingBalance < 0 
+                    ? `₹${Math.abs(selectedLedgerData.closingBalance).toLocaleString('en-IN')} Dr` 
+                    : `₹${selectedLedgerData.closingBalance.toLocaleString('en-IN')}${selectedLedgerData.hasIncomeEntries ? ' Cr' : ''}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Table Entries Container */}
+            <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
+              {selectedLedgerData.entries.length === 0 ? (
+                <div className="text-center py-10">
+                  <BookOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-600">No ledger transactions recorded</p>
+                  <p className="text-xs text-slate-400 mt-1">Try adjusting date filters or adding paid transactions.</p>
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="py-2.5 px-3">Date</th>
+                        <th className="py-2.5 px-3">Description</th>
+                        <th className="py-2.5 px-3">Ref / Mode</th>
+                        <th className="py-2.5 px-3 text-center">Scope</th>
+                        <th className="py-2.5 px-3 text-right">Debit (Dr - Paid)</th>
+                        <th className="py-2.5 px-3 text-right">Credit (Cr - Received)</th>
+                        <th className="py-2.5 px-3 text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {selectedLedgerData.entries.map((entry, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3 font-medium text-slate-600 whitespace-nowrap">
+                            {entry.date ? format(new Date(entry.date), 'MMM dd, yyyy') : '-'}
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-800 max-w-xs truncate" title={entry.description}>
+                            {entry.description}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-bold text-slate-600">
+                              {entry.reference}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              entry.scope === 'personal' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {entry.scope === 'personal' ? 'Private' : 'Corporate'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-rose-700 whitespace-nowrap">
+                            {entry.debit > 0 ? `₹${entry.debit.toLocaleString('en-IN')}` : '-'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-700 whitespace-nowrap">
+                            {entry.credit > 0 ? `₹${entry.credit.toLocaleString('en-IN')}` : '-'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-extrabold text-slate-800 whitespace-nowrap">
+                            {entry.balance < 0 ? (
+                              <span className="text-rose-700">₹{Math.abs(entry.balance).toLocaleString('en-IN')} Dr</span>
+                            ) : (
+                              <span className="text-slate-800">₹{entry.balance.toLocaleString('en-IN')}{selectedLedgerData.hasIncomeEntries ? ' Cr' : ''}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 border-t border-slate-200 p-3 px-4 flex justify-between items-center text-[11px] text-slate-500 shrink-0">
+              <span>Showing {selectedLedgerData.entries.length} statement entries</span>
+              <button
+                onClick={() => setSelectedItem(null)}
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
