@@ -105,6 +105,7 @@ const DEFAULT_CATEGORIES = {
   ],
   personalIncome: [
     "Salary / Drawings",
+    "Raghuveer Account",
     "Dividends & Investments",
     "Cashback & Rewards",
     "Gifts & Allowances",
@@ -113,6 +114,7 @@ const DEFAULT_CATEGORIES = {
   personalExpense: [
     "Groceries & Food",
     "Rent & Housing",
+    "Raghuveer Account",
     "Fuel & Transport",
     "Utilities & Bills",
     "Insurance & SIP",
@@ -379,6 +381,12 @@ export default function FinanceTracker() {
         }
         if (parsed.businessExpense && !parsed.businessExpense.includes("Payment from Advance")) {
             parsed.businessExpense.push("Payment from Advance");
+        }
+        if (parsed.personalIncome && !parsed.personalIncome.includes("Raghuveer Account")) {
+            parsed.personalIncome.push("Raghuveer Account");
+        }
+        if (parsed.personalExpense && !parsed.personalExpense.includes("Raghuveer Account")) {
+            parsed.personalExpense.push("Raghuveer Account");
         }
         return parsed;
       }
@@ -1263,6 +1271,11 @@ export default function FinanceTracker() {
         name: "ICICI Visa Credit Card",
         type: "credit_card",
         openingBalance: 0
+      });
+      const raghuveerAcc = await financeService.createPaymentAccount({
+        name: "Raghuveer Account",
+        type: "bank_account",
+        openingBalance: 100000
       });
 
       const demoDataList: Omit<FinanceRecord, "id" | "createdAt">[] = [
