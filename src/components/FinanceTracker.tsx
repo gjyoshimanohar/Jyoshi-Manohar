@@ -916,7 +916,10 @@ export default function FinanceTracker() {
     setFormCategory(rec.category);
     setFormAmount(rec.amount.toString());
     setFormDescription(rec.description || "");
-    setFormDate(rec.date);
+    const validDate = rec.date && !isNaN(new Date(rec.date).getTime()) 
+      ? (rec.date.includes("T") ? rec.date.split("T")[0] : rec.date)
+      : new Date().toISOString().split("T")[0];
+    setFormDate(validDate);
     setFormStatus(rec.status);
     setFormClientId(rec.clientId || "");
     setFormCustomClientName(rec.clientName || "");
@@ -2798,7 +2801,26 @@ export default function FinanceTracker() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1.5 items-start">
-                      <span>{new Date(record.date).toLocaleDateString()}</span>
+                      {record.date && !isNaN(new Date(record.date).getTime()) ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(record)}
+                          className="font-medium text-slate-700 hover:text-indigo-600 hover:underline transition-colors text-left"
+                          title="Click to edit date"
+                        >
+                          {new Date(record.date).toLocaleDateString()}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(record)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition shadow-xs group/btn cursor-pointer"
+                          title="No date set. Click to assign a date."
+                        >
+                          <Calendar className="w-3.5 h-3.5 text-amber-600 group-hover/btn:scale-110 transition-transform" />
+                          <span>+ Add Date</span>
+                        </button>
+                      )}
                       {record.dueDate && (record.status === 'pending' || record.status === 'overdue') && (
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
@@ -4279,14 +4301,31 @@ export default function FinanceTracker() {
                           />
                         </td>
                         <td className="py-4 px-6 text-gray-600 whitespace-nowrap">
-                          <span className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            {new Date(rec.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric"
-                            })}
-                          </span>
+                          {rec.date && !isNaN(new Date(rec.date).getTime()) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(rec)}
+                              className="flex items-center gap-1.5 hover:text-indigo-600 hover:underline transition-colors text-left font-medium"
+                              title="Click to edit date"
+                            >
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              {new Date(rec.date).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric"
+                              })}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(rec)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition shadow-xs cursor-pointer"
+                              title="No date set. Click to assign a date."
+                            >
+                              <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                              <span>+ Add Date</span>
+                            </button>
+                          )}
                         </td>
                         <td className="py-4 px-6 text-center font-bold">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${
@@ -4418,6 +4457,11 @@ export default function FinanceTracker() {
             setGlInitialSearch(searchTerm);
             setActiveTab("gl");
           }}
+          onEditRecord={handleOpenEditModal}
+          onRefreshRecords={async () => {
+            const _records = await financeService.getAllRecords();
+            setRecords(sortRecordsByDateDesc(_records));
+          }}
         />
       )}
       {activeTab === "ap_ar" && (
@@ -4430,7 +4474,18 @@ export default function FinanceTracker() {
           }}
         />
       )}
-      {activeTab === "gl" && <GeneralLedger allRecords={records} accounts={paymentAccounts} defaultSearchTerm={glInitialSearch} />}
+      {activeTab === "gl" && (
+        <GeneralLedger 
+          allRecords={records} 
+          accounts={paymentAccounts} 
+          defaultSearchTerm={glInitialSearch} 
+          onEditRecord={handleOpenEditModal}
+          onRefreshRecords={async () => {
+            const _records = await financeService.getAllRecords();
+            setRecords(sortRecordsByDateDesc(_records));
+          }}
+        />
+      )}
       {activeTab === "statements" && <StatementsTab />}
 
       {activeTab === "reports" && <FinancialReports records={records} accounts={paymentAccounts} />}
