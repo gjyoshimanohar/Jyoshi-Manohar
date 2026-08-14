@@ -1,6 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Helmet } from 'react-helmet-async';
+import SEO from '../components/SEO';
+import { getArticleSchema } from '../utils/seoSchemas';
 import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
 import { BlogPost as IBlogPost } from '../types';
@@ -85,20 +86,15 @@ export default function BlogPost() {
 
  return (
  <main className="pt-32 pb-24 bg-white">
- <Helmet>
-   <title>{post.title}</title>
-   <meta name="description" content={seoExcerpt} />
-   
-   {/* Open Graph */}
-   <meta property="og:type" content="article" />
-   <meta property="og:title" content={`${post.title} | CA Jyoshi Manohar`} />
-   <meta property="og:description" content={seoExcerpt} />
-   {post.category && <meta property="article:section" content={post.category} />}
-   
-   {/* Twitter */}
-   <meta name="twitter:title" content={`${post.title} | CA Jyoshi Manohar`} />
-   <meta name="twitter:description" content={seoExcerpt} />
- </Helmet>
+ <SEO 
+   title={post.title}
+   description={seoExcerpt}
+   ogType="article"
+   canonical={`/blog/${post.slug}`}
+   ogImage={(post as any).imageUrl}
+   author={(post as any).author || 'CA Jyoshi Manohar'}
+   schemas={[getArticleSchema(post)]}
+ />
  <article className="w-[96%] mx-auto px-2 sm:px-4 lg:px-6 border-x border-border">
  <motion.div
  initial={{ opacity: 0 }}

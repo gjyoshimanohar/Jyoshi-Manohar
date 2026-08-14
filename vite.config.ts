@@ -10,9 +10,9 @@ export default defineConfig(({mode}) => {
     build: {
       outDir: 'dist',
       target: 'esnext',
-      minify: false,
+      minify: 'esbuild',
       sourcemap: false,
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
           manualChunks(id) {
@@ -21,6 +21,7 @@ export default defineConfig(({mode}) => {
               if (id.includes('firebase') || id.includes('@firebase')) return 'vendor-firebase';
               if (id.includes('lucide-react')) return 'vendor-lucide';
               if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
+              if (id.includes('xlsx') || id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf-excel';
             }
           }
         }

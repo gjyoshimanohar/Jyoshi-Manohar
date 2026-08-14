@@ -5,6 +5,8 @@ import { ArrowLeft, CheckCircle2 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import { services } from '../data';
 import Breadcrumb from '../components/Breadcrumb';
+import SEO from '../components/SEO';
+import { getServiceSchema } from '../utils/seoSchemas';
 
 export default function ServiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -73,6 +75,18 @@ export default function ServiceDetail() {
 
   return (
     <div className="min-h-screen pt-28 pb-20 bg-[#FAFAFA]">
+      <SEO 
+        title={`${service.title} Services`}
+        description={service.description}
+        canonical={`/services/${service.id}`}
+        keywords={[service.title, "CA Services", "Chartered Accountant India", "Financial Advisory", "Corporate Tax", "Audit Services"]}
+        schemas={[getServiceSchema({
+          id: service.id,
+          title: service.title,
+          description: service.description,
+          deliverables: benefits
+        })]}
+      />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Breadcrumb */}

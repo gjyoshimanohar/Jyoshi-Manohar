@@ -4,6 +4,7 @@ import Hero from '../components/Hero';
 import Services from '../components/Services';
 import Contact from '../components/Contact';
 import BlogCard from '../components/BlogCard';
+import SEO from '../components/SEO';
 import { blogPosts as staticPosts } from '../data';
 import { blogService } from '../services/blogService';
 import { BlogPost as IBlogPost } from '../types';
@@ -45,6 +46,11 @@ export default function Home() {
 
  return (
  <main>
+ <SEO 
+   title="CA Jyoshi Manohar | Chartered Accountant & Financial Advisory" 
+   description="Official website of CA Jyoshi Manohar. Premier Chartered Accountancy, personal taxation, corporate auditing, GST compliance, international tax planning, and Virtual CFO advisory."
+   canonical="/"
+ />
  <Hero />
  
  {/* About Section */}

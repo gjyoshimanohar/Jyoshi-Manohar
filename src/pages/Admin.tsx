@@ -14,6 +14,7 @@ import ChangePasswordModal from "../components/ChangePasswordModal";
 import CustomDatePicker from "../components/CustomDatePicker";
 import Breadcrumb from "../components/Breadcrumb";
 import ProfileDropdown from "../components/ProfileDropdown";
+import SEO from "../components/SEO";
 import UserProfileModal from "../components/UserProfileModal";
 // import ProfileDropdown from "../components/ProfileDropdown";
 import { BlogPost } from "../types";
@@ -237,6 +238,7 @@ export default function Admin() {
   if (!user) {
     return (
       <div className="min-h-screen pt-24 pb-12 bg-accent flex items-center justify-center">
+        <SEO title="Admin Portal Sign In" canonical="/admin" noindex={true} />
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -317,6 +319,7 @@ export default function Admin() {
 
   return (
     <>
+      <SEO title="Admin Management Panel" canonical="/admin" noindex={true} />
       <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
       <UserProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} isAdmin={true} />
       <main className="pt-20 pb-10 bg-accent min-h-screen text-left">

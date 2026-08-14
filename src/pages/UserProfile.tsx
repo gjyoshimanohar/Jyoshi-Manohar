@@ -8,6 +8,7 @@ import { userService } from '../services/userService';
 import { UserProfile as UserProfileType } from '../types';
 import { onAuthStateChanged } from 'firebase/auth';
 import Breadcrumb from '../components/Breadcrumb';
+import SEO from '../components/SEO';
 
 export default function UserProfile() {
   const navigate = useNavigate();
@@ -100,6 +101,7 @@ export default function UserProfile() {
 
   return (
     <main className="min-h-screen pt-28 pb-20 bg-[#FDFDFD]">
+      <SEO title="User Profile Settings" canonical="/profile" noindex={true} />
       <div className="w-full max-w-3xl mx-auto px-2 sm:px-4 lg:px-6">
         <Breadcrumb items={[
           { label: 'Home', to: '/' },

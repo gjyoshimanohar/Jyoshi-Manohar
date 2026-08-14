@@ -17,6 +17,7 @@ import CalendarSyncModal from "../components/CalendarSyncModal";
 import DailyStandupModal from "../components/DailyStandupModal";
 import Breadcrumb from "../components/Breadcrumb";
 import InvoiceManagement from "../components/InvoiceManagement";
+import SEO from "../components/SEO";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -3887,6 +3888,12 @@ Stewardship, Accuracy, Legacy.
   if (!user) {
     return (
       <div className="min-h-screen pt-32 pb-24 bg-gradient-to-b from-slate-50 to-white flex items-center justify-center px-2 sm:px-4 lg:px-6">
+        <SEO 
+          title="Client Portal Login" 
+          description="Secure client portal login for CA Jyoshi Manohar clients."
+          canonical="/dashboard" 
+          noindex={true} 
+        />
         <div className="max-w-md w-full">
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -4047,6 +4054,12 @@ Stewardship, Accuracy, Legacy.
         isAdmin={isAdmin}
       />
       <main className="min-h-screen pt-20 pb-8 bg-[#FDFDFD]">
+        <SEO 
+          title="Client Portal Dashboard" 
+          description="Client command portal for managing tax filings, financial documents, and CA consultations."
+          canonical="/dashboard" 
+          noindex={true} 
+        />
         <div className="w-full px-1 sm:px-3 lg:px-4">
           <Breadcrumb items={[
             { label: 'Home', to: '/' },

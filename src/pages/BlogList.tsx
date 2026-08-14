@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Helmet } from 'react-helmet-async';
 import BlogCard from '../components/BlogCard';
 import ResourceCard from '../components/ResourceCard';
 import Breadcrumb from '../components/Breadcrumb';
+import SEO from '../components/SEO';
 import { blogPosts as staticPosts, resources as staticResources } from '../data';
 import { resourceService } from '../services/resourceService';
 import { Resource } from '../types';
@@ -52,10 +52,12 @@ export default function BlogList() {
 
   return (
     <main className="pt-32 pb-24 bg-white min-h-screen">
-      <Helmet>
-        <title>Financial Insights & Resources</title>
-        <meta name="description" content="Read expert articles, download whitepapers, tax guides, and annual budget reports from CA Jyoshi Manohar." />
-      </Helmet>
+      <SEO 
+        title="Financial Insights & Tax Resources"
+        description="Read expert articles, download compliance guides, GST updates, and tax planning resources from CA Jyoshi Manohar."
+        keywords={["CA Blog", "Tax Insights India", "GST Updates", "Corporate Audit Articles", "Startup Tax Guide", "Financial Resources"]}
+        canonical="/blog"
+      />
 
       <div className="w-[98%] mx-auto px-3 sm:px-6">
         <Breadcrumb items={[

@@ -45,7 +45,7 @@ service cloud.firestore {
     // Admin list
     match /admins/{adminId} {
       allow read: if isSignedIn();
-      allow write: if true; 
+      allow write: if isAdmin(); 
     }
 
     // Projects collection

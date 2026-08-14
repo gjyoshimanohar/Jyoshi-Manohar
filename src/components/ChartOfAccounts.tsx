@@ -48,22 +48,40 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts,
     
     const accountBalances: Record<string, number> = {};
     accounts.forEach(acc => {
-      accountBalances[acc.id] = acc.type === 'credit_card' || acc.type === 'loan' ? -acc.openingBalance : acc.openingBalance;
+      accountBalances[acc.id] = acc.type === 'credit_card' || acc.type === 'loan' ? -Number(acc.openingBalance || 0) : Number(acc.openingBalance || 0);
     });
+
+    const findAccount = (idOrName?: string) => {
+      if (!idOrName) return undefined;
+      const clean = idOrName.trim().toLowerCase();
+      return accounts.find(a => 
+        a.id === idOrName || 
+        a.id.toLowerCase() === clean || 
+        a.name.toLowerCase() === clean ||
+        a.name.toLowerCase().includes(clean) ||
+        clean.includes(a.name.toLowerCase())
+      );
+    };
     
     allRecords.forEach(rec => {
-      if (rec.status !== 'paid') return;
+      if ((rec.status || '').toLowerCase() !== 'paid') return;
+      const amt = Number(rec.amount) || 0;
+      const sourceAcc = findAccount(rec.paymentAccountId);
+      const destAcc = findAccount(rec.transferToAccountId);
       
-      if (rec.paymentAccountId && accountBalances[rec.paymentAccountId] !== undefined) {
+      if (sourceAcc && accountBalances[sourceAcc.id] !== undefined) {
         if (rec.type === 'income') {
-          accountBalances[rec.paymentAccountId] += rec.amount;
+          accountBalances[sourceAcc.id] += amt;
         } else if (rec.type === 'expense') {
-          accountBalances[rec.paymentAccountId] -= rec.amount;
-        } else if (rec.type === 'transfer' && rec.transferToAccountId) {
-          accountBalances[rec.paymentAccountId] -= rec.amount;
-          if (accountBalances[rec.transferToAccountId] !== undefined) {
-            accountBalances[rec.transferToAccountId] += rec.amount;
-          }
+          accountBalances[sourceAcc.id] -= amt;
+        } else if (rec.type === 'transfer' || rec.type === 'journal') {
+          accountBalances[sourceAcc.id] -= amt;
+        }
+      }
+
+      if (destAcc && accountBalances[destAcc.id] !== undefined) {
+        if (rec.type === 'transfer' || rec.type === 'journal') {
+          accountBalances[destAcc.id] += amt;
         }
       }
     });

@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /blog
+Allow: /blog/*
+Allow: /services/*
+Allow: /toolkit
+
+# Block private management portals from search crawlers
+Disallow: /admin
+Disallow: /tasks
+Disallow: /dashboard
+Disallow: /profile
+
+Sitemap: https://jyoshimanohar.com/sitemap.xml

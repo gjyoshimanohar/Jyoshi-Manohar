@@ -64,6 +64,19 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
       return glAccounts.get(id)!;
     };
 
+    // Helper to find physical payment account by ID or name
+    const findAccount = (idOrName?: string) => {
+      if (!idOrName) return undefined;
+      const clean = idOrName.trim().toLowerCase();
+      return accounts.find(a => 
+        a.id === idOrName || 
+        a.id.toLowerCase() === clean || 
+        a.name.toLowerCase() === clean ||
+        a.name.toLowerCase().includes(clean) ||
+        clean.includes(a.name.toLowerCase())
+      );
+    };
+
     // Initialize physical accounts (Assets & Liabilities) with opening balances
     accounts.forEach(acc => {
       const isAsset = ['bank_account', 'investment', 'other_asset'].includes(acc.type);
@@ -71,35 +84,66 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
       const account = getAccount(acc.id, acc.name, glType);
       
       // Opening balance
-      if (acc.openingBalance > 0) {
+      const openBal = Number(acc.openingBalance) || 0;
+      if (openBal !== 0) {
+        const openDate = acc.createdAt && !isNaN(new Date(acc.createdAt).getTime())
+          ? new Date(acc.createdAt).toISOString().split('T')[0]
+          : '2020-01-01';
+
         if (isAsset) {
-          account.entries.push({
-            id: `open-${acc.id}`,
-            date: new Date(acc.createdAt).toISOString().split('T')[0],
-            description: 'Opening Balance',
-            reference: 'OPENING',
-            debit: acc.openingBalance,
-            credit: 0,
-            balance: 0
-          });
-          account.totalDebit += acc.openingBalance;
+          if (openBal > 0) {
+            account.entries.push({
+              id: `open-${acc.id}`,
+              date: openDate,
+              description: 'Opening Balance',
+              reference: 'OPENING',
+              debit: openBal,
+              credit: 0,
+              balance: 0
+            });
+            account.totalDebit += openBal;
+          } else {
+            account.entries.push({
+              id: `open-${acc.id}`,
+              date: openDate,
+              description: 'Opening Balance (Overdraft)',
+              reference: 'OPENING',
+              debit: 0,
+              credit: Math.abs(openBal),
+              balance: 0
+            });
+            account.totalCredit += Math.abs(openBal);
+          }
         } else {
-          account.entries.push({
-            id: `open-${acc.id}`,
-            date: new Date(acc.createdAt).toISOString().split('T')[0],
-            description: 'Opening Balance',
-            reference: 'OPENING',
-            debit: 0,
-            credit: acc.openingBalance,
-            balance: 0
-          });
-          account.totalCredit += acc.openingBalance;
+          if (openBal > 0) {
+            account.entries.push({
+              id: `open-${acc.id}`,
+              date: openDate,
+              description: 'Opening Balance (Debt)',
+              reference: 'OPENING',
+              debit: 0,
+              credit: openBal,
+              balance: 0
+            });
+            account.totalCredit += openBal;
+          } else {
+            account.entries.push({
+              id: `open-${acc.id}`,
+              date: openDate,
+              description: 'Opening Balance',
+              reference: 'OPENING',
+              debit: Math.abs(openBal),
+              credit: 0,
+              balance: 0
+            });
+            account.totalDebit += Math.abs(openBal);
+          }
         }
       }
     });
 
     // Process all paid transactions
-    const paidRecords = allRecords.filter(r => r.status === 'paid').sort((a, b) => {
+    const paidRecords = allRecords.filter(r => (r.status || '').toLowerCase() === 'paid').sort((a, b) => {
       const dateComp = (a.date || "").localeCompare(b.date || "");
       if (dateComp !== 0) return dateComp;
       const timeA = a.createdAt || 0;
@@ -109,85 +153,131 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
     });
 
     paidRecords.forEach(rec => {
+      const amt = Number(rec.amount) || 0;
+
       if (rec.type === 'income') {
         // Debit Asset/Liability, Credit Revenue
         if (rec.paymentAccountId) {
-          const acc = accounts.find(a => a.id === rec.paymentAccountId);
+          const acc = findAccount(rec.paymentAccountId);
           if (acc) {
-            const glType: GLAccountType = ['bank_account', 'investment', 'other_asset'].includes(acc.type) ? 'Asset' : 'Liability';
+            const isAsset = ['bank_account', 'investment', 'other_asset'].includes(acc.type);
+            const glType: GLAccountType = isAsset ? 'Asset' : 'Liability';
             const glAcc = getAccount(acc.id, acc.name, glType);
             glAcc.entries.push({
-              id: `${rec.id}-dr`, date: rec.date, description: rec.description || rec.category, reference: rec.id.slice(-6), debit: rec.amount, credit: 0, balance: 0
+              id: `${rec.id}-dr`,
+              date: rec.date,
+              description: rec.description || rec.category || 'Income Inflow',
+              reference: (rec.id || '').slice(-6) || 'INC',
+              debit: amt,
+              credit: 0,
+              balance: 0
             });
-            glAcc.totalDebit += rec.amount;
+            glAcc.totalDebit += amt;
           }
         }
         
-        const revAcc = getAccount(`rev-${rec.category}`, rec.category, 'Revenue');
+        const revCategory = rec.category || 'General Income';
+        const revAcc = getAccount(`rev-${revCategory}`, revCategory, 'Revenue');
         revAcc.entries.push({
-          id: `${rec.id}-cr`, date: rec.date, description: rec.description || rec.category, reference: rec.id.slice(-6), debit: 0, credit: rec.amount, balance: 0
+          id: `${rec.id}-cr`,
+          date: rec.date,
+          description: rec.description || rec.category || 'Income Inflow',
+          reference: (rec.id || '').slice(-6) || 'INC',
+          debit: 0,
+          credit: amt,
+          balance: 0
         });
-        revAcc.totalCredit += rec.amount;
+        revAcc.totalCredit += amt;
       } 
       else if (rec.type === 'expense') {
         // Debit Expense, Credit Asset/Liability
-        const expAcc = getAccount(`exp-${rec.category}`, rec.category, 'Expense');
+        const expCategory = rec.category || 'General Expense';
+        const expAcc = getAccount(`exp-${expCategory}`, expCategory, 'Expense');
         expAcc.entries.push({
-          id: `${rec.id}-dr`, date: rec.date, description: rec.description || rec.category, reference: rec.id.slice(-6), debit: rec.amount, credit: 0, balance: 0
+          id: `${rec.id}-dr`,
+          date: rec.date,
+          description: rec.description || rec.category || 'Expense Outflow',
+          reference: (rec.id || '').slice(-6) || 'EXP',
+          debit: amt,
+          credit: 0,
+          balance: 0
         });
-        expAcc.totalDebit += rec.amount;
+        expAcc.totalDebit += amt;
 
         if (rec.paymentAccountId) {
-          const acc = accounts.find(a => a.id === rec.paymentAccountId);
+          const acc = findAccount(rec.paymentAccountId);
           if (acc) {
-            const glType: GLAccountType = ['bank_account', 'investment', 'other_asset'].includes(acc.type) ? 'Asset' : 'Liability';
+            const isAsset = ['bank_account', 'investment', 'other_asset'].includes(acc.type);
+            const glType: GLAccountType = isAsset ? 'Asset' : 'Liability';
             const glAcc = getAccount(acc.id, acc.name, glType);
             glAcc.entries.push({
-              id: `${rec.id}-cr`, date: rec.date, description: rec.description || rec.category, reference: rec.id.slice(-6), debit: 0, credit: rec.amount, balance: 0
+              id: `${rec.id}-cr`,
+              date: rec.date,
+              description: rec.description || rec.category || 'Expense Outflow',
+              reference: (rec.id || '').slice(-6) || 'EXP',
+              debit: 0,
+              credit: amt,
+              balance: 0
             });
-            glAcc.totalCredit += rec.amount;
+            glAcc.totalCredit += amt;
           }
         }
       }
-      else if (rec.type === 'transfer' && rec.transferToAccountId && rec.paymentAccountId) {
+      else if (rec.type === 'transfer') {
         // Credit From Account, Debit To Account
-        const fromAcc = accounts.find(a => a.id === rec.paymentAccountId);
-        const toAcc = accounts.find(a => a.id === rec.transferToAccountId);
+        const fromAcc = findAccount(rec.paymentAccountId);
+        const toAcc = findAccount(rec.transferToAccountId);
 
         if (fromAcc) {
-          const glType: GLAccountType = ['bank_account', 'investment', 'other_asset'].includes(fromAcc.type) ? 'Asset' : 'Liability';
+          const isAsset = ['bank_account', 'investment', 'other_asset'].includes(fromAcc.type);
+          const glType: GLAccountType = isAsset ? 'Asset' : 'Liability';
           const glAcc = getAccount(fromAcc.id, fromAcc.name, glType);
           glAcc.entries.push({
-            id: `${rec.id}-cr`, date: rec.date, description: `Transfer to ${toAcc?.name || 'Unknown'}`, reference: rec.id.slice(-6), debit: 0, credit: rec.amount, balance: 0
+            id: `${rec.id}-cr`,
+            date: rec.date,
+            description: rec.description || `Transfer to ${toAcc?.name || 'Destination Account'}`,
+            reference: (rec.id || '').slice(-6) || 'TRF',
+            debit: 0,
+            credit: amt,
+            balance: 0
           });
-          glAcc.totalCredit += rec.amount;
+          glAcc.totalCredit += amt;
         }
 
         if (toAcc) {
-          const glType: GLAccountType = ['bank_account', 'investment', 'other_asset'].includes(toAcc.type) ? 'Asset' : 'Liability';
+          const isAsset = ['bank_account', 'investment', 'other_asset'].includes(toAcc.type);
+          const glType: GLAccountType = isAsset ? 'Asset' : 'Liability';
           const glAcc = getAccount(toAcc.id, toAcc.name, glType);
           glAcc.entries.push({
-            id: `${rec.id}-dr`, date: rec.date, description: `Transfer from ${fromAcc?.name || 'Unknown'}`, reference: rec.id.slice(-6), debit: rec.amount, credit: 0, balance: 0
+            id: `${rec.id}-dr`,
+            date: rec.date,
+            description: rec.description || `Transfer from ${fromAcc?.name || 'Source Account'}`,
+            reference: (rec.id || '').slice(-6) || 'TRF',
+            debit: amt,
+            credit: 0,
+            balance: 0
           });
-          glAcc.totalDebit += rec.amount;
+          glAcc.totalDebit += amt;
         }
       }
-      else if (rec.type === 'journal' && rec.transferToAccountId && rec.paymentAccountId) {
-        const resolveGLAccount = (id) => {
-            if (id.startsWith('rev-')) {
-               const name = id.replace('rev-', '');
-               return getAccount(id, name, 'Revenue');
-            } else if (id.startsWith('exp-')) {
-               const name = id.replace('exp-', '');
-               return getAccount(id, name, 'Expense');
-            } else {
-               const acc = accounts.find(a => a.id === id);
-               if (acc) {
-                 const glType = ['bank_account', 'investment', 'other_asset'].includes(acc.type) ? 'Asset' : 'Liability';
-                 return getAccount(acc.id, acc.name, glType);
-               }
+      else if (rec.type === 'journal') {
+        const resolveGLAccount = (idOrName?: string) => {
+          if (!idOrName) return null;
+          if (idOrName.startsWith('rev-')) {
+            const name = idOrName.replace('rev-', '');
+            return getAccount(idOrName, name, 'Revenue');
+          } else if (idOrName.startsWith('exp-')) {
+            const name = idOrName.replace('exp-', '');
+            return getAccount(idOrName, name, 'Expense');
+          } else {
+            const acc = findAccount(idOrName);
+            if (acc) {
+              const isAsset = ['bank_account', 'investment', 'other_asset'].includes(acc.type);
+              const glType: GLAccountType = isAsset ? 'Asset' : 'Liability';
+              return getAccount(acc.id, acc.name, glType);
             }
-            return null;
+          }
+          return null;
         };
 
         const fromAcc = resolveGLAccount(rec.paymentAccountId); // Credit
@@ -195,22 +285,41 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
         
         if (fromAcc) {
           fromAcc.entries.push({
-            id: `${rec.id}-cr`, date: rec.date, description: `${rec.description} (Journal Cr)`, reference: rec.id.slice(-6), debit: 0, credit: rec.amount, balance: 0
+            id: `${rec.id}-cr`,
+            date: rec.date,
+            description: rec.description ? `${rec.description} (Journal Cr)` : 'Journal Credit',
+            reference: (rec.id || '').slice(-6) || 'JRN',
+            debit: 0,
+            credit: amt,
+            balance: 0
           });
-          fromAcc.totalCredit += rec.amount;
+          fromAcc.totalCredit += amt;
         }
         if (toAcc) {
           toAcc.entries.push({
-            id: `${rec.id}-dr`, date: rec.date, description: `${rec.description} (Journal Dr)`, reference: rec.id.slice(-6), debit: rec.amount, credit: 0, balance: 0
+            id: `${rec.id}-dr`,
+            date: rec.date,
+            description: rec.description ? `${rec.description} (Journal Dr)` : 'Journal Debit',
+            reference: (rec.id || '').slice(-6) || 'JRN',
+            debit: amt,
+            credit: 0,
+            balance: 0
           });
-          toAcc.totalDebit += rec.amount;
+          toAcc.totalDebit += amt;
         }
       }
     });
-    // Calculate balances and sort
+
+    // Calculate balances and sort entries chronologically
     const result = Array.from(glAccounts.values());
     result.forEach(acc => {
-      acc.entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      acc.entries.sort((a, b) => {
+        const dateComp = (a.date || "").localeCompare(b.date || "");
+        if (dateComp !== 0) return dateComp;
+        if (a.id.startsWith('open-')) return -1;
+        if (b.id.startsWith('open-')) return 1;
+        return (a.id || "").localeCompare(b.id || "");
+      });
     });
 
     return result.sort((a, b) => {
@@ -223,13 +332,12 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
   }, [allRecords, accounts]);
 
   const filteredGlData = useMemo(() => {
-    const sDate = startDate ? new Date(startDate).getTime() : 0;
-    const eDate = endDate ? new Date(endDate).getTime() : Infinity;
+    const cleanSearch = searchTerm.trim().toLowerCase();
 
     return glData
       .filter(acc => {
         if (selectedType !== 'All' && acc.type !== selectedType) return false;
-        if (searchTerm && !acc.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+        if (cleanSearch && !acc.name.toLowerCase().includes(cleanSearch) && !acc.id.toLowerCase().includes(cleanSearch)) return false;
         return true;
       })
       .map(acc => {
@@ -239,14 +347,14 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
         const filteredEntries = [];
 
         acc.entries.forEach(entry => {
-          const t = new Date(entry.date).getTime();
-          if (t < sDate) {
+          const entryDate = entry.date || '';
+          if (startDate && entryDate < startDate) {
             if (acc.type === 'Asset' || acc.type === 'Expense') {
               periodOpeningBalance += (entry.debit - entry.credit);
             } else {
               periodOpeningBalance += (entry.credit - entry.debit);
             }
-          } else if (t >= sDate && t <= eDate) {
+          } else if ((!startDate || entryDate >= startDate) && (!endDate || entryDate <= endDate)) {
             filteredEntries.push({ ...entry });
             periodDebit += entry.debit;
             periodCredit += entry.credit;
@@ -257,8 +365,8 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
           filteredEntries.unshift({
             id: `period-open-${acc.id}`,
             date: startDate,
-            description: 'Opening Balance',
-            reference: '-',
+            description: 'Opening Balance (Brought Forward)',
+            reference: 'B/F',
             debit: 0,
             credit: 0,
             balance: periodOpeningBalance
@@ -285,8 +393,7 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
           totalCredit: periodCredit,
           closingBalance: currentBalance
         };
-      })
-      .filter(acc => acc.entries.length > 0);
+      });
   }, [glData, selectedType, searchTerm, startDate, endDate]);
 
   const handleDownloadPDF = (account: GLAccount, sDateStr: string, eDateStr: string) => {

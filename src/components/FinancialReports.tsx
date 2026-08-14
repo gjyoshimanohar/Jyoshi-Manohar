@@ -76,17 +76,28 @@ export default function FinancialReports({ records, accounts }: FinancialReports
 
   // Current balance of each account
   const getAccountBalance = (account: PaymentAccount) => {
-    let balance = account.openingBalance || 0;
+    let balance = Number(account.openingBalance) || 0;
+    const isAsset = ['bank_account', 'investment', 'other_asset'].includes(account.type);
+    if (!isAsset && balance > 0) {
+      balance = -balance;
+    }
     
     bsRecords.forEach(r => {
-      if (r.status !== 'paid') return;
-      if (r.type === 'income' && r.paymentAccountId === account.id) {
-        balance += r.amount;
-      } else if (r.type === 'expense' && r.paymentAccountId === account.id) {
-        balance -= r.amount;
-      } else if (r.type === 'transfer') {
-        if (r.paymentAccountId === account.id) balance -= r.amount;
-        if (r.transferToAccountId === account.id) balance += r.amount;
+      if ((r.status || '').toLowerCase() !== 'paid') return;
+      const amt = Number(r.amount) || 0;
+      const matchesSource = r.paymentAccountId === account.id || (r.paymentAccountId && r.paymentAccountId.toLowerCase() === account.name.toLowerCase());
+      const matchesDest = r.transferToAccountId === account.id || (r.transferToAccountId && r.transferToAccountId.toLowerCase() === account.name.toLowerCase());
+
+      if (matchesSource) {
+        if (r.type === 'income') {
+          balance += amt;
+        } else if (r.type === 'expense' || r.type === 'transfer' || r.type === 'journal') {
+          balance -= amt;
+        }
+      }
+
+      if (matchesDest && (r.type === 'transfer' || r.type === 'journal')) {
+        balance += amt;
       }
     });
     return balance;

@@ -1482,7 +1482,7 @@ export default function FinanceTracker() {
       const recMonth = rec.date.split("-")[1]; // '01', '02', etc.
 
       // Year Filter
-      if (recYear !== selectedYear) return false;
+      if (selectedYear !== "All" && recYear !== selectedYear) return false;
 
       // Month Filter
       if (selectedMonth !== "All") {
@@ -1567,7 +1567,7 @@ export default function FinanceTracker() {
     // Initialize with opening balances
     paymentAccounts.forEach(acc => {
       const isAsset = getAccountTypeInfo(acc.type).isAsset;
-      let opening = acc.openingBalance;
+      let opening = Number(acc.openingBalance) || 0;
       // If the user entered a positive opening balance for a liability, they mean debt.
       // In the ledger, debt is represented as a negative balance.
       if (!isAsset && opening > 0) {
@@ -1580,28 +1580,45 @@ export default function FinanceTracker() {
       };
     });
 
+    const findAcc = (idOrName?: string) => {
+      if (!idOrName) return undefined;
+      const clean = idOrName.trim().toLowerCase();
+      return paymentAccounts.find(a => 
+        a.id === idOrName || 
+        a.id.toLowerCase() === clean || 
+        a.name.toLowerCase() === clean ||
+        a.name.toLowerCase().includes(clean) ||
+        clean.includes(a.name.toLowerCase())
+      );
+    };
+
     // Accumulate transactions
     records.forEach(rec => {
-      if (rec.status !== "paid") return;
+      const isPaid = (rec.status || '').toLowerCase() === 'paid';
+      if (!isPaid) return;
 
-      if (rec.paymentAccountId && balances[rec.paymentAccountId]) {
+      const amt = Number(rec.amount) || 0;
+      const sourceAcc = findAcc(rec.paymentAccountId);
+      const destAcc = findAcc(rec.transferToAccountId);
+
+      if (sourceAcc && balances[sourceAcc.id]) {
         if (rec.type === "income") {
-          balances[rec.paymentAccountId].income += rec.amount;
-          balances[rec.paymentAccountId].current += rec.amount;
+          balances[sourceAcc.id].income += amt;
+          balances[sourceAcc.id].current += amt;
         } else if (rec.type === "expense") {
-          balances[rec.paymentAccountId].expense += rec.amount;
-          balances[rec.paymentAccountId].current -= rec.amount;
-        } else if (rec.type === "transfer") {
-          // Transfer acts as an outflow from source account
-          balances[rec.paymentAccountId].expense += rec.amount;
-          balances[rec.paymentAccountId].current -= rec.amount;
+          balances[sourceAcc.id].expense += amt;
+          balances[sourceAcc.id].current -= amt;
+        } else if (rec.type === "transfer" || rec.type === "journal") {
+          balances[sourceAcc.id].expense += amt;
+          balances[sourceAcc.id].current -= amt;
         }
       }
 
-      if (rec.type === "transfer" && rec.transferToAccountId && balances[rec.transferToAccountId]) {
-        // Transfer acts as an inflow to destination account
-        balances[rec.transferToAccountId].income += rec.amount;
-        balances[rec.transferToAccountId].current += rec.amount;
+      if (destAcc && balances[destAcc.id]) {
+        if (rec.type === "transfer" || rec.type === "journal") {
+          balances[destAcc.id].income += amt;
+          balances[destAcc.id].current += amt;
+        }
       }
     });
 
@@ -1860,7 +1877,8 @@ export default function FinanceTracker() {
         monthMatch = recMonth === monthNum;
       }
 
-      if (recYear === selectedYear && monthMatch) {
+      const yearMatch = selectedYear === "All" || recYear === selectedYear;
+      if (yearMatch && monthMatch) {
         if (rec.type === "income") {
           if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
             totalIncome += rec.amount;
@@ -1897,7 +1915,7 @@ export default function FinanceTracker() {
       const recMonth = rec.date.split("-")[1];
 
       // Year matching
-      if (recYear !== selectedYear) return;
+      if (selectedYear !== "All" && recYear !== selectedYear) return;
 
       // Month matching
       if (selectedMonth !== "All") {
@@ -1932,7 +1950,8 @@ export default function FinanceTracker() {
 
         const recYear = rec.date.split("-")[0];
         const recMonth = rec.date.split("-")[1];
-        if (recYear === selectedYear && recMonth === monthStr) {
+        const yearMatch = selectedYear === "All" || recYear === selectedYear;
+        if (yearMatch && recMonth === monthStr) {
           if (rec.type === "income") {
             if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
               income += rec.amount;
@@ -3220,7 +3239,10 @@ export default function FinanceTracker() {
               value={selectedYear}
               onChange={(val) => setSelectedYear(val)}
               className="bg-accent border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-semibold text-primary outline-none focus:ring-1 focus:ring-primary hover:border-slate-300 hover:shadow-sm cursor-pointer"
-              options={yearsList.map(yr => ({ value: yr, label: yr }))}
+              options={[
+                { value: "All", label: "All Time" },
+                ...yearsList.map(yr => ({ value: yr, label: yr }))
+              ]}
             />
           </div>
 
@@ -3322,10 +3344,10 @@ export default function FinanceTracker() {
                 <div>
                   <span className="text-xs text-slate-400 uppercase tracking-wider font-bold block">
                     {selectedScope === "business"
-                      ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : "Annual Revenue")
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : selectedYear !== "All" ? `${selectedYear} Office Revenue` : "All-Time Revenue")
                       : selectedScope === "personal"
-                        ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : "Annual Private Inflow")
-                        : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : "Combined Annual Income")
+                        ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : selectedYear !== "All" ? `${selectedYear} Private Inflow` : "All-Time Private Inflow")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : selectedYear !== "All" ? `${selectedYear} Combined Income` : "All-Time Combined Income")
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
@@ -3373,10 +3395,10 @@ export default function FinanceTracker() {
                 <div>
                   <span className="text-xs text-slate-400 uppercase tracking-wider font-bold block">
                     {selectedScope === "business"
-                      ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : "Annual Overheads")
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Office Overheads` : selectedYear !== "All" ? `${selectedYear} Office Overheads` : "All-Time Overheads")
                       : selectedScope === "personal"
-                        ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : "Annual Private Outlay")
-                        : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : "Annual Outflows")
+                        ? (selectedMonth !== "All" ? `${selectedMonth} Personal Expenses` : selectedYear !== "All" ? `${selectedYear} Personal Outlay` : "All-Time Outlay")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Consolidated Outflows` : selectedYear !== "All" ? `${selectedYear} Consolidated Outflows` : "All-Time Outflows")
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
@@ -3424,10 +3446,10 @@ export default function FinanceTracker() {
                 <div>
                   <span className="text-xs text-slate-400 uppercase tracking-wider font-bold block">
                     {selectedScope === "business"
-                      ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : "Annual Profit Margin")
+                      ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : selectedYear !== "All" ? `${selectedYear} Profit Margin` : "All-Time Net Profit")
                       : selectedScope === "personal"
-                        ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : "Net Annual Savings")
-                        : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : "Consolidated Surplus")
+                        ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : selectedYear !== "All" ? `${selectedYear} Net Savings` : "All-Time Savings")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : selectedYear !== "All" ? `${selectedYear} Combined Surplus` : "All-Time Surplus")
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
@@ -3821,7 +3843,7 @@ export default function FinanceTracker() {
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h3 className="text-base font-bold text-primary tracking-tight">Income &amp; Expense Trends</h3>
-                <p className="text-xs text-gray-400">Comparing professional fees vs operating expenses over year {selectedYear}.</p>
+                <p className="text-xs text-gray-400">Comparing professional fees vs operating expenses {selectedYear === "All" ? "across all years" : `over year ${selectedYear}`}.</p>
               </div>
               <div className="flex space-x-3 text-xs">
                 <span className="flex items-center gap-1 font-semibold text-primary">
@@ -3979,7 +4001,7 @@ export default function FinanceTracker() {
                 🎯 Monthly Expense Budgets & Alerts
               </h3>
               <p className="text-xs text-gray-400 mt-1">
-                Real-time tracking of operating outlays against monthly target thresholds for {selectedMonth === "All" ? "Current Month" : selectedMonth} {selectedYear}.
+                Real-time tracking of operating outlays against monthly target thresholds for {selectedMonth === "All" ? "Current Month" : selectedMonth} {selectedYear === "All" ? "(All Time)" : selectedYear}.
               </p>
             </div>
             <button
@@ -4045,7 +4067,7 @@ export default function FinanceTracker() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h3 className="text-base font-bold text-primary tracking-tight">Pending Receivables Trend</h3>
-              <p className="text-xs text-gray-400">Monthly breakdown of pending invoices and reimbursements for {selectedYear}.</p>
+              <p className="text-xs text-gray-400">Monthly breakdown of pending invoices and reimbursements for {selectedYear === "All" ? "all time" : selectedYear}.</p>
             </div>
             <div className="flex space-x-3 text-xs">
               <span className="flex items-center gap-1 font-semibold text-primary">
@@ -4080,7 +4102,7 @@ export default function FinanceTracker() {
                       const total = payload.reduce((sum, entry) => sum + Number(entry.value || 0), 0);
                       return (
                         <div className="backdrop-blur-md bg-slate-900/90 border border-slate-700/60 p-3.5 rounded-xl shadow-2xl min-w-[170px]">
-                          <p className="text-white font-bold text-xs uppercase tracking-wider mb-2 border-b border-slate-800 pb-1">{label} {selectedYear}</p>
+                          <p className="text-white font-bold text-xs uppercase tracking-wider mb-2 border-b border-slate-800 pb-1">{label} {selectedYear === "All" ? "" : selectedYear}</p>
                           {payload.map((entry, index) => (
                             <div key={index} className="flex justify-between items-center gap-4 mb-1.5 text-xs">
                               <div className="flex items-center gap-1.5 text-slate-300">

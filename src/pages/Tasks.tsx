@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import WorkspaceApp from '../components/WorkspaceApp';
+import SEO from '../components/SEO';
 import { LogOut, X } from 'lucide-react';
 
 export default function Tasks() {
@@ -121,6 +122,7 @@ export default function Tasks() {
 
  return (
  <main className="h-screen pt-20 bg-white flex flex-col overflow-hidden">
+ <SEO title="Task Workspace & CRM" canonical="/tasks" noindex={true} />
  <WorkspaceApp />
  </main>
  );

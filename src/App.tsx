@@ -5,6 +5,8 @@ import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SEO from './components/SEO';
+import { getOrganizationSchema, getPersonSchema, getWebsiteSchema } from './utils/seoSchemas';
 
 // A robust helper to handle chunk loading errors in production when assets change during a deployment/server restart
 function lazyWithRetry(componentImport: () => Promise<any>) {
@@ -119,26 +121,8 @@ export default function App() {
       <HelmetProvider>
       <Router>
         <ScrollToTop />
-        <Helmet defaultTitle="CA Jyoshi Manohar | Chartered Accountant" titleTemplate="%s | CA Jyoshi Manohar">
-          <meta name="description" content="Official website of CA Jyoshi Manohar. Offering expert personal taxation, corporate auditing, financial advisory, GST compliance, and accounting services." />
-          
-          {/* Open Graph / Facebook */}
-          <meta property="og:type" content="website" />
-          <meta property="og:title" content="CA Jyoshi Manohar | Chartered Accountant" />
-          <meta property="og:description" content="Official website of CA Jyoshi Manohar. Offering expert personal taxation, corporate auditing, financial advisory, GST compliance, and accounting services." />
-          <meta property="og:image" content="https://jyoshimanohar-com.web.app/logo.svg" />
-          <meta property="og:url" content="https://jyoshimanohar-com.web.app" />
-
-          {/* Twitter */}
-          <meta name="twitter:card" content="summary_large_image" />
-          <meta name="twitter:title" content="CA Jyoshi Manohar | Chartered Accountant" />
-          <meta name="twitter:description" content="Official website of CA Jyoshi Manohar. Offering expert taxation, auditing, and financial advisory." />
-          <meta name="twitter:image" content="https://jyoshimanohar-com.web.app/logo.svg" />
-
-          <meta name="keywords" content="Jyoshi Manohar, CA Jyoshi Manohar, Chartered Accountant, Tax Consultant, Audit Services, GST Planning, Financial Advisor" />
-          <meta name="author" content="CA Jyoshi Manohar" />
-          <meta name="robots" content="index, follow" />
-        </Helmet>
+        <Helmet defaultTitle="CA Jyoshi Manohar | Chartered Accountant" titleTemplate="%s | CA Jyoshi Manohar" />
+        <SEO schemas={[getOrganizationSchema(), getPersonSchema(), getWebsiteSchema()]} />
         <Toaster position="bottom-right" toastOptions={{ className: 'text-sm font-medium', style: { borderRadius: '12px', background: '#333', color: '#fff' } }} />
         <div className="flex flex-col min-h-screen">
           <Navbar />
