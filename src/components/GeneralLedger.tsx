@@ -158,29 +158,19 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
             account.totalCredit += Math.abs(openBal);
           }
         } else {
-          if (openBal > 0) {
-            account.entries.push({
-              id: `open-${acc.id}`,
-              date: openDate,
-              description: 'Opening Balance (Debt)',
-              reference: 'OPENING',
-              debit: 0,
-              credit: openBal,
-              balance: 0
-            });
-            account.totalCredit += openBal;
-          } else {
-            account.entries.push({
-              id: `open-${acc.id}`,
-              date: openDate,
-              description: 'Opening Balance',
-              reference: 'OPENING',
-              debit: Math.abs(openBal),
-              credit: 0,
-              balance: 0
-            });
-            account.totalDebit += Math.abs(openBal);
-          }
+          // LIABILITIES (Credit Cards, Loans, Other Liabilities):
+          // In double-entry accounting, normal liability starting debt / loan balance is a CREDIT.
+          const debtAmt = Math.abs(openBal);
+          account.entries.push({
+            id: `open-${acc.id}`,
+            date: openDate,
+            description: 'Opening Balance',
+            reference: 'OPENING',
+            debit: 0,
+            credit: debtAmt,
+            balance: 0
+          });
+          account.totalCredit += debtAmt;
         }
       }
     });

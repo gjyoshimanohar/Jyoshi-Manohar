@@ -78,8 +78,8 @@ export default function FinancialReports({ records, accounts }: FinancialReports
   const getAccountBalance = (account: PaymentAccount) => {
     let balance = Number(account.openingBalance) || 0;
     const isAsset = ['bank_account', 'investment', 'other_asset'].includes(account.type);
-    if (!isAsset && balance > 0) {
-      balance = -balance;
+    if (!isAsset) {
+      balance = -Math.abs(balance);
     }
     
     bsRecords.forEach(r => {
@@ -107,7 +107,7 @@ export default function FinancialReports({ records, accounts }: FinancialReports
   const liabilityBalances = liabilityAccounts.map(a => ({ ...a, currentBalance: getAccountBalance(a) }));
 
   const totalAssets = assetBalances.reduce((sum, a) => sum + a.currentBalance, 0);
-  const totalLiabilities = liabilityBalances.reduce((sum, a) => sum + (a.type === 'credit_card' || a.type === 'loan' ? -a.currentBalance : a.currentBalance), 0); // Note: credit card negative balance means debt. We'll absolute it for liabilities.
+  const totalLiabilities = liabilityBalances.reduce((sum, a) => sum + Math.abs(a.currentBalance), 0);
 
   const resolvedLiabilityBalances = liabilityBalances.map(a => ({
     ...a,

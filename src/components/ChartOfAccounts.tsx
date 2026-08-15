@@ -85,7 +85,9 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts,
     
     const accountBalances: Record<string, number> = {};
     accounts.forEach(acc => {
-      accountBalances[acc.id] = acc.type === 'credit_card' || acc.type === 'loan' ? -Number(acc.openingBalance || 0) : Number(acc.openingBalance || 0);
+      const isAsset = ['bank_account', 'investment', 'other_asset'].includes(acc.type);
+      const rawBal = Number(acc.openingBalance) || 0;
+      accountBalances[acc.id] = isAsset ? rawBal : -Math.abs(rawBal);
     });
 
     const findAccount = (idOrName?: string) => {
@@ -185,31 +187,53 @@ export default function ChartOfAccounts({ allRecords, filteredRecords, accounts,
 
     if (acc) {
       // Add Opening Balance
-      if (acc.openingBalance > 0) {
-        if (selectedItem.type === 'Asset') {
-          entries.push({
-            id: `open-${acc.id}`,
-            date: new Date(acc.createdAt).toISOString().split('T')[0],
-            description: 'Opening Balance',
-            reference: 'OPENING',
-            scope: 'business',
-            debit: acc.openingBalance,
-            credit: 0,
-            balance: 0
-          });
-          totalDebit += acc.openingBalance;
+      const rawBal = Number(acc.openingBalance) || 0;
+      if (rawBal !== 0) {
+        const isAsset = selectedItem.type === 'Asset';
+        const openDate = acc.createdAt && !isNaN(new Date(acc.createdAt).getTime())
+          ? new Date(acc.createdAt).toISOString().split('T')[0]
+          : '2020-01-01';
+
+        if (isAsset) {
+          if (rawBal > 0) {
+            entries.push({
+              id: `open-${acc.id}`,
+              date: openDate,
+              description: 'Opening Balance',
+              reference: 'OPENING',
+              scope: 'business',
+              debit: rawBal,
+              credit: 0,
+              balance: 0
+            });
+            totalDebit += rawBal;
+          } else {
+            entries.push({
+              id: `open-${acc.id}`,
+              date: openDate,
+              description: 'Opening Balance (Overdraft)',
+              reference: 'OPENING',
+              scope: 'business',
+              debit: 0,
+              credit: Math.abs(rawBal),
+              balance: 0
+            });
+            totalCredit += Math.abs(rawBal);
+          }
         } else {
+          // Liability starting debt is a CREDIT
+          const debtAmt = Math.abs(rawBal);
           entries.push({
             id: `open-${acc.id}`,
-            date: new Date(acc.createdAt).toISOString().split('T')[0],
+            date: openDate,
             description: 'Opening Balance',
             reference: 'OPENING',
             scope: 'business',
             debit: 0,
-            credit: acc.openingBalance,
+            credit: debtAmt,
             balance: 0
           });
-          totalCredit += acc.openingBalance;
+          totalCredit += debtAmt;
         }
       }
 

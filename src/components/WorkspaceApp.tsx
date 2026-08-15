@@ -732,6 +732,11 @@ export default function WorkspaceApp() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [isBulkMoveModalOpen, setIsBulkMoveModalOpen] = useState(false);
   const [bulkMoveTargetProjectId, setBulkMoveTargetProjectId] = useState<string>("");
+  const [isBulkRescheduleModalOpen, setIsBulkRescheduleModalOpen] = useState(false);
+  const [bulkRescheduleMode, setBulkRescheduleMode] = useState<"shift" | "specific" | "clear">("shift");
+  const [bulkRescheduleDays, setBulkRescheduleDays] = useState<number>(1);
+  const [bulkRescheduleSpecificDate, setBulkRescheduleSpecificDate] = useState<string>("");
+  const [bulkRescheduleIncludeDeadline, setBulkRescheduleIncludeDeadline] = useState<boolean>(true);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   // Edit Project State
@@ -2079,6 +2084,101 @@ export default function WorkspaceApp() {
       setSelectedTaskIds(new Set());
     } catch (err) {
       toast.error("Failed to update priority");
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkRescheduleTasks = async () => {
+    if (selectedTaskIds.size === 0) return;
+    setIsBulkProcessing(true);
+    try {
+      const ids = Array.from(selectedTaskIds);
+      const selectedTodos = todos.filter((t) => ids.includes(t.id));
+
+      if (bulkRescheduleMode === "clear") {
+        await Promise.all(
+          selectedTodos.map((todo) =>
+            todoService.updateTodo(todo.id, {
+              dueDate: null,
+              ...(bulkRescheduleIncludeDeadline ? { deadline: null } : {}),
+            })
+          )
+        );
+        toast.success(
+          `Removed due dates for ${selectedTodos.length} task${
+            selectedTodos.length > 1 ? "s" : ""
+          }`
+        );
+      } else if (bulkRescheduleMode === "specific") {
+        if (!bulkRescheduleSpecificDate) {
+          toast.error("Please select a valid date");
+          setIsBulkProcessing(false);
+          return;
+        }
+        const targetDate = startOfDay(
+          new Date(bulkRescheduleSpecificDate + "T00:00:00")
+        ).getTime();
+
+        await Promise.all(
+          selectedTodos.map((todo) => {
+            const updatePayload: Partial<Todo> = {
+              dueDate: targetDate,
+            };
+            if (bulkRescheduleIncludeDeadline && todo.deadline) {
+              updatePayload.deadline = targetDate;
+            }
+            return todoService.updateTodo(todo.id, updatePayload);
+          })
+        );
+
+        toast.success(
+          `Rescheduled ${selectedTodos.length} task${
+            selectedTodos.length > 1 ? "s" : ""
+          } to ${format(new Date(targetDate), "MMM d, yyyy")}`
+        );
+      } else {
+        // Shift by days
+        const days = Number(bulkRescheduleDays) || 0;
+        if (days === 0) {
+          toast.error("Please specify a non-zero number of days to shift");
+          setIsBulkProcessing(false);
+          return;
+        }
+
+        await Promise.all(
+          selectedTodos.map((todo) => {
+            const updatePayload: Partial<Todo> = {};
+
+            if (todo.dueDate) {
+              const currentDue = new Date(todo.dueDate);
+              updatePayload.dueDate = addDays(currentDue, days).getTime();
+            } else {
+              // If task doesn't have a due date, start from today + shift
+              updatePayload.dueDate = addDays(startOfDay(new Date()), days).getTime();
+            }
+
+            if (bulkRescheduleIncludeDeadline && todo.deadline) {
+              const currentDeadline = new Date(todo.deadline);
+              updatePayload.deadline = addDays(currentDeadline, days).getTime();
+            }
+
+            return todoService.updateTodo(todo.id, updatePayload);
+          })
+        );
+
+        const sign = days > 0 ? `+${days}` : `${days}`;
+        toast.success(
+          `Shifted due dates for ${selectedTodos.length} task${
+            selectedTodos.length > 1 ? "s" : ""
+          } by ${sign} day${Math.abs(days) === 1 ? "" : "s"}`
+        );
+      }
+
+      setIsBulkRescheduleModalOpen(false);
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      toast.error("Failed to reschedule selected tasks");
     } finally {
       setIsBulkProcessing(false);
     }
@@ -7657,6 +7757,22 @@ export default function WorkspaceApp() {
                               <span>Move</span>
                             </button>
 
+                            <button
+                              type="button"
+                              disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                              onClick={() => {
+                                setBulkRescheduleMode("shift");
+                                setBulkRescheduleDays(1);
+                                setBulkRescheduleSpecificDate(format(addDays(new Date(), 1), "yyyy-MM-dd"));
+                                setIsBulkRescheduleModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 bg-amber-500/90 hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-amber-400/40 shadow-xs cursor-pointer"
+                              title="Batch reschedule selected tasks (shift due dates)"
+                            >
+                              <CalendarIcon className="w-3.5 h-3.5 text-amber-100" />
+                              <span>Reschedule</span>
+                            </button>
+
                             <div className="relative group">
                               <button
                                 type="button"
@@ -12162,6 +12278,333 @@ export default function WorkspaceApp() {
                 >
                   {isBulkProcessing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Confirm Move</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Reschedule Modal */}
+      <AnimatePresence>
+        {isBulkRescheduleModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto no-scrollbar text-left"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">
+                      Reschedule {selectedTaskIds.size} Selected Task{selectedTaskIds.size === 1 ? "" : "s"}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Batch shift or update due dates for all selected tasks
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkRescheduleModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Mode Tabs */}
+              <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-2xl mb-5">
+                <button
+                  type="button"
+                  onClick={() => setBulkRescheduleMode("shift")}
+                  className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    bulkRescheduleMode === "shift"
+                      ? "bg-white text-[#1a2b58] shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Shift by Days (+/-)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkRescheduleMode("specific")}
+                  className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    bulkRescheduleMode === "specific"
+                      ? "bg-white text-[#1a2b58] shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Specific Date
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkRescheduleMode("clear")}
+                  className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                    bulkRescheduleMode === "clear"
+                      ? "bg-white text-rose-600 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Clear Due Dates
+                </button>
+              </div>
+
+              {/* TAB 1: Shift by Days */}
+              {bulkRescheduleMode === "shift" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Quick Shift Presets
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { label: "+1 Day", days: 1, sub: "Tomorrow" },
+                        { label: "+2 Days", days: 2 },
+                        { label: "+3 Days", days: 3 },
+                        { label: "+7 Days", days: 7, sub: "1 Week" },
+                        { label: "+14 Days", days: 14, sub: "2 Weeks" },
+                        { label: "+30 Days", days: 30, sub: "1 Month" },
+                        { label: "-1 Day", days: -1, sub: "Earlier" },
+                        { label: "-7 Days", days: -7, sub: "Earlier" },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setBulkRescheduleDays(preset.days)}
+                          className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
+                            bulkRescheduleDays === preset.days
+                              ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30 text-amber-900 font-bold"
+                              : "border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium"
+                          }`}
+                        >
+                          <span className="text-xs font-bold">{preset.label}</span>
+                          {preset.sub && (
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              {preset.sub}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                    <label className="block text-xs font-bold text-slate-700 mb-2">
+                      Custom Number of Days to Shift
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setBulkRescheduleDays((prev) => prev - 1)}
+                        className="w-9 h-9 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center font-extrabold text-slate-700 shadow-2xs cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <div className="flex-1 relative">
+                        <input
+                          type="number"
+                          value={bulkRescheduleDays}
+                          onChange={(e) => setBulkRescheduleDays(parseInt(e.target.value, 10) || 0)}
+                          className="w-full text-center text-sm font-bold bg-white border border-slate-200 rounded-xl py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/20 focus:border-[#1a2b58]"
+                        />
+                        <span className="absolute right-3 top-2 text-xs text-slate-400 font-medium pointer-events-none">
+                          day{Math.abs(bulkRescheduleDays) === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBulkRescheduleDays((prev) => prev + 1)}
+                        className="w-9 h-9 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center font-extrabold text-slate-700 shadow-2xs cursor-pointer"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2">
+                      {bulkRescheduleDays > 0 ? (
+                        <span className="text-amber-700 font-semibold">
+                          📅 Moves task due dates forward by {bulkRescheduleDays} day{bulkRescheduleDays === 1 ? "" : "s"}.
+                        </span>
+                      ) : bulkRescheduleDays < 0 ? (
+                        <span className="text-blue-700 font-semibold">
+                          ⏱️ Moves task due dates earlier by {Math.abs(bulkRescheduleDays)} day{Math.abs(bulkRescheduleDays) === 1 ? "" : "s"}.
+                        </span>
+                      ) : (
+                        <span>Please enter a non-zero shift amount.</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: Specific Date */}
+              {bulkRescheduleMode === "specific" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Quick Presets
+                    </label>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {[
+                        { label: "Today", date: new Date() },
+                        { label: "Tomorrow", date: addDays(new Date(), 1) },
+                        { label: "Next Week", date: addWeeks(new Date(), 1) },
+                      ].map((preset) => {
+                        const dateStr = format(preset.date, "yyyy-MM-dd");
+                        const isSelected = bulkRescheduleSpecificDate === dateStr;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setBulkRescheduleSpecificDate(dateStr)}
+                            className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30 text-amber-900 font-bold"
+                                : "border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium"
+                            }`}
+                          >
+                            <div className="text-xs font-bold">{preset.label}</div>
+                            <div className="text-[10px] text-slate-400">
+                              {format(preset.date, "MMM d")}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Select Specific Target Date
+                    </label>
+                    <input
+                      type="date"
+                      value={bulkRescheduleSpecificDate}
+                      onChange={(e) => setBulkRescheduleSpecificDate(e.target.value)}
+                      className="w-full text-xs font-medium bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1a2b58]/20 focus:border-[#1a2b58]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: Clear Dates */}
+              {bulkRescheduleMode === "clear" && (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs space-y-2">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                    <span>Clear Due Dates for {selectedTaskIds.size} Selected Tasks</span>
+                  </div>
+                  <p className="text-rose-700 leading-relaxed">
+                    This will remove the assigned due date from all selected tasks, moving them into the unscheduled category.
+                  </p>
+                </div>
+              )}
+
+              {/* Checkbox: Deadlines */}
+              {bulkRescheduleMode !== "clear" && (
+                <div className="mt-4 flex items-center gap-2.5 px-1">
+                  <input
+                    type="checkbox"
+                    id="bulkIncludeDeadline"
+                    checked={bulkRescheduleIncludeDeadline}
+                    onChange={(e) => setBulkRescheduleIncludeDeadline(e.target.checked)}
+                    className="w-4 h-4 text-[#1a2b58] rounded-md border-slate-300 focus:ring-[#1a2b58] cursor-pointer"
+                  />
+                  <label
+                    htmlFor="bulkIncludeDeadline"
+                    className="text-xs font-medium text-slate-700 cursor-pointer select-none"
+                  >
+                    Also update / shift strict task deadlines if set
+                  </label>
+                </div>
+              )}
+
+              {/* Live Preview List */}
+              <div className="mt-5 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Task Preview ({selectedTaskIds.size} tasks)
+                  </span>
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto no-scrollbar pr-1">
+                  {todos
+                    .filter((t) => selectedTaskIds.has(t.id))
+                    .slice(0, 5)
+                    .map((task) => {
+                      let newDateDisplay = "No date";
+                      if (bulkRescheduleMode === "clear") {
+                        newDateDisplay = "None (Cleared)";
+                      } else if (bulkRescheduleMode === "specific") {
+                        newDateDisplay = bulkRescheduleSpecificDate
+                          ? format(new Date(bulkRescheduleSpecificDate + "T00:00:00"), "MMM d, yyyy")
+                          : "Select date";
+                      } else {
+                        const days = Number(bulkRescheduleDays) || 0;
+                        const baseDate = task.dueDate ? new Date(task.dueDate) : startOfDay(new Date());
+                        newDateDisplay = format(addDays(baseDate, days), "MMM d, yyyy");
+                      }
+
+                      return (
+                        <div
+                          key={task.id}
+                          className="flex items-center justify-between p-2 rounded-xl bg-slate-50 text-xs border border-slate-100"
+                        >
+                          <span className="font-semibold text-slate-800 truncate max-w-[180px]">
+                            {task.title}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[11px] shrink-0">
+                            <span className="text-slate-400">
+                              {task.dueDate ? format(new Date(task.dueDate), "MMM d") : "No date"}
+                            </span>
+                            <span className="text-slate-300">→</span>
+                            <span className="font-bold text-[#1a2b58] bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                              {newDateDisplay}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {selectedTaskIds.size > 5 && (
+                    <div className="text-[10px] text-slate-400 text-center py-1 font-medium">
+                      +{selectedTaskIds.size - 5} more tasks will be updated
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-5 border-t border-slate-100 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkRescheduleModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    isBulkProcessing ||
+                    (bulkRescheduleMode === "shift" && (Number(bulkRescheduleDays) || 0) === 0) ||
+                    (bulkRescheduleMode === "specific" && !bulkRescheduleSpecificDate)
+                  }
+                  onClick={handleBulkRescheduleTasks}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-md transition disabled:opacity-40 flex items-center gap-2 cursor-pointer"
+                >
+                  {isBulkProcessing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <CalendarDays className="w-4 h-4" />
+                  <span>
+                    {bulkRescheduleMode === "clear"
+                      ? "Confirm Clear Dates"
+                      : bulkRescheduleMode === "specific"
+                      ? "Apply Specific Date"
+                      : `Apply Shift (${bulkRescheduleDays > 0 ? `+${bulkRescheduleDays}` : bulkRescheduleDays}d)`}
+                  </span>
                 </button>
               </div>
             </motion.div>

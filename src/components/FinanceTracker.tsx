@@ -1408,14 +1408,12 @@ export default function FinanceTracker() {
       setSyncing(true);
       let parsedBal = parseFloat(accountOpeningBalance);
       const isAsset = getAccountTypeInfo(accountType).isAsset;
-      if (!isAsset && parsedBal > 0) {
-        parsedBal = -parsedBal; // liabilities are stored as negative
-      }
+      const finalBal = isAsset ? parsedBal : Math.abs(parsedBal);
 
       const payload: any = {
         name: accountName.trim(),
         type: accountType,
-        openingBalance: parsedBal
+        openingBalance: finalBal
       };
       
       if (accountType === 'loan' && accountIsEmiPayable) {
@@ -1570,12 +1568,9 @@ export default function FinanceTracker() {
     // Initialize with opening balances
     paymentAccounts.forEach(acc => {
       const isAsset = getAccountTypeInfo(acc.type).isAsset;
-      let opening = Number(acc.openingBalance) || 0;
-      // If the user entered a positive opening balance for a liability, they mean debt.
-      // In the ledger, debt is represented as a negative balance.
-      if (!isAsset && opening > 0) {
-        opening = -opening;
-      }
+      const rawBal = Number(acc.openingBalance) || 0;
+      // In the ledger, assets have positive normal balance, liabilities (debt) have negative normal balance
+      const opening = isAsset ? rawBal : -Math.abs(rawBal);
       balances[acc.id] = {
         income: 0,
         expense: 0,
@@ -1690,12 +1685,17 @@ export default function FinanceTracker() {
     if (pendingAdvancesBalance < 0) assetsSum += Math.abs(pendingAdvancesBalance);
 
     paymentAccounts.forEach(acc => {
-      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: (!getAccountTypeInfo(acc.type).isAsset && acc.openingBalance > 0) ? -acc.openingBalance : acc.openingBalance };
       const info = getAccountTypeInfo(acc.type);
+      const rawBal = Number(acc.openingBalance) || 0;
+      const b = accountBalances[acc.id] || { 
+        income: 0, 
+        expense: 0, 
+        current: info.isAsset ? rawBal : -Math.abs(rawBal) 
+      };
       if (info.isAsset) {
         assetsSum += b.current;
       } else {
-        liabilitiesSum += -b.current;
+        liabilitiesSum += Math.abs(b.current);
       }
     });
 
@@ -3610,8 +3610,9 @@ export default function FinanceTracker() {
                 ) : (
                   <div className="space-y-3">
                     {assets.map((acc) => {
-                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: (!getAccountTypeInfo(acc.type).isAsset && acc.openingBalance > 0) ? -acc.openingBalance : acc.openingBalance };
                       const typeInfo = getAccountTypeInfo(acc.type);
+                      const rawBal = Number(acc.openingBalance) || 0;
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: rawBal };
                       const IconComp = typeInfo.icon;
                       return (
                         <div key={acc.id} onClick={() => { setGlInitialSearch(acc.name); setActiveTab("gl"); }} className="cursor-pointer border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs hover:shadow-md">
@@ -3704,11 +3705,12 @@ export default function FinanceTracker() {
                 ) : (
                   <div className="space-y-3">
                     {liabilities.map((acc) => {
-                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: (!getAccountTypeInfo(acc.type).isAsset && acc.openingBalance > 0) ? -acc.openingBalance : acc.openingBalance };
                       const typeInfo = getAccountTypeInfo(acc.type);
+                      const rawBal = Number(acc.openingBalance) || 0;
+                      const b = accountBalances[acc.id] || { income: 0, expense: 0, current: -Math.abs(rawBal) };
                       const IconComp = typeInfo.icon;
                       // Outstanding debt is the positive presentation of negative ledger balance
-                      const outstandingDebt = -b.current;
+                      const outstandingDebt = Math.abs(b.current);
 
                       return (
                         <div key={acc.id} onClick={() => { setGlInitialSearch(acc.name); setActiveTab("gl"); }} className="cursor-pointer border border-slate-100 p-4 rounded-xl hover:border-slate-300 transition-all group relative overflow-hidden bg-gradient-to-br from-white to-slate-50/30 shadow-xs hover:shadow-md">
@@ -3782,7 +3784,7 @@ export default function FinanceTracker() {
                           <div className="mt-3 grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px] text-gray-500 font-medium">
                             <div>
                               <span className="text-gray-400 block">Opening Debt</span>
-                              <span className="font-semibold text-slate-700">₹{(-acc.openingBalance).toLocaleString("en-IN")}</span>
+                              <span className="font-semibold text-slate-700">₹{Math.abs(acc.openingBalance).toLocaleString("en-IN")}</span>
                             </div>
                             <div>
                               <span className="text-green-500 block">Payments</span>
@@ -6186,7 +6188,7 @@ export default function FinanceTracker() {
                   />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
-                  For Assets, enter a positive starting balance. For Liabilities (Credit Cards, Loans, etc.), enter a negative value for starting outstanding debt (or 0 if empty).
+                  For Bank &amp; Asset accounts, enter starting cash/balance. For Credit Cards &amp; Loans, enter the starting debt amount (e.g. 50000).
                 </p>
               </div>
 
