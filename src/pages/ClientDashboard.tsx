@@ -115,7 +115,8 @@ interface Application {
     | "Under Review"
     | "Submitted to Department"
     | "Query Raised"
-    | "Approved & Issued";
+    | "Approved & Issued"
+    | "Completed";
   currentStep: string;
   description: string;
   updatedAt: number;
@@ -532,6 +533,7 @@ export default function ClientDashboard() {
   // Filing detail side-drawer state
   const [selectedFilingForDrawer, setSelectedFilingForDrawer] = useState<ComplianceFiling | null>(null);
   const [isUploadingFilingDoc, setIsUploadingFilingDoc] = useState(false);
+  const [complianceFilterTab, setComplianceFilterTab] = useState<"pending" | "filed" | "all">("pending");
 
   // Real-time Chat States
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -2687,20 +2689,51 @@ Stewardship, Accuracy, Legacy.
     nextStep: string,
   ) => {
     try {
-      await updateDoc(doc(db, "applications", appId), {
+      const isCompletedStatus = status === "Completed" || status === "Approved & Issued";
+      const appToUpdate = applications.find((a) => a.id === appId);
+      
+      const updates: any = {
         status: status,
         currentStep: nextStep,
         updatedAt: Date.now(),
-      });
+      };
 
-      const appToUpdate = applications.find((a) => a.id === appId);
+      // If status is Completed or Approved & Issued, also mark all milestone steps as completed
+      if (isCompletedStatus && appToUpdate?.steps) {
+        updates.steps = appToUpdate.steps.map((s) => ({ ...s, completed: true }));
+      }
+
+      await updateDoc(doc(db, "applications", appId), updates);
+
+      // Sync linked task if exists
+      if (appToUpdate?.taskId) {
+        try {
+          const taskDoc = await getDocs(query(collection(db, "todos"), where("__name__", "==", appToUpdate.taskId)));
+          if (!taskDoc.empty) {
+            const taskData = taskDoc.docs[0].data();
+            const currentSubtasks = taskData.subtasks || [];
+            const updatedSubtasks = isCompletedStatus
+              ? currentSubtasks.map((st: any) => ({ ...st, completed: true }))
+              : currentSubtasks;
+            
+            await updateDoc(doc(db, "todos", appToUpdate.taskId), {
+              completed: isCompletedStatus,
+              completedAt: isCompletedStatus ? Date.now() : null,
+              subtasks: updatedSubtasks,
+            });
+          }
+        } catch (tErr) {
+          console.error("Failed to sync app status with linked task:", tErr);
+        }
+      }
+
       if (appToUpdate) {
         try {
           await addDoc(collection(db, "notifications"), {
             userId: appToUpdate.userId,
             userEmail: appToUpdate.userEmail || "",
             title: "Application Tracker Updated",
-            message: `Your application [${appToUpdate.title}] step was updated: "${nextStep}"`,
+            message: `Your application [${appToUpdate.title}] status was updated to: "${status}" (${nextStep})`,
             createdAt: Date.now(),
             read: false,
             type: "request",
@@ -3857,6 +3890,8 @@ Stewardship, Accuracy, Legacy.
       "Query Raised": "bg-red-100 text-red-800 border-red-200/50",
       "Approved & Issued":
         "bg-emerald-100 text-emerald-800 border-emerald-200/50",
+      Completed:
+        "bg-emerald-100 text-emerald-900 border-emerald-300 font-bold",
     };
     return maps[status] || "bg-slate-100 text-slate-800 border-slate-200";
   };
@@ -5864,11 +5899,41 @@ Stewardship, Accuracy, Legacy.
                                 </p>
                               )}
                             </div>
-                            <span
-                              className={`px-3 py-1 text-[10px] uppercase font-bold tracking-wider rounded-full border ${getStatusBadge(app.status)}`}
-                            >
-                              {app.status}
-                            </span>
+                            {isAdmin ? (
+                              <CustomSelect
+                                value={app.status}
+                                onChange={(val) => {
+                                  const stepMsg =
+                                    val === "Completed"
+                                      ? "Engagement completed & delivered"
+                                      : val === "Approved & Issued"
+                                      ? "Incorporation COI/GSTIN distributed to client"
+                                      : val === "Submitted to Department"
+                                      ? "Pending department validation and review"
+                                      : val === "Query Raised"
+                                      ? "Officer requested modified digital utility sign lease deed"
+                                      : val === "Under Review"
+                                      ? "CA audit and compliance review in progress"
+                                      : "Intake checklist & document verify";
+                                  handleUpdateAppStatus(app.id, val as any, stepMsg);
+                                }}
+                                className="w-44 px-2 bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px] flex items-center shadow-sm"
+                                options={[
+                                  "Pending Documents",
+                                  "Under Review",
+                                  "Submitted to Department",
+                                  "Query Raised",
+                                  "Approved & Issued",
+                                  "Completed",
+                                ]}
+                              />
+                            ) : (
+                              <span
+                                className={`px-3 py-1 text-[10px] uppercase font-bold tracking-wider rounded-full border ${getStatusBadge(app.status)}`}
+                              >
+                                {app.status}
+                              </span>
+                            )}
                           </div>
 
                           <p className="text-xs text-slate-600 leading-relaxed mb-6 bg-slate-50/50 p-4 border border-slate-100/60/50 rounded-xl">
@@ -6187,6 +6252,18 @@ Stewardship, Accuracy, Legacy.
                                   className="bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-transform active:scale-95 cursor-pointer"
                                 >
                                   Issue Cert
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleUpdateAppStatus(
+                                      app.id,
+                                      "Completed",
+                                      "Engagement completed & delivered",
+                                    )
+                                  }
+                                  className="bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-700 px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono transition-transform active:scale-95 cursor-pointer"
+                                >
+                                  Complete
                                 </button>
                                 <button
                                   onClick={() =>
@@ -6580,22 +6657,75 @@ Stewardship, Accuracy, Legacy.
 
                   {/* Calendar compliance board */}
                   <div className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-sm">
-                    <h2 className="text-lg font-medium text-primary tracking-tight mb-6 border-b border-slate-100/60 pb-4 flex flex-wrap items-center justify-between gap-3">
-                      <span>
-                        Static Compliance Checklist & Timeline (Real-Time
-                        Calendar)
-                      </span>
-                      <div className="flex items-center gap-2">
+                    <div className="border-b border-slate-100/60 pb-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h2 className="text-lg font-medium text-primary tracking-tight">
+                          Static Compliance Checklist & Timeline (Real-Time Calendar)
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Track active regulatory obligations, statutory due dates, and action items.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Tab filters */}
+                        <div className="bg-slate-100/80 p-1 rounded-xl flex items-center gap-1 border border-slate-200/60">
+                          <button
+                            type="button"
+                            onClick={() => setComplianceFilterTab("pending")}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              complianceFilterTab === "pending"
+                                ? "bg-white text-indigo-700 shadow-sm"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            Pending (
+                            {
+                              complianceFilings.filter(
+                                (f) => f.status !== "Filed"
+                              ).length
+                            }
+                            )
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setComplianceFilterTab("filed")}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              complianceFilterTab === "filed"
+                                ? "bg-white text-emerald-700 shadow-sm"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            Filed (
+                            {
+                              complianceFilings.filter(
+                                (f) => f.status === "Filed"
+                              ).length
+                            }
+                            )
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setComplianceFilterTab("all")}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              complianceFilterTab === "all"
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            All ({complianceFilings.length})
+                          </button>
+                        </div>
+
                         <button
                           onClick={() => setIsDailyStandupOpen(true)}
-                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5"
+                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5 cursor-pointer"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
                           AI Standup Briefing
                         </button>
                         <button
                           onClick={() => setIsCalendarSyncOpen(true)}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5"
+                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-sm transition-all hover:-translate-y-0.5 cursor-pointer"
                         >
                           <Calendar className="w-3.5 h-3.5" />
                           Sync to Calendar (Google / Outlook)
@@ -6604,312 +6734,329 @@ Stewardship, Accuracy, Legacy.
                           FY 2026-2027
                         </span>
                       </div>
-                    </h2>
+                    </div>
 
-                    <div className={`overflow-x-auto md:overflow-visible ${isAdmin && complianceFilings.length > 0 ? 'min-h-[260px]' : ''}`}>
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-slate-100/60">
-                            <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                              Compliance Details
-                            </th>
-                            <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                              Cycle / Period
-                            </th>
-                            <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                              Due Date
-                            </th>
-                            <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                              Filing Status
-                            </th>
-                            <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">
-                              Acknowledgement
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {complianceFilings.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={5}
-                                className="py-8 text-center text-xs text-slate-400"
-                              >
-                                No scheduled returns. Contact CA Manohar
-                                compliance desk to activate statutory calendars.
-                              </td>
-                            </tr>
-                          ) : (
-                            complianceFilings.map((filing) => {
-                              const client = clients.find(
-                                (c) => c.uid === filing.userId,
-                              );
-                              const clientInfo = client
-                                ? `${client.displayName || "Client"} (${client.email})`
-                                : "Unknown Client";
-                              return (
-                                <tr
-                                  key={filing.id}
-                                  className="hover:bg-slate-50/40 relative"
-                                >
-                                  <td className="py-4 pr-4">
-                                    <div className="text-xs font-bold text-primary leading-tight">
-                                      {filing.title}
-                                    </div>
-                                    {isAdmin && !selectedClientId && (
-                                      <div className="text-[10px] font-medium text-slate-500 mt-1.5 flex items-center gap-1">
-                                        <UserIcon className="h-3 w-3" />
-                                        Client:{" "}
-                                        <span className="text-slate-700">
-                                          {clientInfo}
-                                        </span>
-                                      </div>
-                                    )}
-                                    <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
-                                      {filing.serviceType} Return
-                                    </div>
+                    {(() => {
+                      const displayedFilings = complianceFilings.filter((filing) => {
+                        if (complianceFilterTab === "pending") {
+                          return filing.status !== "Filed";
+                        }
+                        if (complianceFilterTab === "filed") {
+                          return filing.status === "Filed";
+                        }
+                        return true;
+                      });
+
+                      return (
+                        <div className={`overflow-x-auto md:overflow-visible ${isAdmin && displayedFilings.length > 0 ? 'min-h-[260px]' : ''}`}>
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-slate-100/60">
+                                <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                  Compliance Details
+                                </th>
+                                <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                  Cycle / Period
+                                </th>
+                                <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                  Due Date
+                                </th>
+                                <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                  Filing Status
+                                </th>
+                                <th className="py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">
+                                  Acknowledgement
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {displayedFilings.length === 0 ? (
+                                <tr>
+                                  <td
+                                    colSpan={5}
+                                    className="py-12 text-center text-xs text-slate-500 font-medium"
+                                  >
+                                    {complianceFilterTab === "pending"
+                                      ? "🎉 Great job! All scheduled compliances and returns are filed. No pending items."
+                                      : complianceFilterTab === "filed"
+                                      ? "No filed returns recorded yet."
+                                      : "No scheduled returns. Contact CA Manohar compliance desk to activate statutory calendars."}
                                   </td>
-                                  <td className="py-4 text-xs font-semibold text-slate-700">
-                                    {editingFilingPeriodId === filing.id ? (
-                                      <div className="flex flex-col gap-1.5 z-10 relative bg-white p-2 rounded-xl border border-indigo-200 shadow-md">
-                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
-                                          <select
-                                            value={tempEditingPeriod}
-                                            onChange={(e) => setTempEditingPeriod(e.target.value)}
-                                            className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
-                                          >
-                                            {MONTH_PERIOD_OPTIONS.filter((o) => o !== "Custom Period...").map((opt) => (
-                                              <option key={opt} value={opt}>{opt}</option>
-                                            ))}
-                                          </select>
-                                          <select
-                                            value={tempEditingFY}
-                                            onChange={(e) => setTempEditingFY(e.target.value)}
-                                            className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
-                                          >
-                                            {FY_OPTIONS.filter((o) => o !== "Custom FY...").map((opt) => (
-                                              <option key={opt} value={opt}>{opt}</option>
-                                            ))}
-                                          </select>
+                                </tr>
+                              ) : (
+                                displayedFilings.map((filing) => {
+                                  const client = clients.find(
+                                    (c) => c.uid === filing.userId,
+                                  );
+                                  const clientInfo = client
+                                    ? `${client.displayName || "Client"} (${client.email})`
+                                    : "Unknown Client";
+                                  return (
+                                    <tr
+                                      key={filing.id}
+                                      className="hover:bg-slate-50/40 relative"
+                                    >
+                                      <td className="py-4 pr-4">
+                                        <div className="text-xs font-bold text-primary leading-tight">
+                                          {filing.title}
                                         </div>
-                                        <div className="flex items-center gap-1.5 pt-0.5">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleSaveFilingPeriod(filing.id)}
-                                            className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition cursor-pointer"
-                                          >
-                                            Save
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => setEditingFilingPeriodId(null)}
-                                            className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-medium hover:bg-slate-200 transition cursor-pointer"
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="group flex items-center gap-1.5">
-                                        <span className="font-bold text-slate-800">{cleanPeriodName(filing.period)}</span>{" "}
-                                        <span className="text-[10px] text-slate-400 font-medium">
-                                          ({filing.financialYear})
-                                        </span>
-                                        {isAdmin && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setEditingFilingPeriodId(filing.id);
-                                              setTempEditingPeriod(cleanPeriodName(filing.period));
-                                              setTempEditingFY(filing.financialYear);
-                                            }}
-                                            title="Click to edit month, period or financial year"
-                                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-indigo-50 rounded-lg text-indigo-600 transition cursor-pointer"
-                                          >
-                                            <Calendar className="h-3.5 w-3.5" />
-                                          </button>
+                                        {isAdmin && !selectedClientId && (
+                                          <div className="text-[10px] font-medium text-slate-500 mt-1.5 flex items-center gap-1">
+                                            <UserIcon className="h-3 w-3" />
+                                            Client:{" "}
+                                            <span className="text-slate-700">
+                                              {clientInfo}
+                                            </span>
+                                          </div>
                                         )}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="py-4 text-xs font-mono font-medium text-slate-600">
-                                    {new Date(
-                                      filing.dueDate,
-                                    ).toLocaleDateString(undefined, {
-                                      day: "numeric",
-                                      month: "short",
-                                      year: "numeric",
-                                    })}
-                                  </td>
-                                  <td className="py-4 font-medium text-primary">
-                                    {isAdmin ? (
-                                      <CustomSelect
-                                        value={filing.status}
-                                        onChange={(val) =>
-                                          handleUpdateFilingStatus(
-                                            filing.id,
-                                            val as any,
-                                            filing.arn,
-                                          )
-                                        }
-                                        className="w-32 px-2 bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px] flex items-center"
-                                        options={[
-                                          "Upcoming",
-                                          "In Progress",
-                                          "Pending Client Action",
-                                          "Filed",
-                                        ]}
-                                      />
-                                    ) : (
-                                      <span
-                                        className={`px-2.5 py-1 text-[9px] uppercase font-bold tracking-widest rounded-full border ${getFilingStatusBadge(filing.status)}`}
-                                      >
-                                        {filing.status}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="py-4 text-right">
-                                    {filing.status === "Filed" ? (
-                                      <div className="flex flex-col items-end gap-1">
-                                        {isAdmin ? (
-                                          <div className="flex items-center gap-1.5 justify-end">
-                                            <div className="flex flex-col items-end">
-                                              <span className="text-[8px] font-bold text-emerald-700 uppercase tracking-wider">
-                                                Success (Filed)
-                                              </span>
-                                              <input
-                                                type="text"
-                                                defaultValue={filing.arn || ""}
-                                                placeholder="Enter ARN"
-                                                onBlur={(e) => {
-                                                  if (
-                                                    e.target.value !==
-                                                    filing.arn
-                                                  ) {
-                                                    handleUpdateFilingStatus(
-                                                      filing.id,
-                                                      "Filed",
-                                                      e.target.value,
-                                                    );
-                                                  }
-                                                }}
-                                                onKeyDown={(e) => {
-                                                  if (e.key === "Enter") {
-                                                    handleUpdateFilingStatus(
-                                                      filing.id,
-                                                      "Filed",
-                                                      (
-                                                        e.target as HTMLInputElement
-                                                      ).value,
-                                                    );
-                                                  }
-                                                }}
-                                                className="w-24 bg-white border border-slate-200 rounded-lg py-0.5 px-1.5 text-[9px] text-right font-mono outline-none focus:border-primary"
-                                              />
+                                        <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                                          {filing.serviceType} Return
+                                        </div>
+                                      </td>
+                                      <td className="py-4 text-xs font-semibold text-slate-700">
+                                        {editingFilingPeriodId === filing.id ? (
+                                          <div className="flex flex-col gap-1.5 z-10 relative bg-white p-2 rounded-xl border border-indigo-200 shadow-md">
+                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+                                              <select
+                                                value={tempEditingPeriod}
+                                                onChange={(e) => setTempEditingPeriod(e.target.value)}
+                                                className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                                              >
+                                                {MONTH_PERIOD_OPTIONS.filter((o) => o !== "Custom Period...").map((opt) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                              <select
+                                                value={tempEditingFY}
+                                                onChange={(e) => setTempEditingFY(e.target.value)}
+                                                className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
+                                              >
+                                                {FY_OPTIONS.filter((o) => o !== "Custom FY...").map((opt) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
                                             </div>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleDeleteItem(
-                                                  "compliance_filings",
-                                                  filing.id,
-                                                )
-                                              }
-                                              className="text-slate-400 hover:text-red-650 p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
-                                              title="Remove return checkout from calendar"
-                                            >
-                                              <Trash2 className="h-3.5 w-3.5 animate-pulse" />
-                                            </button>
+                                            <div className="flex items-center gap-1.5 pt-0.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSaveFilingPeriod(filing.id)}
+                                                className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-bold hover:bg-indigo-700 transition cursor-pointer"
+                                              >
+                                                Save
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setEditingFilingPeriodId(null)}
+                                                className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-medium hover:bg-slate-200 transition cursor-pointer"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
                                           </div>
                                         ) : (
-                                          <div className="flex flex-col items-end gap-1.5">
-                                            <div className="flex items-center gap-1.5">
-                                              <span className="text-emerald-700 text-[10px] font-bold font-mono tracking-tight flex items-center gap-1">
-                                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                                                <span>Success</span>
-                                              </span>
-                                              <span className="text-[9px] font-mono font-semibold text-slate-400">
-                                                ({filing.arn || "ARN-GENERATED"})
-                                              </span>
-                                            </div>
+                                          <div className="group flex items-center gap-1.5">
+                                            <span className="font-bold text-slate-800">{cleanPeriodName(filing.period)}</span>{" "}
+                                            <span className="text-[10px] text-slate-400 font-medium">
+                                              ({filing.financialYear})
+                                            </span>
+                                            {isAdmin && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setEditingFilingPeriodId(filing.id);
+                                                  setTempEditingPeriod(cleanPeriodName(filing.period));
+                                                  setTempEditingFY(filing.financialYear);
+                                                }}
+                                                title="Click to edit month, period or financial year"
+                                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-indigo-50 rounded-lg text-indigo-600 transition cursor-pointer"
+                                              >
+                                                <Calendar className="h-3.5 w-3.5" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="py-4 text-xs font-mono font-medium text-slate-600">
+                                        {new Date(
+                                          filing.dueDate,
+                                        ).toLocaleDateString(undefined, {
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric",
+                                        })}
+                                      </td>
+                                      <td className="py-4 font-medium text-primary">
+                                        {isAdmin ? (
+                                          <CustomSelect
+                                            value={filing.status}
+                                            onChange={(val) =>
+                                              handleUpdateFilingStatus(
+                                                filing.id,
+                                                val as any,
+                                                filing.arn,
+                                              )
+                                            }
+                                            className="w-32 px-2 bg-white border border-slate-200 rounded-lg h-7 font-bold text-slate-800 text-[10px] flex items-center"
+                                            options={[
+                                              "Upcoming",
+                                              "In Progress",
+                                              "Pending Client Action",
+                                              "Filed",
+                                            ]}
+                                          />
+                                        ) : (
+                                          <span
+                                            className={`px-2.5 py-1 text-[9px] uppercase font-bold tracking-widest rounded-full border ${getFilingStatusBadge(filing.status)}`}
+                                          >
+                                            {filing.status}
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="py-4 text-right">
+                                        {filing.status === "Filed" ? (
+                                          <div className="flex flex-col items-end gap-1">
+                                            {isAdmin ? (
+                                              <div className="flex items-center gap-1.5 justify-end">
+                                                <div className="flex flex-col items-end">
+                                                  <span className="text-[8px] font-bold text-emerald-700 uppercase tracking-wider">
+                                                    Success (Filed)
+                                                  </span>
+                                                  <input
+                                                    type="text"
+                                                    defaultValue={filing.arn || ""}
+                                                    placeholder="Enter ARN"
+                                                    onBlur={(e) => {
+                                                      if (
+                                                        e.target.value !==
+                                                        filing.arn
+                                                      ) {
+                                                        handleUpdateFilingStatus(
+                                                          filing.id,
+                                                          "Filed",
+                                                          e.target.value,
+                                                        );
+                                                      }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === "Enter") {
+                                                        handleUpdateFilingStatus(
+                                                          filing.id,
+                                                          "Filed",
+                                                          (
+                                                            e.target as HTMLInputElement
+                                                          ).value,
+                                                        );
+                                                      }
+                                                    }}
+                                                    className="w-24 bg-white border border-slate-200 rounded-lg py-0.5 px-1.5 text-[9px] text-right font-mono outline-none focus:border-primary"
+                                                  />
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleDeleteItem(
+                                                      "compliance_filings",
+                                                      filing.id,
+                                                    )
+                                                  }
+                                                  className="text-slate-400 hover:text-red-650 p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                                                  title="Remove return checkout from calendar"
+                                                >
+                                                  <Trash2 className="h-3.5 w-3.5 animate-pulse" />
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <div className="flex flex-col items-end gap-1.5">
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="text-emerald-700 text-[10px] font-bold font-mono tracking-tight flex items-center gap-1">
+                                                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                                                    <span>Success</span>
+                                                  </span>
+                                                  <span className="text-[9px] font-mono font-semibold text-slate-400">
+                                                    ({filing.arn || "ARN-GENERATED"})
+                                                  </span>
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setSelectedFilingForDrawer(filing)}
+                                                  className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-lg transition-all cursor-pointer shadow-sm"
+                                                >
+                                                  <Paperclip className="h-3 w-3" />
+                                                  <span>Vault & Timeline</span>
+                                                  {filing.attachments && filing.attachments.length > 0 && (
+                                                    <span className="bg-indigo-600 text-white text-[8px] rounded-full px-1.5 py-0.5 font-bold font-mono">
+                                                      {filing.attachments.length}
+                                                    </span>
+                                                  )}
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center justify-end gap-2">
                                             <button
                                               type="button"
                                               onClick={() => setSelectedFilingForDrawer(filing)}
-                                              className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-lg transition-all cursor-pointer shadow-sm"
+                                              className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm"
                                             >
                                               <Paperclip className="h-3 w-3" />
-                                              <span>Vault & Timeline</span>
+                                              <span>Vault & History</span>
                                               {filing.attachments && filing.attachments.length > 0 && (
-                                                <span className="bg-indigo-600 text-white text-[8px] rounded-full px-1.5 py-0.5 font-bold font-mono">
+                                                <span className="bg-indigo-650 text-white text-[8px] rounded-full px-1.5 py-0.5 font-bold font-mono">
                                                   {filing.attachments.length}
                                                 </span>
                                               )}
                                             </button>
+                                            {isAdmin && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleDeleteItem(
+                                                    "compliance_filings",
+                                                    filing.id,
+                                                  )
+                                                }
+                                                className="text-slate-400 hover:text-red-650 p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                                                title="Remove return checkout from calendar"
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={() => {
+                                                if (isAdmin) {
+                                                  const val =
+                                                    prompt(
+                                                      "Mark status as Filed? Enter Government ARN reference ID (optional):",
+                                                    ) ||
+                                                    `ARN-${Math.floor(100000 + Math.random() * 900000)}`;
+                                                  handleUpdateFilingStatus(
+                                                    filing.id,
+                                                    "Filed",
+                                                    val,
+                                                  );
+                                                } else {
+                                                  toast(
+                                                    "Disclaimer: If supporting tax logs or general ledger registers are pending, compile records and upload the spreadsheet files to Document vaults first so CA can sign off and dispatch.",
+                                                  );
+                                                }
+                                              }}
+                                              className="text-[10px] font-bold text-primary hover:text-primary uppercase tracking-widest border border-slate-100/60 hover:bg-white bg-slate-50/50 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                                            >
+                                              {isAdmin ? "Mark Filed" : "Prepare"}
+                                            </button>
                                           </div>
                                         )}
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center justify-end gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => setSelectedFilingForDrawer(filing)}
-                                          className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 uppercase tracking-wider bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer shadow-sm"
-                                        >
-                                          <Paperclip className="h-3 w-3" />
-                                          <span>Vault & History</span>
-                                          {filing.attachments && filing.attachments.length > 0 && (
-                                            <span className="bg-indigo-650 text-white text-[8px] rounded-full px-1.5 py-0.5 font-bold font-mono">
-                                              {filing.attachments.length}
-                                            </span>
-                                          )}
-                                        </button>
-                                        {isAdmin && (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              handleDeleteItem(
-                                                "compliance_filings",
-                                                filing.id,
-                                              )
-                                            }
-                                            className="text-slate-400 hover:text-red-650 p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
-                                            title="Remove return checkout from calendar"
-                                          >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                          </button>
-                                        )}
-                                        <button
-                                          onClick={() => {
-                                            if (isAdmin) {
-                                              const val =
-                                                prompt(
-                                                  "Mark status as Filed? Enter Government ARN reference ID (optional):",
-                                                ) ||
-                                                `ARN-${Math.floor(100000 + Math.random() * 900000)}`;
-                                              handleUpdateFilingStatus(
-                                                filing.id,
-                                                "Filed",
-                                                val,
-                                              );
-                                            } else {
-                                              toast(
-                                                "Disclaimer: If supporting tax logs or general ledger registers are pending, compile records and upload the spreadsheet files to Document vaults first so CA can sign off and dispatch.",
-                                              );
-                                            }
-                                          }}
-                                          className="text-[10px] font-bold text-primary hover:text-primary uppercase tracking-widest border border-slate-100/60 hover:bg-white bg-slate-50/50 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-                                        >
-                                          {isAdmin ? "Mark Filed" : "Prepare"}
-                                        </button>
-                                      </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -8549,7 +8696,10 @@ Stewardship, Accuracy, Legacy.
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-xs font-semibold text-primary"
                             options={[
                               "Pending Documents",
-                              "Processing",
+                              "Under Review",
+                              "Submitted to Department",
+                              "Query Raised",
+                              "Approved & Issued",
                               "Completed",
                             ]}
                           />
