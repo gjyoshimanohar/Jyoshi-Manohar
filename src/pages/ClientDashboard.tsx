@@ -534,6 +534,7 @@ export default function ClientDashboard() {
   const [selectedFilingForDrawer, setSelectedFilingForDrawer] = useState<ComplianceFiling | null>(null);
   const [isUploadingFilingDoc, setIsUploadingFilingDoc] = useState(false);
   const [complianceFilterTab, setComplianceFilterTab] = useState<"pending" | "filed" | "all">("pending");
+  const [applicationFilterTab, setApplicationFilterTab] = useState<"active" | "completed" | "all">("active");
 
   // Real-time Chat States
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -5261,7 +5262,7 @@ Stewardship, Accuracy, Legacy.
                       </div>
                       
                       <p className="text-4xl sm:text-[44px] font-black text-[#0f294a] tracking-tight mt-5 mb-2 leading-none">
-                        {applications.length}
+                        {applications.filter((a) => a.status !== "Completed").length}
                       </p>
                       
                       <p className="text-[11px] text-slate-400 font-medium leading-relaxed truncate">
@@ -5788,99 +5789,164 @@ Stewardship, Accuracy, Legacy.
               )}
 
               {/* APPLICATION TRACKER BOARD */}
-              {activeTab === "applications" && (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm">
-                    <h2 className="text-lg font-medium text-primary tracking-tight">
-                      Active Service Applications ({applications.length})
-                    </h2>
-                    <div className="flex gap-2 text-xs font-semibold text-slate-500">
-                      <span>Live sync</span>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 animate-ping" />
-                    </div>
-                  </div>
+              {activeTab === "applications" && (() => {
+                const activeApps = applications.filter((a) => a.status !== "Completed");
+                const completedApps = applications.filter((a) => a.status === "Completed");
+                const displayedApps =
+                  applicationFilterTab === "active"
+                    ? activeApps
+                    : applicationFilterTab === "completed"
+                    ? completedApps
+                    : applications;
 
-                  {/* Client's Pending Proposals awaiting review on admin side */}
-                  {clientRequests.length > 0 && !isAdmin && (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center bg-amber-50/50 p-4 px-6 rounded-2xl border border-amber-100/70 shadow-sm">
-                        <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
-                          <Clock className="w-4.5 h-4.5 text-amber-500 animate-pulse" />
-                          <span>
-                            Pending Proposals awaiting CA Review (
-                            {clientRequests.length})
-                          </span>
-                        </h3>
-                        <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                          Awaiting CA Review
-                        </span>
+                return (
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-100/60 shadow-sm">
+                      <div>
+                        <h2 className="text-lg font-medium text-primary tracking-tight">
+                          {applicationFilterTab === "active"
+                            ? `Active Service Applications (${activeApps.length})`
+                            : applicationFilterTab === "completed"
+                            ? `Completed Service Applications (${completedApps.length})`
+                            : `All Service Applications (${applications.length})`}
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Track ongoing engagements, regulatory applications, and delivery milestones.
+                        </p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {clientRequests.map((req) => (
-                          <div
-                            key={req.id}
-                            className="bg-white border border-slate-100/60 rounded-2xl p-5 shadow-sm text-left relative overflow-hidden group hover:border-slate-300 transition-all"
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Tab filters */}
+                        <div className="bg-slate-100/80 p-1 rounded-xl flex items-center gap-1 border border-slate-200/60">
+                          <button
+                            type="button"
+                            onClick={() => setApplicationFilterTab("active")}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              applicationFilterTab === "active"
+                                ? "bg-white text-indigo-700 shadow-sm"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
                           >
-                            <div className="absolute right-0 top-0 h-1 text-amber-400 bg-amber-400 w-full animate-pulse" />
-                            <div className="flex justify-between items-start gap-2 mb-2">
-                              <div>
-                                <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                                  {req.type}
-                                </span>
-                                <h4 className="text-xs font-bold text-slate-800 mt-1.5">
-                                  {req.title}
-                                </h4>
-                              </div>
-                              <span className="text-[8px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-widest font-mono">
-                                pending ca
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">
-                              {req.description}
-                            </p>
-                            <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-50 text-[9px] text-slate-400">
-                              <span>
-                                Posted:{" "}
-                                {new Date(req.createdAt).toLocaleDateString()}
-                              </span>
-                              {req.fileName && (
-                                <span className="font-semibold text-primary flex items-center gap-1 truncate max-w-[150px]">
-                                  📎 {req.fileName}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                            Active ({activeApps.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setApplicationFilterTab("completed")}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              applicationFilterTab === "completed"
+                                ? "bg-white text-emerald-700 shadow-sm"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            Completed ({completedApps.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setApplicationFilterTab("all")}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                              applicationFilterTab === "all"
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            All ({applications.length})
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 ml-2">
+                          <span>Live sync</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                        </div>
                       </div>
                     </div>
-                  )}
 
-                  {applications.length === 0 ? (
-                    <div className="bg-white rounded-3xl p-5 sm:p-4 sm:p-5 sm:p-12 text-center border border-slate-100/60 shadow-sm max-w-xl mx-auto">
-                      <FileCheck2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                      <h3 className="text-sm font-bold text-slate-700">
-                        No Applications Assigned
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
-                        If you recently signed up, our team is seeding standard
-                        default documents. Use the Demo Mode or ask CA Jyoshi
-                        Manohar Admin to push a target tracking portfolio.
-                      </p>
-                    </div>
-                  ) : (
-                    applications.map((app) => {
-                      const client = clients.find((c) => c.uid === app.userId);
-                      const clientInfo = client
-                        ? `${client.displayName || "Client"} (${client.email})`
-                        : app.userEmail || "Unknown Client";
-                      return (
-                        <motion.div
-                          key={app.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-shadow relative"
-                        >
+                    {/* Client's Pending Proposals awaiting review on admin side */}
+                    {clientRequests.length > 0 && !isAdmin && (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center bg-amber-50/50 p-4 px-6 rounded-2xl border border-amber-100/70 shadow-sm">
+                          <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                            <Clock className="w-4.5 h-4.5 text-amber-500 animate-pulse" />
+                            <span>
+                              Pending Proposals awaiting CA Review (
+                              {clientRequests.length})
+                            </span>
+                          </h3>
+                          <span className="text-[9px] font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                            Awaiting CA Review
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {clientRequests.map((req) => (
+                            <div
+                              key={req.id}
+                              className="bg-white border border-slate-100/60 rounded-2xl p-5 shadow-sm text-left relative overflow-hidden group hover:border-slate-300 transition-all"
+                            >
+                              <div className="absolute right-0 top-0 h-1 text-amber-400 bg-amber-400 w-full animate-pulse" />
+                              <div className="flex justify-between items-start gap-2 mb-2">
+                                <div>
+                                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                                    {req.type}
+                                  </span>
+                                  <h4 className="text-xs font-bold text-slate-800 mt-1.5">
+                                    {req.title}
+                                  </h4>
+                                </div>
+                                <span className="text-[8px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 uppercase tracking-widest font-mono">
+                                  pending ca
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">
+                                {req.description}
+                              </p>
+                              <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-slate-50 text-[9px] text-slate-400">
+                                <span>
+                                  Posted:{" "}
+                                  {new Date(req.createdAt).toLocaleDateString()}
+                                </span>
+                                {req.fileName && (
+                                  <span className="font-semibold text-primary flex items-center gap-1 truncate max-w-[150px]">
+                                    📎 {req.fileName}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {displayedApps.length === 0 ? (
+                      <div className="bg-white rounded-3xl p-5 sm:p-4 sm:p-5 sm:p-12 text-center border border-slate-100/60 shadow-sm max-w-xl mx-auto">
+                        <FileCheck2 className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                        <h3 className="text-sm font-bold text-slate-700">
+                          {applicationFilterTab === "completed"
+                            ? "No Completed Applications Yet"
+                            : applicationFilterTab === "active"
+                            ? "No Active Applications In Progress"
+                            : "No Applications Assigned"}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
+                          {applicationFilterTab === "completed"
+                            ? "Applications marked as Completed will appear in this archive tab."
+                            : applicationFilterTab === "active"
+                            ? "All active engagements are currently completed. New applications will appear here."
+                            : "If you recently signed up, our team is seeding standard default documents. Use the Demo Mode or ask CA Jyoshi Manohar Admin to push a target tracking portfolio."}
+                        </p>
+                      </div>
+                    ) : (
+                      displayedApps.map((app) => {
+                        const client = clients.find((c) => c.uid === app.userId);
+                        const clientInfo = client
+                          ? `${client.displayName || "Client"} (${client.email})`
+                          : app.userEmail || "Unknown Client";
+                        return (
+                          <motion.div
+                            key={app.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white border border-slate-100/60 rounded-3xl p-4 sm:p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-shadow relative"
+                          >
                           <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
                             <div>
                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -6281,7 +6347,8 @@ Stewardship, Accuracy, Legacy.
                     })
                   )}
                 </div>
-              )}
+              );
+            })()}
 
               {/* DOCUMENT VAULT BOARD (DOWNLOAD CENTER) */}
               {activeTab === "documents" &&
