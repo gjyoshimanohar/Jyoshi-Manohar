@@ -58,8 +58,8 @@ app.post("/api/finance/ai-insights", async (req, res) => {
 
     const ai = getAiClient();
 
-    // Prepare comprehensive summaries of finances for context
-    const incomes = records.filter((r: any) => r.type === "income");
+    // Prepare comprehensive summaries of finances for context (excluding personal inflows from firm income)
+    const incomes = records.filter((r: any) => r.type === "income" && r.scope !== "personal" && r.category !== "Internal Transfer");
     const expenses = records.filter((r: any) => r.type === "expense");
     const receivables = records.filter((r: any) => r.type === "receivable" || (r.type === "income" && r.status === "pending"));
 

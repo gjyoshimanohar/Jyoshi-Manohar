@@ -1462,7 +1462,12 @@ export default function FinanceTracker() {
   const filteredRecords = useMemo(() => {
     const filtered = records.filter(rec => {
       // Tab pre-filters
-      if (activeTab === "incomes" && (rec.type !== "income" || rec.category === "Reimbursement")) return false;
+      if (activeTab === "incomes") {
+        if (rec.type !== "income" || rec.category === "Reimbursement") return false;
+        // Do not include personal inflows in overall income earned
+        const isPersonalInflow = (rec.scope || "business") === "personal" || customCategories.personalIncome.includes(rec.category);
+        if (selectedScope === "all" && isPersonalInflow) return false;
+      }
       if (activeTab === "expenses" && rec.type !== "expense") return false;
       if (activeTab === "transfers" && rec.type !== "transfer") return false;
       if (activeTab === "advances" && rec.category !== "Advance Received" && rec.category !== "Payment from Advance") return false;
@@ -1498,7 +1503,12 @@ export default function FinanceTracker() {
       // Type Filter (only relevant if we are on dashboard tab)
       if (activeTab === "dashboard") {
         if (selectedType !== "all" && rec.type !== selectedType) return false;
-        if (selectedType === "income" && (rec.category === "Reimbursement" || rec.category === "Advance Received")) return false;
+        if (selectedType === "income") {
+          if (rec.category === "Reimbursement" || rec.category === "Advance Received") return false;
+          // In consolidated / overall scope, do not include personal inflows in overall income earned
+          const isPersonalInflow = recScope === "personal" || customCategories.personalIncome.includes(rec.category);
+          if (selectedScope === "all" && isPersonalInflow) return false;
+        }
       }
 
       // Category Filter
@@ -1555,7 +1565,7 @@ export default function FinanceTracker() {
     });
 
     return filtered;
-  }, [records, selectedYear, selectedMonth, selectedScope, selectedType, selectedCategory, searchQuery, activeTab, filterStartDate, filterEndDate, sortBy, sortOrder]);
+  }, [records, selectedYear, selectedMonth, selectedScope, selectedType, selectedCategory, searchQuery, activeTab, filterStartDate, filterEndDate, sortBy, sortOrder, customCategories]);
 
   const recentFiveRecords = useMemo(() => {
     return sortRecordsByDateDesc(records).slice(0, 5);
@@ -1883,6 +1893,12 @@ export default function FinanceTracker() {
       const yearMatch = selectedYear === "All" || recYear === selectedYear;
       if (yearMatch && monthMatch) {
         if (rec.type === "income") {
+          // Inflow under Personal expenses / personal scope should NOT be included in overall income earned
+          const isPersonalInflow = recScope === "personal" || customCategories.personalIncome.includes(rec.category);
+          if (selectedScope === "all" && isPersonalInflow) {
+            return;
+          }
+
           if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
             totalIncome += rec.amount;
             if (rec.status === "pending" || rec.status === "overdue") {
@@ -1905,7 +1921,7 @@ export default function FinanceTracker() {
       balance,
       pendingInvoicesVal
     };
-  }, [records, selectedYear, selectedMonth, selectedScope]);
+  }, [records, selectedYear, selectedMonth, selectedScope, customCategories]);
 
   // Category-wise spending for the selected year & month (to compare with budgets)
   const categorySpending = useMemo(() => {
@@ -1956,6 +1972,11 @@ export default function FinanceTracker() {
         const yearMatch = selectedYear === "All" || recYear === selectedYear;
         if (yearMatch && recMonth === monthStr) {
           if (rec.type === "income") {
+            const isPersonalInflow = recScope === "personal" || customCategories.personalIncome.includes(rec.category);
+            if (selectedScope === "all" && isPersonalInflow) {
+              return;
+            }
+
             if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
               income += rec.amount;
               if (rec.status === "pending" || rec.status === "overdue") {
@@ -1984,7 +2005,7 @@ export default function FinanceTracker() {
         TotalPending: pendingInvoices + pendingReimbursements
       };
     });
-  }, [records, selectedYear, selectedScope]);
+  }, [records, selectedYear, selectedScope, customCategories]);
 
 
   const journalOptions = useMemo(() => {
@@ -2012,6 +2033,9 @@ export default function FinanceTracker() {
     filteredRecords.forEach(rec => {
       if (rec.type === "transfer" || rec.category === "Internal Transfer") return;
       if (rec.type === "income") {
+        const isPersonalInflow = (rec.scope || "business") === "personal" || customCategories.personalIncome.includes(rec.category);
+        if (selectedScope === "all" && isPersonalInflow) return;
+
         if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
           incomeTotals[rec.category] = (incomeTotals[rec.category] || 0) + rec.amount;
         }
@@ -2026,7 +2050,7 @@ export default function FinanceTracker() {
       incomeChartData: Object.keys(incomeTotals).map(name => ({ name, value: incomeTotals[name] })),
       expenseChartData: Object.keys(expenseTotals).map(name => ({ name, value: expenseTotals[name] }))
     };
-  }, [filteredRecords]);
+  }, [filteredRecords, selectedScope, customCategories]);
 
   const executeExport = () => {
     let recordsToExport = records;
@@ -2035,7 +2059,7 @@ export default function FinanceTracker() {
     if (exportReportType === "expenses") {
       recordsToExport = recordsToExport.filter(r => r.type === "expense" && r.status === "paid");
     } else if (exportReportType === "income") {
-      recordsToExport = recordsToExport.filter(r => r.type === "income" && r.status === "paid");
+      recordsToExport = recordsToExport.filter(r => r.type === "income" && r.status === "paid" && (selectedScope !== "all" || ((r.scope || "business") !== "personal" && !customCategories.personalIncome.includes(r.category))));
     } else if (exportReportType === "payable") {
       recordsToExport = recordsToExport.filter(r => r.type === "expense" && r.status !== "paid");
     } else if (exportReportType === "receivables") {
@@ -2222,7 +2246,12 @@ export default function FinanceTracker() {
     let totalExpense = 0;
 
     recordsToExport.forEach(rec => {
-      if (rec.type === "income" && rec.category !== "Internal Transfer") totalIncome += Number(rec.amount);
+      const isPersonalInflow = (rec.scope || "business") === "personal" || customCategories.personalIncome.includes(rec.category);
+      if (rec.type === "income" && rec.category !== "Internal Transfer") {
+        if (selectedScope !== "all" || !isPersonalInflow) {
+          totalIncome += Number(rec.amount);
+        }
+      }
       if (rec.type === "expense" && rec.category !== "Internal Transfer") totalExpense += Number(rec.amount);
 
       const sourceAcc = paymentAccounts.find(a => a.id === rec.paymentAccountId)?.name || "-";
@@ -3369,7 +3398,7 @@ export default function FinanceTracker() {
                       ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : selectedYear !== "All" ? `${selectedYear} Office Revenue` : "All-Time Revenue")
                       : selectedScope === "personal"
                         ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : selectedYear !== "All" ? `${selectedYear} Private Inflow` : "All-Time Private Inflow")
-                        : (selectedMonth !== "All" ? `${selectedMonth} Income (Combined)` : selectedYear !== "All" ? `${selectedYear} Combined Income` : "All-Time Combined Income")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Overall Income Earned` : selectedYear !== "All" ? `${selectedYear} Overall Income Earned` : "All-Time Income Earned")
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
@@ -3394,7 +3423,7 @@ export default function FinanceTracker() {
                       ? "Office client billings"
                       : selectedScope === "personal"
                         ? "Salary, SIP, drawings"
-                        : "All combined inflows"
+                        : "Professional income earned (personal inflows excluded)"
                     }
                   </span>
                 </span>
@@ -3471,7 +3500,7 @@ export default function FinanceTracker() {
                       ? (selectedMonth !== "All" ? `${selectedMonth} Net Profit` : selectedYear !== "All" ? `${selectedYear} Profit Margin` : "All-Time Net Profit")
                       : selectedScope === "personal"
                         ? (selectedMonth !== "All" ? `${selectedMonth} Personal Savings` : selectedYear !== "All" ? `${selectedYear} Net Savings` : "All-Time Savings")
-                        : (selectedMonth !== "All" ? `${selectedMonth} Combined Surplus` : selectedYear !== "All" ? `${selectedYear} Combined Surplus` : "All-Time Surplus")
+                        : (selectedMonth !== "All" ? `${selectedMonth} Overall Net Surplus` : selectedYear !== "All" ? `${selectedYear} Overall Net Surplus` : "All-Time Net Surplus")
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
@@ -3498,7 +3527,7 @@ export default function FinanceTracker() {
                       ? "Net Operating Margin"
                       : selectedScope === "personal"
                         ? "Private savings surplus"
-                        : "Combined retained earnings"
+                        : "Operating revenue less total outlays"
                     }
                   </span>
                 </span>

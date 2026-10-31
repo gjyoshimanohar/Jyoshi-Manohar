@@ -44,7 +44,7 @@ export default function FinancialReports({ records, accounts }: FinancialReports
   }, [records, dateRange]);
 
   // Income Statement Calculations
-  const incomeRecords = filteredRecords.filter(r => r.type === "income" && r.status === "paid");
+  const incomeRecords = filteredRecords.filter(r => r.type === "income" && r.status === "paid" && r.scope !== "personal" && r.category !== "Internal Transfer");
   const expenseRecords = filteredRecords.filter(r => r.type === "expense" && r.status === "paid");
 
   const totalIncome = incomeRecords.reduce((sum, r) => sum + r.amount, 0);
