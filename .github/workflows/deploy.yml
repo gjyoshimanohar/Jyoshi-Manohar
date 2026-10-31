@@ -2,7 +2,7 @@ name: Deploy to Firebase Hosting
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "master"]
   workflow_dispatch:
 
 # Firebase Deployment workflow
@@ -10,34 +10,92 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
+
       - name: Build project
         run: npm run build
+
       - name: Deploy to Firebase Hosting
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.GCP_SA_KEY }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN || secrets.FIREBASE_CLI_TOKEN }}
         run: |
           set +e
-          echo "$FIREBASE_SERVICE_ACCOUNT" > gcp-key.json
+          echo "=== Step: Verifying build outputs ==="
+          if [ ! -d "dist" ] || [ ! -f "dist/index.html" ]; then
+            echo "::error::dist/index.html not found! Build failed or did not generate distribution files."
+            exit 1
+          fi
+
           date +%s > dist/deploy-timestamp.txt
-          echo "<!-- Build $(date) -->" >> dist/index.html
-          npx firebase-tools deploy --only hosting --project jyoshimanohar-com --non-interactive --force > deploy-log.txt 2>&1
+          echo "<!-- Build $(date -u) -->" >> dist/index.html
+
+          echo "=== Step: Checking Firebase Authentication ==="
+          DEPLOY_CMD="npx --yes firebase-tools deploy --only hosting --project jyoshimanohar-com --non-interactive --force"
+
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Found FIREBASE_SERVICE_ACCOUNT secret. Preparing credentials..."
+            
+            # Check if secret is plain JSON or Base64 encoded
+            if echo "$FIREBASE_SERVICE_ACCOUNT" | grep -q '^[[:space:]]*{'; then
+              printf "%s" "$FIREBASE_SERVICE_ACCOUNT" > "${{ github.workspace }}/gcp-key.json"
+            else
+              echo "$FIREBASE_SERVICE_ACCOUNT" | base64 -d > "${{ github.workspace }}/gcp-key.json" 2>/dev/null || printf "%s" "$FIREBASE_SERVICE_ACCOUNT" > "${{ github.workspace }}/gcp-key.json"
+            fi
+
+            # Validate JSON
+            if node -e 'try { const k = JSON.parse(require("fs").readFileSync("${{ github.workspace }}/gcp-key.json", "utf8")); if (k.project_id || k.client_email) process.exit(0); else process.exit(1); } catch (e) { process.exit(1); }'; then
+              echo "✓ Valid Google Service Account JSON detected."
+              export GOOGLE_APPLICATION_CREDENTIALS="${{ github.workspace }}/gcp-key.json"
+            else
+              echo "::warning::FIREBASE_SERVICE_ACCOUNT was provided but could not be parsed as valid Service Account JSON."
+              rm -f "${{ github.workspace }}/gcp-key.json"
+            fi
+          fi
+
+          # Fallback to FIREBASE_TOKEN if GOOGLE_APPLICATION_CREDENTIALS wasn't set
+          if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+            if [ -n "$FIREBASE_TOKEN" ]; then
+              echo "Using FIREBASE_TOKEN for authentication."
+              DEPLOY_CMD="$DEPLOY_CMD --token $FIREBASE_TOKEN"
+            else
+              echo "::error::Authentication failed: Neither a valid 'FIREBASE_SERVICE_ACCOUNT' nor 'FIREBASE_TOKEN' was found in GitHub Secrets."
+              echo ""
+              echo "To fix this:"
+              echo "1. In your GitHub repository, navigate to: Settings -> Secrets and variables -> Actions"
+              echo "2. Add a Repository secret named 'FIREBASE_SERVICE_ACCOUNT' (or 'FIREBASE_SERVICE_ACCOUNT_JYOSHIMANOHAR_COM')"
+              echo "3. Paste the complete service account JSON key for project 'jyoshimanohar-com'."
+              echo "   (Alternatively, add 'FIREBASE_TOKEN' generated via 'firebase login:ci')"
+              exit 1
+            fi
+          fi
+
+          echo "=== Step: Executing Firebase Deploy ==="
+          $DEPLOY_CMD > deploy-log.txt 2>&1
           EXIT_CODE=$?
           cat deploy-log.txt
+
+          # Clean up credentials file immediately
+          rm -f "${{ github.workspace }}/gcp-key.json"
+
           if [ $EXIT_CODE -ne 0 ]; then
             if grep -q "is the current active version" deploy-log.txt; then
               echo "Deploy skipped (already active version)."
               exit 0
             else
-              echo "Deploy failed."
+              echo "::error::Firebase deployment failed with exit code $EXIT_CODE."
               exit $EXIT_CODE
             fi
           fi
+
+          echo "✓ Successfully deployed to Firebase Hosting!"
