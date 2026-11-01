@@ -135,6 +135,28 @@ const COLORS = [
   "#8b5cf6", // Purple
 ];
 
+/**
+ * Checks if a transaction category represents an unconverted client advance or customer deposit (liability).
+ * If the category or transaction is explicitly converted to earned revenue, this returns false.
+ */
+export const isAdvanceCategory = (category?: string): boolean => {
+  if (!category) return false;
+  const c = category.trim().toLowerCase();
+  // If explicitly converted to income, do not classify as unearned advance liability
+  if (c.includes("converted") || c.includes("income from advance")) return false;
+  return (
+    c === "advance received" ||
+    c === "advances received" ||
+    c === "client advance" ||
+    c === "client advances" ||
+    c === "advance" ||
+    c === "advances" ||
+    c === "client deposit" ||
+    c === "client deposits" ||
+    (c.includes("advance") && !c.includes("payment from advance"))
+  );
+};
+
 export const sortRecordsByDateDesc = (recordsList: FinanceRecord[]): FinanceRecord[] => {
   return [...recordsList].sort((a, b) => {
     const dateComp = (b.date || "").localeCompare(a.date || "");
@@ -1464,18 +1486,20 @@ export default function FinanceTracker() {
       // Tab pre-filters
       if (activeTab === "incomes") {
         if (rec.type !== "income" || rec.category === "Reimbursement") return false;
+        // Exclude unearned advance deposits from client
+        if (isAdvanceCategory(rec.category)) return false;
         // Do not include personal inflows in overall income earned
         const isPersonalInflow = (rec.scope || "business") === "personal" || customCategories.personalIncome.includes(rec.category);
         if (selectedScope === "all" && isPersonalInflow) return false;
       }
       if (activeTab === "expenses" && rec.type !== "expense") return false;
       if (activeTab === "transfers" && rec.type !== "transfer") return false;
-      if (activeTab === "advances" && rec.category !== "Advance Received" && rec.category !== "Payment from Advance") return false;
-            if (activeTab === "payables") {
+      if (activeTab === "advances" && !isAdvanceCategory(rec.category) && rec.category !== "Payment from Advance") return false;
+      if (activeTab === "payables") {
         if (rec.type !== "expense" || (rec.status !== "pending" && rec.status !== "overdue")) return false;
       }
       if (activeTab === "receivables") {
-        const isPendingInvoice = rec.type === "income" && rec.category !== "Reimbursement" && rec.category !== "Advance Received" && (rec.status === "pending" || rec.status === "overdue");
+        const isPendingInvoice = rec.type === "income" && rec.category !== "Reimbursement" && !isAdvanceCategory(rec.category) && (rec.status === "pending" || rec.status === "overdue");
         const isPendingReimbursement = rec.type === "expense" && rec.isReceivableFromClient;
         if (!isPendingInvoice && !isPendingReimbursement) return false;
       }
@@ -1504,7 +1528,7 @@ export default function FinanceTracker() {
       if (activeTab === "dashboard") {
         if (selectedType !== "all" && rec.type !== selectedType) return false;
         if (selectedType === "income") {
-          if (rec.category === "Reimbursement" || rec.category === "Advance Received") return false;
+          if (rec.category === "Reimbursement" || isAdvanceCategory(rec.category)) return false;
           // In consolidated / overall scope, do not include personal inflows in overall income earned
           const isPersonalInflow = recScope === "personal" || customCategories.personalIncome.includes(rec.category);
           if (selectedScope === "all" && isPersonalInflow) return false;
@@ -1870,6 +1894,8 @@ export default function FinanceTracker() {
     let totalIncome = 0;
     let totalExpense = 0;
     let pendingInvoicesVal = 0;
+    let convertedAdvancesIncome = 0;
+    let unearnedAdvancesExcluded = 0;
 
     records.forEach(rec => {
       // Scope filter matching
@@ -1899,10 +1925,23 @@ export default function FinanceTracker() {
             return;
           }
 
-          if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
+          // Exclude unearned client advance deposits (they are liabilities until converted)
+          if (isAdvanceCategory(rec.category)) {
+            unearnedAdvancesExcluded += rec.amount;
+            return;
+          }
+
+          if (rec.category !== "Reimbursement" && rec.category !== "Internal Transfer") {
             totalIncome += rec.amount;
             if (rec.status === "pending" || rec.status === "overdue") {
               pendingInvoicesVal += rec.amount;
+            }
+
+            // Track if this earned revenue was converted from a client advance
+            const descLower = (rec.description || "").toLowerCase();
+            const catLower = (rec.category || "").toLowerCase();
+            if (descLower.includes("converted from advance") || catLower.includes("converted") || descLower.includes("from advance")) {
+              convertedAdvancesIncome += rec.amount;
             }
           }
         } else if (rec.type === "expense") {
@@ -1919,7 +1958,9 @@ export default function FinanceTracker() {
       totalIncome,
       totalExpense,
       balance,
-      pendingInvoicesVal
+      pendingInvoicesVal,
+      convertedAdvancesIncome,
+      unearnedAdvancesExcluded
     };
   }, [records, selectedYear, selectedMonth, selectedScope, customCategories]);
 
@@ -1977,7 +2018,7 @@ export default function FinanceTracker() {
               return;
             }
 
-            if (rec.category !== "Reimbursement" && rec.category !== "Advance Received" && rec.category !== "Internal Transfer") {
+            if (rec.category !== "Reimbursement" && !isAdvanceCategory(rec.category) && rec.category !== "Internal Transfer") {
               income += rec.amount;
               if (rec.status === "pending" || rec.status === "overdue") {
                 pendingInvoices += rec.amount;
@@ -2036,7 +2077,7 @@ export default function FinanceTracker() {
         const isPersonalInflow = (rec.scope || "business") === "personal" || customCategories.personalIncome.includes(rec.category);
         if (selectedScope === "all" && isPersonalInflow) return;
 
-        if (rec.category !== "Reimbursement" && rec.category !== "Advance Received") {
+        if (rec.category !== "Reimbursement" && !isAdvanceCategory(rec.category)) {
           incomeTotals[rec.category] = (incomeTotals[rec.category] || 0) + rec.amount;
         }
       } else if (rec.type === "expense") {
@@ -2059,7 +2100,7 @@ export default function FinanceTracker() {
     if (exportReportType === "expenses") {
       recordsToExport = recordsToExport.filter(r => r.type === "expense" && r.status === "paid");
     } else if (exportReportType === "income") {
-      recordsToExport = recordsToExport.filter(r => r.type === "income" && r.status === "paid" && (selectedScope !== "all" || ((r.scope || "business") !== "personal" && !customCategories.personalIncome.includes(r.category))));
+      recordsToExport = recordsToExport.filter(r => r.type === "income" && r.status === "paid" && !isAdvanceCategory(r.category) && (selectedScope !== "all" || ((r.scope || "business") !== "personal" && !customCategories.personalIncome.includes(r.category))));
     } else if (exportReportType === "payable") {
       recordsToExport = recordsToExport.filter(r => r.type === "expense" && r.status !== "paid");
     } else if (exportReportType === "receivables") {
@@ -2247,7 +2288,7 @@ export default function FinanceTracker() {
 
     recordsToExport.forEach(rec => {
       const isPersonalInflow = (rec.scope || "business") === "personal" || customCategories.personalIncome.includes(rec.category);
-      if (rec.type === "income" && rec.category !== "Internal Transfer") {
+      if (rec.type === "income" && rec.category !== "Internal Transfer" && !isAdvanceCategory(rec.category)) {
         if (selectedScope !== "all" || !isPersonalInflow) {
           totalIncome += Number(rec.amount);
         }
@@ -3032,14 +3073,14 @@ export default function FinanceTracker() {
         {/* Side Navigation Bar */}
         <aside 
           className={`
-            fixed top-16 bottom-0 left-0 z-50 bg-white border-r border-slate-200 shadow-2xl transition-all duration-300 ease-in-out flex flex-col gap-4 overflow-y-auto md:sticky md:top-6 md:border md:rounded-2xl md:shadow-xs md:z-auto md:bottom-auto shrink-0
+            fixed top-16 bottom-0 left-0 z-50 bg-white border-r border-slate-200 shadow-2xl transition-all duration-300 ease-in-out flex flex-col md:sticky md:top-6 md:border md:rounded-2xl md:shadow-xs md:z-auto shrink-0 md:max-h-[calc(100vh-2rem)]
             ${isSidebarOpen ? "translate-x-0 w-72 md:w-64 lg:w-60 p-4" : "-translate-x-full md:translate-x-0 w-72 md:w-[80px] lg:w-[84px] p-4"}
           `}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <div className="border-b border-slate-100 flex items-center justify-between transition-all duration-300 pb-3 w-full">
+          <div className="border-b border-slate-100 flex items-center justify-between transition-all duration-300 pb-3 mb-2 w-full shrink-0">
             <span className={`text-xs font-bold uppercase tracking-wider text-slate-800 ${!isSidebarOpen ? "md:hidden" : "block"}`}>
               Menu & Navigation
             </span>
@@ -3052,7 +3093,7 @@ export default function FinanceTracker() {
             </button>
           </div>
 
-          <div className="flex flex-col gap-1.5 overflow-y-auto scrollbar-none pb-4 md:pb-0">
+          <div className="flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto finance-sidebar-scroll pr-1 pb-4 md:pb-2">
             {[
               { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, desc: "Overview & Analytics" },
               { 
@@ -3398,7 +3439,7 @@ export default function FinanceTracker() {
                       ? (selectedMonth !== "All" ? `${selectedMonth} Office Revenue` : selectedYear !== "All" ? `${selectedYear} Office Revenue` : "All-Time Revenue")
                       : selectedScope === "personal"
                         ? (selectedMonth !== "All" ? `${selectedMonth} Private Inflow` : selectedYear !== "All" ? `${selectedYear} Private Inflow` : "All-Time Private Inflow")
-                        : (selectedMonth !== "All" ? `${selectedMonth} Overall Income Earned` : selectedYear !== "All" ? `${selectedYear} Overall Income Earned` : "All-Time Income Earned")
+                        : (selectedMonth !== "All" ? `${selectedMonth} True Income Earned` : selectedYear !== "All" ? `${selectedYear} True Income Earned` : "All-Time True Income Earned")
                     }
                   </span>
                   <div className="flex items-baseline gap-2 mt-1.5">
@@ -3406,7 +3447,7 @@ export default function FinanceTracker() {
                       ₹{metrics.totalIncome.toLocaleString("en-IN")}
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)] flex items-center gap-0.5">
-                      +14.2% ↑
+                      True Value
                     </span>
                   </div>
                 </div>
@@ -3420,15 +3461,26 @@ export default function FinanceTracker() {
                   <TrendingUp className="w-3.5 h-3.5" />
                   <span>
                     {selectedScope === "business"
-                      ? "Office client billings"
+                      ? "Earned billings (unearned client advances excluded)"
                       : selectedScope === "personal"
                         ? "Salary, SIP, drawings"
-                        : "Professional income earned (personal inflows excluded)"
+                        : "True earned income (unconverted client advances excluded)"
                     }
                   </span>
                 </span>
                 <MiniSparklineSVG data={[12, 18, 15, 22, 28, 24, 32]} color="#10b981" />
               </div>
+              {metrics.convertedAdvancesIncome > 0 && (
+                <div className="mt-2.5 pt-2 border-t border-dashed border-emerald-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-emerald-800 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Converted from advances:</span>
+                  </span>
+                  <span className="font-bold text-emerald-900 bg-emerald-100/90 px-2 py-0.5 rounded border border-emerald-300/60">
+                    +₹{metrics.convertedAdvancesIncome.toLocaleString("en-IN")}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -5036,6 +5088,7 @@ export default function FinanceTracker() {
                         <DayPicker
                           mode="range"
                           min={1}
+                          defaultMonth={exportStartDate ? parseISO(exportStartDate) : new Date()}
                           selected={{
                             from: exportStartDate ? parseISO(exportStartDate) : undefined,
                             to: exportEndDate ? parseISO(exportEndDate) : undefined,

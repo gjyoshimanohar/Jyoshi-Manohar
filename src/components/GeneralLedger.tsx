@@ -9,6 +9,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { financeService } from '../services/financeService';
 import toast from 'react-hot-toast';
+import { isAdvanceCategory } from './FinanceTracker';
 
 interface Props {
   allRecords: FinanceRecord[];
@@ -213,35 +214,69 @@ export default function GeneralLedger({ allRecords, accounts, defaultSearchTerm 
           }
         }
         
-        const revCategory = rec.category || 'General Income';
-        const revAcc = getAccount(`rev-${revCategory}`, revCategory, 'Revenue');
-        revAcc.entries.push({
-          id: `${rec.id}-cr`,
-          date: rec.date || '',
-          description: rec.description || rec.category || 'Income Inflow',
-          reference: (rec.id || '').slice(-6) || 'INC',
-          debit: 0,
-          credit: amt,
-          balance: 0,
-          record: rec
-        });
-        revAcc.totalCredit += amt;
+        const isAdvance = isAdvanceCategory(rec.category);
+        if (isAdvance) {
+          // Client advance is an unearned deposit (Liability), not earned revenue
+          const advAcc = getAccount('liab-client-advances', 'Client Advances (Customer Deposits)', 'Liability');
+          advAcc.entries.push({
+            id: `${rec.id}-cr`,
+            date: rec.date || '',
+            description: rec.description || rec.category || 'Client Advance Received',
+            reference: (rec.id || '').slice(-6) || 'ADV',
+            debit: 0,
+            credit: amt,
+            balance: 0,
+            record: rec
+          });
+          advAcc.totalCredit += amt;
+        } else {
+          const revCategory = rec.category || 'General Income';
+          const revAcc = getAccount(`rev-${revCategory}`, revCategory, 'Revenue');
+          revAcc.entries.push({
+            id: `${rec.id}-cr`,
+            date: rec.date || '',
+            description: rec.description || rec.category || 'Income Inflow',
+            reference: (rec.id || '').slice(-6) || 'INC',
+            debit: 0,
+            credit: amt,
+            balance: 0,
+            record: rec
+          });
+          revAcc.totalCredit += amt;
+        }
       } 
       else if (rec.type === 'expense') {
-        // Debit Expense, Credit Asset/Liability
-        const expCategory = rec.category || 'General Expense';
-        const expAcc = getAccount(`exp-${expCategory}`, expCategory, 'Expense');
-        expAcc.entries.push({
-          id: `${rec.id}-dr`,
-          date: rec.date || '',
-          description: rec.description || rec.category || 'Expense Outflow',
-          reference: (rec.id || '').slice(-6) || 'EXP',
-          debit: amt,
-          credit: 0,
-          balance: 0,
-          record: rec
-        });
-        expAcc.totalDebit += amt;
+        const isAdvancePayment = rec.category === 'Payment from Advance' || (rec.description && rec.description.toLowerCase().includes('converted from advance'));
+        if (isAdvancePayment) {
+          // Utilization of customer advance: debits liability
+          const advAcc = getAccount('liab-client-advances', 'Client Advances (Customer Deposits)', 'Liability');
+          advAcc.entries.push({
+            id: `${rec.id}-dr`,
+            date: rec.date || '',
+            description: rec.description || rec.category || 'Payment from Advance / Utilization',
+            reference: (rec.id || '').slice(-6) || 'ADV-EXP',
+            debit: amt,
+            credit: 0,
+            balance: 0,
+            record: rec
+          });
+          advAcc.totalDebit += amt;
+        } else {
+          // Debit Expense, Credit Asset/Liability
+          const expCategory = rec.category || 'General Expense';
+          const expAcc = getAccount(`exp-${expCategory}`, expCategory, 'Expense');
+          expAcc.entries.push({
+            id: `${rec.id}-dr`,
+            date: rec.date || '',
+            description: rec.description || rec.category || 'Expense Outflow',
+            reference: (rec.id || '').slice(-6) || 'EXP',
+            debit: amt,
+            credit: 0,
+            balance: 0,
+            record: rec
+          });
+          expAcc.totalDebit += amt;
+        }
 
         if (rec.paymentAccountId) {
           const acc = findAccount(rec.paymentAccountId);

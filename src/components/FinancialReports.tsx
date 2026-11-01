@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from "react";
 import { format, isAfter, isBefore, parseISO, startOfYear, endOfMonth } from "date-fns";
 import { Download, Calendar as CalendarIcon, Printer, FileText, ChevronRight, ChevronDown, IndianRupee, TrendingUp, TrendingDown, BookOpen, CheckCircle2 } from "lucide-react";
 import { FinanceRecord, PaymentAccount } from "../types";
-import { CategoryBadge } from "./FinanceTracker";
+import { CategoryBadge, isAdvanceCategory } from "./FinanceTracker";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { DayPicker, DateRange } from "react-day-picker";
@@ -43,8 +43,8 @@ export default function FinancialReports({ records, accounts }: FinancialReports
     });
   }, [records, dateRange]);
 
-  // Income Statement Calculations
-  const incomeRecords = filteredRecords.filter(r => r.type === "income" && r.status === "paid" && r.scope !== "personal" && r.category !== "Internal Transfer");
+  // Income Statement Calculations: True income earned excluding unearned client advances
+  const incomeRecords = filteredRecords.filter(r => r.type === "income" && r.status === "paid" && r.scope !== "personal" && r.category !== "Internal Transfer" && !isAdvanceCategory(r.category));
   const expenseRecords = filteredRecords.filter(r => r.type === "expense" && r.status === "paid");
 
   const totalIncome = incomeRecords.reduce((sum, r) => sum + r.amount, 0);
@@ -115,16 +115,25 @@ export default function FinancialReports({ records, accounts }: FinancialReports
   }));
   const absoluteTotalLiabilities = resolvedLiabilityBalances.reduce((sum, a) => sum + a.displayBalance, 0);
 
-  // Accounts Receivable (Income not paid yet up to date)
-  const arRecords = bsRecords.filter(r => r.type === "income" && r.status !== "paid");
+  // Accounts Receivable (Income not paid yet up to date, excluding client advances)
+  const arRecords = bsRecords.filter(r => r.type === "income" && r.status !== "paid" && !isAdvanceCategory(r.category));
   const totalAR = arRecords.reduce((sum, r) => sum + r.amount, 0);
 
   // Accounts Payable (Expenses not paid yet up to date)
   const apRecords = bsRecords.filter(r => r.type === "expense" && r.status !== "paid");
   const totalAP = apRecords.reduce((sum, r) => sum + r.amount, 0);
 
+  // Unearned Client Advances (Customer deposits held as current liability until earned/converted)
+  const totalAdvancesReceived = bsRecords
+    .filter(r => r.type === "income" && (r.status || "").toLowerCase() === "paid" && isAdvanceCategory(r.category))
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const totalAdvancesUtilized = bsRecords
+    .filter(r => r.type === "expense" && (r.status || "").toLowerCase() === "paid" && (r.category === "Payment from Advance" || (r.description && r.description.toLowerCase().includes("converted from advance"))))
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const unearnedClientAdvances = Math.max(0, totalAdvancesReceived - totalAdvancesUtilized);
+
   const finalTotalAssets = totalAssets + totalAR;
-  const finalTotalLiabilities = absoluteTotalLiabilities + totalAP;
+  const finalTotalLiabilities = absoluteTotalLiabilities + totalAP + unearnedClientAdvances;
   const equity = finalTotalAssets - finalTotalLiabilities;
 
   const handleExportPDF = async () => {
@@ -189,6 +198,7 @@ export default function FinancialReports({ records, accounts }: FinancialReports
               <div className="absolute top-full mt-2 left-0 bg-white rounded-xl shadow-xl border border-slate-100 p-4 animate-in fade-in slide-in-from-top-2">
                 <DayPicker
                   mode="range"
+                  defaultMonth={dateRange?.from || new Date()}
                   selected={dateRange}
                   onSelect={(range) => {
                     setDateRange(range);
@@ -392,11 +402,20 @@ export default function FinancialReports({ records, accounts }: FinancialReports
                     <div className="py-2 text-slate-400 italic text-sm">No credit cards or loans found.</div>
                   )}
 
-                  <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2">Accounts Payable</div>
+                  <div className="text-sm font-bold text-slate-400 uppercase tracking-wider mt-6 mb-2">Accounts Payable & Client Deposits</div>
                   <div className="flex justify-between items-center py-2 border-b border-slate-100/50 hover:bg-slate-50/50 transition-colors px-2 rounded-lg">
                     <span className="text-slate-600 font-medium">Unpaid Bills & Payables</span>
                     <span className="text-slate-900">{formatCurrency(totalAP)}</span>
                   </div>
+                  {unearnedClientAdvances > 0 && (
+                    <div className="flex justify-between items-center py-2 border-b border-slate-100/50 hover:bg-slate-50/50 transition-colors px-2 rounded-lg">
+                      <div>
+                        <span className="text-slate-600 font-medium">Client Advances (Unearned Deposits)</span>
+                        <div className="text-xs text-amber-600">Customer advance balance held as current liability</div>
+                      </div>
+                      <span className="text-slate-900 font-semibold">{formatCurrency(unearnedClientAdvances)}</span>
+                    </div>
+                  )}
 
                   <div className="flex justify-between items-center pt-4 pb-2 px-2 font-bold bg-rose-50/50 rounded-lg mt-4">
                     <span className="text-rose-900">Total Liabilities</span>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DayPicker } from 'react-day-picker';
-import { format, parse, isValid } from 'date-fns';
-import { Calendar as CalendarIcon, X, Check } from 'lucide-react';
+import { format, parse, isValid, addMonths, subMonths } from 'date-fns';
+import { Calendar as CalendarIcon, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CustomDatePickerProps {
   value?: string; // YYYY-MM-DD
@@ -36,6 +36,23 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
     return isValid(parsed) ? parsed : undefined;
   }, [value]);
 
+  // Current visible month in the calendar (enables full forward/backward navigation)
+  const [currentMonth, setCurrentMonth] = useState<Date>(() => selectedDate || new Date());
+
+  // Sync currentMonth when selectedDate changes externally
+  useEffect(() => {
+    if (selectedDate) {
+      setCurrentMonth(selectedDate);
+    }
+  }, [selectedDate]);
+
+  // When opening popover, center on selected date or current month
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentMonth(selectedDate || new Date());
+    }
+  }, [isOpen]);
+
   // Handle click outside to close popover
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -62,7 +79,9 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   };
 
   const handleTodayClick = () => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    setCurrentMonth(today);
     onChange(todayStr);
     setIsOpen(false);
   };
@@ -70,6 +89,16 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
   const handleClearClick = () => {
     onChange('');
     setIsOpen(false);
+  };
+
+  const handlePrevMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentMonth((prev) => subMonths(prev, 1));
+  };
+
+  const handleNextMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentMonth((prev) => addMonths(prev, 1));
   };
 
   const displayString = selectedDate ? format(selectedDate, 'dd MMM yyyy') : '';
@@ -112,8 +141,8 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
       </div>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1.5 z-[9999] w-[245px] sm:w-[250px] bg-white rounded-xl shadow-xl border border-amber-200/80 p-2.5 animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-0.5">
+        <div className="absolute top-full left-0 mt-1.5 z-[9999] w-[285px] bg-white rounded-xl shadow-2xl border border-amber-200/80 p-3 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
             <span className="text-[11px] font-bold text-amber-900 tracking-wide uppercase flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse"></span>
               Select Date
@@ -138,18 +167,42 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             </div>
           </div>
 
+          {/* Dedicated Previous / Next Month Navigator */}
+          <div className="flex items-center justify-between px-2 py-1 mb-2 bg-slate-50 rounded-lg border border-slate-200/60">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-1 text-slate-600 hover:text-amber-700 hover:bg-white rounded-md transition-all border border-transparent hover:border-slate-200 cursor-pointer shadow-2xs"
+              title="Previous Month"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-bold text-slate-800 tracking-tight">
+              {format(currentMonth, 'MMMM yyyy')}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-1 text-slate-600 hover:text-amber-700 hover:bg-white rounded-md transition-all border border-transparent hover:border-slate-200 cursor-pointer shadow-2xs"
+              title="Next Month"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
           <div className="rdp-amber-theme flex justify-center">
             <DayPicker
               mode="single"
               selected={selectedDate}
               onSelect={handleDaySelect}
-              month={selectedDate || new Date()}
+              month={currentMonth}
+              onMonthChange={setCurrentMonth}
               className="m-0 border-0"
             />
           </div>
 
-          <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-[10px] text-center text-amber-700 font-semibold flex items-center justify-center gap-1">
-            <span>✨ Golden date text highlight</span>
+          <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-center text-amber-700 font-semibold flex items-center justify-center gap-1">
+            <span>✨ Golden date highlight</span>
           </div>
         </div>
       )}

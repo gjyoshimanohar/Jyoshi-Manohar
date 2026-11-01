@@ -135,7 +135,7 @@
 
 .rdp-nav {
   display: flex !important;
-  gap: 2px !important;
+  gap: 4px !important;
   align-items: center !important;
 }
 
@@ -152,20 +152,33 @@
   font-family: inherit;
 }
 
-.rdp-nav .rdp-button {
-  width: 22px !important;
-  height: 22px !important;
-  display: flex !important;
+.rdp-nav .rdp-button,
+.rdp-button_previous,
+.rdp-button_next {
+  width: 24px !important;
+  height: 24px !important;
+  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   border-radius: 6px !important;
   color: #64748b !important;
+  border: 1px solid transparent !important;
   transition: all 150ms !important;
+  cursor: pointer !important;
 }
 
-.rdp-nav .rdp-button:hover {
+.rdp-nav .rdp-button:hover,
+.rdp-button_previous:hover,
+.rdp-button_next:hover {
   background-color: #fbf9f4 !important;
   color: #AD8D3E !important;
+  border-color: #e2e8f0 !important;
+}
+
+.rdp-chevron {
+  width: 14px !important;
+  height: 14px !important;
+  fill: currentColor !important;
 }
 
 .rdp-month_grid {
@@ -357,3 +370,29 @@ html { scroll-behavior: smooth; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
 }
+
+/* Dedicated scroller for Finance App side menu */
+.finance-sidebar-scroll {
+    overflow-y: auto !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: #cbd5e1 #f8fafc !important;
+    -ms-overflow-style: auto !important;
+}
+.finance-sidebar-scroll::-webkit-scrollbar {
+    display: block !important;
+    width: 6px !important;
+}
+.finance-sidebar-scroll::-webkit-scrollbar-track {
+    background: #f8fafc !important;
+    border-radius: 8px !important;
+    margin: 4px 0 !important;
+}
+.finance-sidebar-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1 !important;
+    border-radius: 8px !important;
+    border: 1px solid #f1f5f9 !important;
+}
+.finance-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: #AD8D3E !important;
+}
+

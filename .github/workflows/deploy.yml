@@ -41,7 +41,7 @@ jobs:
           echo "<!-- Build $(date -u) -->" >> dist/index.html
 
           echo "=== Step: Checking Firebase Authentication ==="
-          DEPLOY_CMD="npx --yes firebase-tools deploy --only hosting --project jyoshimanohar-com --non-interactive --force"
+          DEPLOY_CMD="npx --yes firebase-tools@13.31.2 deploy --only hosting --project jyoshimanohar-com --non-interactive --force"
 
           if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "Found FIREBASE_SERVICE_ACCOUNT secret. Preparing credentials..."
@@ -53,9 +53,8 @@ jobs:
               echo "$FIREBASE_SERVICE_ACCOUNT" | base64 -d > "${{ github.workspace }}/gcp-key.json" 2>/dev/null || printf "%s" "$FIREBASE_SERVICE_ACCOUNT" > "${{ github.workspace }}/gcp-key.json"
             fi
 
-            # Validate JSON
-            if node -e 'try { const k = JSON.parse(require("fs").readFileSync("${{ github.workspace }}/gcp-key.json", "utf8")); if (k.project_id || k.client_email) process.exit(0); else process.exit(1); } catch (e) { process.exit(1); }'; then
-              echo "✓ Valid Google Service Account JSON detected."
+            # Validate JSON and print service account email
+            if node -e 'try { const k = JSON.parse(require("fs").readFileSync("${{ github.workspace }}/gcp-key.json", "utf8")); if (k.project_id || k.client_email) { console.log("✓ Authenticated as Service Account:", k.client_email || "Unknown"); process.exit(0); } else process.exit(1); } catch (e) { process.exit(1); }'; then
               export GOOGLE_APPLICATION_CREDENTIALS="${{ github.workspace }}/gcp-key.json"
             else
               echo "::warning::FIREBASE_SERVICE_ACCOUNT was provided but could not be parsed as valid Service Account JSON."
@@ -92,10 +91,27 @@ jobs:
             if grep -q "is the current active version" deploy-log.txt; then
               echo "Deploy skipped (already active version)."
               exit 0
-            else
-              echo "::error::Firebase deployment failed with exit code $EXIT_CODE."
-              exit $EXIT_CODE
             fi
+
+            if grep -q "firebasehosting.googleapis.com" deploy-log.txt && grep -q "403" deploy-log.txt; then
+              echo ""
+              echo "=========================================================================================="
+              echo "::error::GCP IAM PERMISSION ERROR (HTTP 403): Service account lacks permission for Firebase Hosting API."
+              echo "=========================================================================================="
+              echo "To fix this issue:"
+              echo "1. Enable Firebase Hosting API in Google Cloud Console:"
+              echo "   https://console.cloud.google.com/apis/library/firebasehosting.googleapis.com?project=jyoshimanohar-com"
+              echo ""
+              echo "2. Assign IAM Roles to the Service Account in Google Cloud IAM:"
+              echo "   https://console.cloud.google.com/iam-admin/iam?project=jyoshimanohar-com"
+              echo "   Add these roles to the service account:"
+              echo "   - 'Firebase Hosting Admin' (roles/firebasehosting.admin)"
+              echo "   - 'Service Usage Consumer' (roles/serviceusage.serviceUsageConsumer)"
+              echo "=========================================================================================="
+            fi
+
+            echo "::error::Firebase deployment failed with exit code $EXIT_CODE."
+            exit $EXIT_CODE
           fi
 
           echo "✓ Successfully deployed to Firebase Hosting!"
